@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from services.google_oauth_service import GoogleOAuthHandler
 from services.token_manager import TokenManager
 from services.database_service import DatabaseService
@@ -21,7 +21,7 @@ async def google_callback(
     db_service: DatabaseService = Depends(get_database_service)
 ):
     try:
-        # # Get credentials
+        # Get credentials
         credentials = oauth_handler.handle_callback(code)
         
         # Extract user info from ID token
@@ -37,14 +37,26 @@ async def google_callback(
         if not user:
             user = await db_service.create_user(name=name, email=email)
         
-        # # Store tokens
+        # Store tokens
         await token_manager.store_token(
             user_id=user['id'],
             access_token=credentials.token,
             refresh_token=credentials.refresh_token
         )
         
-        return {"message": "Login successful", "user": user}
+        return HTMLResponse(
+            """
+            <html>
+              <body>
+                <h2>Login Successful!</h2>
+                <p>You can close this window and return to the app.</p>
+                <script>
+                  setTimeout(() => window.close(), 1500);
+                </script>
+              </body>
+            </html>
+            """
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
