@@ -2,12 +2,13 @@ from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
 
-class Contact:
+class Contact(BaseModel):
     id: UUID
     user_id: UUID  # Owner of this contact
-    name: str
-    phone_number: str
-    relationship_score: float  # For "best friend" prioritization
-    last_interaction: datetime
+    name: str  # User-defined name (can be nicknames)
+    phone_number: str  # For SMS outreach
+    is_registered_user: bool  # Whether this contact has registered on the platform
+    relationship_score: float  # For weighting responses (e.g. “best friends”)
+    last_interaction: datetime  # For prioritizing recent contacts
     created_at: datetime
     updated_at: datetime
