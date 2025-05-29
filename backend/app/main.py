@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import auth
+from api.routes.events import router as events_router
+from api.routes.participants import router as participants_router
 
 app = FastAPI(
     title="W2M But Better",
@@ -17,6 +19,8 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(events_router, prefix="/events", tags=["events"])
+app.include_router(participants_router, prefix="/participants", tags=["participants"])
 
 @app.get("/")
 def read_root():
