@@ -127,3 +127,9 @@ class DatabaseService:
         if not response.data:
             return None
         return self.from_iso_strings(response.data[0])
+    
+    async def get_availiability(self, event_id: str, start_date: str, end_date: str) -> dict:
+        response = self.client.table("availability").select("*").eq("event_id", event_id).eq("start_date", start_date).eq("end_date", end_date).execute()
+        if not response.data:
+            return None
+        return self.from_iso_strings(response.data[0])
