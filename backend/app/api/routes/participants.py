@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from app.models.event_participant import EventParticipant
+from models.event_participant import EventParticipant
 from services.database_service import DatabaseService
 from dependencies import get_database_service
 

@@ -1,50 +1,44 @@
-import { TouchableOpacity, Text, StyleSheet, Alert } from "react-native";
-import * as WebBrowser from "expo-web-browser";
-import React, { useState } from "react";
-
-const BACKEND_URL = "http://localhost:8000";
+import { TouchableOpacity, Text, StyleSheet, View } from "react-native";
+import React from "react";
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginButton() {
-    const [userEmail, setUserEmail] = useState<string | null>(null);
+    const { user, handleGoogleLogin, loading } = useAuth();
 
-    async function handleGoogleLogin() {
-        try {
-            const result = await WebBrowser.openAuthSessionAsync(
-                `${BACKEND_URL}/auth/google/login`,
-                `${BACKEND_URL}/auth/google/callback`
-            );
-
-            if (result.type === "success") {
-                // Parse the URL to get the user info
-                const url = new URL(result.url);
-                const email = url.searchParams.get("email");
-                if (email) {
-                    setUserEmail(email);
-                    Alert.alert("Success", "Logged in successfully!");
-                }
-            }
-        } catch (error) {
-            Alert.alert("Error", "Failed to complete login");
-            console.error(error);
-        }
-    }
-
-    if (userEmail) {
+    if (loading) {
         return (
-            <TouchableOpacity style={styles.button}>
-                <Text style={styles.buttonText}>Logged in as: {userEmail}</Text>
-            </TouchableOpacity>
+            <View style={styles.container}>
+                <Text style={styles.buttonText}>Loading...</Text>
+            </View>
         );
     }
 
     return (
-        <TouchableOpacity style={styles.button} onPress={handleGoogleLogin}>
-            <Text style={styles.buttonText}>Login with Google</Text>
-        </TouchableOpacity>
+        <>
+        {user ? (
+            <View style={styles.container}>
+                <Text style={styles.buttonText}>Logged in as: {user.email}</Text>
+            </View>
+        ) : (
+            <TouchableOpacity style={styles.button} onPress={handleGoogleLogin}>
+                <Text style={styles.buttonText}>Login with Google</Text>
+            </TouchableOpacity>
+        )}
+        </>
     );
 }
 
 const styles = StyleSheet.create({
+    container: {
+        backgroundColor: "#fdf7eb",
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: "#000000",
+        alignItems: "center",
+        margin: 10,
+    },
     button: {
         backgroundColor: "#fdf7eb",
         paddingVertical: 12,

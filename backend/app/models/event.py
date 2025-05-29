@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import List, Optional, UUID, Tuple
+from typing import List, Optional, Tuple
+from uuid import UUID
 from datetime import datetime
 
 class Event(BaseModel):
