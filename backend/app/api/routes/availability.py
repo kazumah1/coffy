@@ -6,7 +6,7 @@ from dependencies import get_database_service, get_google_calendar_service, get_
 
 router = APIRouter()
 
-@router.get("/{event_id}")
+@router.get("/{user_id}")
 async def get_availability(
     user_id: str,
     start_date: str,
@@ -15,14 +15,8 @@ async def get_availability(
     google_calendar_service: GoogleCalendarService = Depends(get_google_calendar_service),
     token_manager: TokenManager = Depends(get_token_manager)
 ):
-    tokens = get_google_tokens(user_id)
+    tokens = await token_manager.get_token(user_id)
     if not tokens:
-        raise HTTPException(status_code=401, detail="User not found")
-    
-    if tokens["expired"]:
-        tokens = refresh_google_tokens(user_id)
-        if not tokens:
-            raise HTTPException(status_code=401, detail="User not found")
-    
-    freebusy = get_freebusy(tokens["access_token"], start_date, end_date)
-    return freebusy
+        raise HTTPException(status_code=401, detail="Token not found")
+    events = google_calendar_service.get_all_events(tokens['google_access_token'], start_date, end_date)
+    return events

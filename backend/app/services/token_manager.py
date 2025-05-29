@@ -34,6 +34,7 @@ class TokenManager:
             raise Exception("Token not found")
 
         if self.is_token_expired(response['google_token_expiry']):
+            print("Token expired, refreshing token")
             return await self.refresh_token(user_id, response['google_refresh_token'])
         return response
     

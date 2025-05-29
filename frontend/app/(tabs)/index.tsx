@@ -6,11 +6,13 @@ import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import LoginButton from '@/components/LoginButton';
+import Availability from '@/components/Availability';
 
 export default function HomeScreen() {
   return (
     <ThemedView style={styles.container}>
       <LoginButton />
+      <Availability start="2025-05-27T17:00:00-07:00" end="2025-05-31T17:00:00-07:00" />
     </ThemedView>
   );
 }
