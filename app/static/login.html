@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full w-full overflow-hidden">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>W2M - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            touch-action: none;
+            font-family: 'Inter', sans-serif;
+            background-color: #ffffff;
+        }
+        .black-accent {
+            position: fixed;
+            background-color: black;
+            border-radius: 50%;
+        }
+        .top-accent {
+            width: 150px;
+            height: 150px;
+            top: -75px;
+            left: -75px;
+            transform: rotate(45deg);
+        }
+        .bottom-accent {
+            width: 200px;
+            height: 200px;
+            bottom: -100px;
+            right: -100px;
+            transform: rotate(-45deg);
+        }
+        .google-btn {
+            transition: transform 0.2s ease;
+        }
+        .google-btn:hover {
+            transform: scale(1.02);
+        }
+        .content-wrapper {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            max-width: 28rem;
+            padding: 0 1rem;
+        }
+        @media (max-width: 640px) {
+            .top-accent {
+                width: 100px;
+                height: 100px;
+                top: -50px;
+                left: -50px;
+            }
+            .bottom-accent {
+                width: 150px;
+                height: 150px;
+                bottom: -75px;
+                right: -75px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-white">
+    <!-- Black accent shapes -->
+    <div class="black-accent top-accent"></div>
+    <div class="black-accent bottom-accent"></div>
+    
+    <!-- Main content -->
+    <div class="content-wrapper">
+        <div class="text-center mb-16">
+            <h1 class="text-5xl font-bold text-black mb-4">Sign In</h1>
+        </div>
+
+        <!-- Google Sign In Button -->
+        <div id="g_id_onload"
+            data-client_id="YOUR_GOOGLE_CLIENT_ID"
+            data-context="signin"
+            data-ux_mode="popup"
+            data-callback="handleCredentialResponse"
+            data-auto_prompt="false">
+        </div>
+
+        <div class="flex justify-center">
+            <div class="g_id_signin google-btn"
+                data-type="standard"
+                data-shape="rectangular"
+                data-theme="outline"
+                data-text="signin_with"
+                data-size="large"
+                data-logo_alignment="left">
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/login.js"></script>
+</body>
+</html> 

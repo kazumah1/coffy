@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>W2M - Smart Scheduling</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #ffffff;
+        }
+        .message-bubble {
+            max-width: 80%;
+            border-radius: 20px;
+            padding: 12px 16px;
+            margin: 4px 0;
+        }
+        .user-message {
+            background-color: #000000;
+            color: white;
+            margin-left: auto;
+        }
+        .assistant-message {
+            background-color: #f0f0f0;
+            color: black;
+            margin-right: auto;
+        }
+        .message-input {
+            border-radius: 25px;
+            border: 1px solid #e5e5e5;
+            padding: 12px 20px;
+            width: 100%;
+            outline: none;
+        }
+        .message-input:focus {
+            border-color: #000000;
+        }
+        .tab-button {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background-color: #f5f5f5;
+        }
+        .tab-button:hover {
+            background-color: #e5e5e5;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+    <!-- Header -->
+    <header class="p-4 border-b">
+        <div class="max-w-4xl mx-auto flex items-center justify-between">
+            <div class="text-xl font-semibold">9:41</div>
+            <div class="flex items-center gap-2">
+                <div class="w-4 h-4">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 11v-4a1 1 0 112 0v4m0 0v4a1 1 0 11-2 0v-4m0 0h4a1 1 0 110 2h-4m-6 0a1 1 0 110-2h2a1 1 0 110 2h-2z"></path>
+                    </svg>
+                </div>
+                <div class="w-4 h-4">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <div class="p-4 border-b">
+        <div class="max-w-4xl mx-auto flex gap-3">
+            <button class="tab-button">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                </svg>
+                Close Friends
+            </button>
+            <button class="tab-button">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Last Meetups
+            </button>
+            <button class="tab-button">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+                </svg>
+                New
+            </button>
+        </div>
+    </div>
+
+    <!-- Chat Area -->
+    <div class="flex-1 overflow-y-auto p-4" id="chat-container">
+        <div class="max-w-4xl mx-auto space-y-4">
+            <!-- Messages will be inserted here by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Input Area -->
+    <div class="p-4 border-t">
+        <div class="max-w-4xl mx-auto flex items-center gap-4">
+            <input type="text" placeholder="Message..." class="message-input" id="message-input">
+            <button class="p-2" id="voice-button">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                </svg>
+            </button>
+            <button class="p-2" id="emoji-button">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </button>
+            <button class="p-2" id="image-button">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html> 
