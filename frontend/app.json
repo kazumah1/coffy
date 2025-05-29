@@ -3,6 +3,7 @@
     "name": "coffychat",
     "slug": "coffychat",
     "version": "1.0.0",
+    "owner": "kazumah",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "coffychat",
@@ -34,7 +35,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

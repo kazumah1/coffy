@@ -44,21 +44,27 @@ async def google_callback(
             refresh_token=credentials.refresh_token
         )
         
-        return HTMLResponse(
-            """
+        # Return success page with user info
+        return HTMLResponse(content=f"""
             <html>
-              <body>
-                <h2>Login Successful!</h2>
-                <p>You can close this window and return to the app.</p>
-                <script>
-                  setTimeout(() => window.close(), 1500);
-                </script>
-              </body>
+                <body>
+                    <h2>Login Successful!</h2>
+                    <p>You can close this window and return to the app.</p>
+                    <script>
+                        window.location.href = "coffychat://auth?email={email}";
+                    </script>
+                </body>
             </html>
-            """
-        )
+        """)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/user/{user_id}")
+async def get_user(user_id: str, db_service: DatabaseService = Depends(get_database_service)):
+    user = await db_service.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
 
 @router.post("/google/refresh")
 async def google_refresh(user_id: str, token_manager: TokenManager = Depends(get_token_manager)):
