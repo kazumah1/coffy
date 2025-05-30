@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import List, UUID, Optional
+from typing import List, Optional
+from uuid import UUID
 from datetime import datetime
 
 class Message(BaseModel):
@@ -9,6 +10,7 @@ class Message(BaseModel):
     content: str  # Raw SMS content
     parsed_data: Optional[dict]  # LLM-extracted info (e.g. times, sentiment)
     timestamp: datetime
+    to_number: str
 
 class Conversation(BaseModel):
     id: UUID

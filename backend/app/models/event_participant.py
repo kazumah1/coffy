@@ -4,11 +4,11 @@ from typing import Optional, List, Tuple
 from datetime import datetime
 
 class EventParticipant(BaseModel):
-    id: UUID
+    id: UUID # same as user_id if registered, otherwise a new UUID each time
     event_id: UUID  # Refers to Event
-    user_id: Optional[UUID]  # If the person is a registered user
     phone_number: str  # Always included (used for SMS)
-    name: str  # Display name
+    name: str  # Contact name
+    registered: bool  # Whether the person is a registered user (use contact or user table to check)
     status: str  # "invited", "responded", "confirmed", "declined"
     response_text: Optional[str]  # Raw reply string (for LLM use/fallback)
     availability_slots: List[Tuple[datetime, datetime]]  # Interpreted free time ranges
