@@ -14,7 +14,9 @@ class Message(BaseModel):
 
 class Conversation(BaseModel):
     id: UUID
-    event_participant_id: UUID  # One-on-one SMS thread for a given event
+    phone_number: str # phone number used for identification for unregistered users
+    recipient_id: Optional[UUID] # id of the registered user
+    user_name: str # name of the unregistered user
     event_id: UUID
     messages: List[Message]  # Ordered list of Message objects
     status: str  # "active", "completed", "failed" (for retry logic or edge cases)

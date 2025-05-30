@@ -4,7 +4,7 @@ from typing import Optional, List, Tuple
 from datetime import datetime
 
 class EventParticipant(BaseModel):
-    id: UUID # same as user_id if registered, otherwise a new UUID each time
+    id: Optional[UUID] # same as user_id if registered, otherwise empty
     event_id: UUID  # Refers to Event
     phone_number: str  # Always included (used for SMS)
     name: str  # Contact name

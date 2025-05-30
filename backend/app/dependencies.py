@@ -25,6 +25,9 @@ def get_texting_service():
     return TextingService()
 
 def get_openrouter_service(
-    db_service: DatabaseService = Depends(get_database_service)
+    db_service: DatabaseService = Depends(get_database_service),
+    google_calendar_service: GoogleCalendarService = Depends(get_google_calendar_service),
+    token_manager: TokenManager = Depends(get_token_manager),
+    texting_service: TextingService = Depends(get_texting_service)
 ):
-    return OpenRouterService(db_service)
+    return OpenRouterService(db_service, google_calendar_service, token_manager, texting_service)

@@ -6,6 +6,8 @@ from pathlib import Path
 class Settings(BaseSettings):
     """Application settings."""
     
+    BACKEND_URL: str
+    OPENROUTER_API_KEY: str
     # Google OAuth settings
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
