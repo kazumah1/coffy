@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 
-const BACKEND_URL = process.env.BACKEND_URL;
+const BACKEND_URL = "http://localhost:8000";
 
 export async function fetchAvailability(userId: string, startDate: string, endDate: string) {
-    const response = await fetch(`${BACKEND_URL}/availability/${userId}?start_date=${startDate}&end_date=${endDate}`)
+    const response = await fetch(`http://localhost:8000/availability/${userId}?start_date=${startDate}&end_date=${endDate}`)
     const data = await response.json();
     return { ok: response.ok, statusText: response.statusText, data };
 }

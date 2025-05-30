@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as SecureStore from 'expo-secure-store';
 
+
 // User type
 export type User = {
     id: string;
@@ -19,7 +20,7 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const BACKEND_URL = process.env.BACKEND_URL;
+const BACKEND_URL = "http://localhost:8000";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
