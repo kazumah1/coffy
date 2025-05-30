@@ -172,21 +172,6 @@ class OpenRouterService:
         except Exception as e:
             self._handle_error(e, "Failed to create draft event")
 
-    async def create_event_participant(
-        self,
-        phone_number: str,
-        name: str
-    ) -> dict:
-        # Create a participant for the current event
-        if not self.current_event_id:
-            raise RuntimeError("No current event set")
-            
-        return await self.db_service.create_event_participant(
-            self.current_event_id,
-            phone_number,
-            name
-        )
-
     async def search_contacts(
         self,
         query: str = None,
@@ -207,54 +192,56 @@ class OpenRouterService:
             limit,
             days_ago
         )
-
-    async def get_google_calendar_busy_times(
-        self,
-        user_id: str,
-        start_date: str,
-        end_date: str
-    ) -> list[dict]:
-        """Get busy times from a registered user's Google Calendar within a date range."""
-        if not self.current_event_id:
-            raise RuntimeError("No current event set - create an event first")
-            
-        # Verify user is registered and has Google Calendar access
-        tokens = await self.token_manager.get_token(user_id)
-        if not tokens:
-            raise RuntimeError(f"User {user_id} not found or not registered with Google Calendar")
-            
-        # Get events from Google Calendar
-        events = self.google_calendar_service.get_all_events(
-            tokens['google_access_token'],
-            start_date,
-            end_date
-        )
-        
-        # Convert events to busy time slots
-        busy_slots = []
-        for event in events:
-            # Skip events that are marked as free
-            if event.get('transparency') == 'transparent':
-                continue
-                
-            busy_slots.append({
-                "id": str(uuid4()),
-                "participant_id": user_id,
-                "start_time": event['start'].get('dateTime', event['start'].get('date')),
-                "end_time": event['end'].get('dateTime', event['end'].get('date')),
-                "source": "calendar"
-            })
-            
-        # Store the busy times in the database
-        await self.db_service.store_participant_busy_times(
-            self.current_event_id,
-            user_id,
-            busy_slots
-        )
-            
-        return busy_slots
     
-    # TODO: read from here (checked out from this point)
+    async def check_user_registration(self, phone_number: str, name: str = None) -> dict:
+        """Check if a phone number belongs to a registered user and return their registration details and Google Calendar access status."""
+        try:
+            # Check if user exists in database
+            user = await self.db_service.get_user_by_phone(phone_number)
+            
+            if not user:
+                return {
+                    "is_registered": False,
+                    "user_id": None,
+                    "name": name,
+                    "phone_number": phone_number,
+                    "has_google_calendar": False
+                }
+                
+            # Check if user has Google Calendar access
+            has_google_calendar = False
+            try:
+                tokens = await self.token_manager.get_token(user["id"])
+                has_google_calendar = bool(tokens)
+            except Exception:
+                # If token retrieval fails, user doesn't have Google Calendar access
+                pass
+                
+            return {
+                "is_registered": True,
+                "user_id": user["id"],
+                "name": user["name"],  # Use registered user's name from database
+                "phone_number": phone_number,
+                "has_google_calendar": has_google_calendar
+            }
+            
+        except Exception as e:
+            raise RuntimeError(f"Error checking user registration: {str(e)}")
+        
+    async def create_event_participant(
+        self,
+        phone_number: str,
+        name: str
+    ) -> dict:
+        # Create a participant for the current event
+        if not self.current_event_id:
+            raise RuntimeError("No current event set")
+            
+        return await self.db_service.create_event_participant(
+            self.current_event_id,
+            phone_number,
+            name
+        )
 
     async def create_availability_conversation(
         self,
@@ -343,103 +330,7 @@ class OpenRouterService:
             raise RuntimeError(f"Failed to send availability request: {str(e)}")
         
         return conversation
-
-    async def create_unregistered_time_slots(
-        self,
-        phone_number: str,
-        time_slots: list[dict]
-    ) -> list[dict]:
-        """Store time slots for an unregistered user based on their text responses."""
-        if not self.current_event_id:
-            raise RuntimeError("No current event set - create an event first")
-            
-        # Get all event participants and find the matching unregistered one
-        participants = await self.db_service.get_event_participants(self.current_event_id)
-        participant = next(
-            (p for p in participants 
-             if p["phone_number"] == phone_number and not p["registered"]),
-            None
-        )
-        if not participant:
-            raise RuntimeError(f"No unregistered participant found with phone number {phone_number}")
-            
-        # Verify there's an active conversation for this participant
-        conversations = await self.db_service.get_conversations(
-            self.current_event_id,
-            phone_number
-        )
-        if not any(c["type"] == "availability_request" and c["status"] == "active" 
-                  for c in conversations):
-            raise RuntimeError(
-                f"No active availability conversation found for {phone_number} - "
-                "create conversation first using create_availability_conversation"
-            )
-            
-        # Convert raw slots to TimeSlot objects
-        formatted_slots = []
-        for slot in time_slots:
-            time_slot = TimeSlot(
-                id=str(uuid4()),
-                phone_number=phone_number,
-                start_time=datetime.fromisoformat(slot["start_time"]),
-                end_time=datetime.fromisoformat(slot["end_time"]),
-                slot_type=slot["slot_type"],
-                source="text",
-                confidence=slot.get("confidence"),
-                raw_text=slot.get("raw_text")
-            )
-            formatted_slots.append(time_slot.dict())
-            
-        # Store the time slots
-        await self.db_service.store_unregistered_time_slots(
-            self.current_event_id,
-            phone_number,
-            formatted_slots
-        )
-        
-        # Update conversation status if we got valid slots
-        if formatted_slots:
-            await self.db_service.update_conversation_status(
-                self.current_event_id,
-                phone_number,
-                "completed"
-            )
-        
-        return formatted_slots
-
-    async def check_user_registration(self, phone_number: str) -> dict:
-        """Check if a phone number belongs to a registered user and return their registration details and Google Calendar access status."""
-        try:
-            # Check if user exists in database
-            user = await self.db_service.get_user_by_phone(phone_number)
-            
-            if not user:
-                return {
-                    "is_registered": False,
-                    "user_id": None,
-                    "name": None,
-                    "has_google_calendar": False
-                }
-                
-            # Check if user has Google Calendar access
-            has_google_calendar = False
-            try:
-                tokens = await self.token_manager.get_token(user["id"])
-                has_google_calendar = bool(tokens)
-            except Exception:
-                # If token retrieval fails, user doesn't have Google Calendar access
-                pass
-                
-            return {
-                "is_registered": True,
-                "user_id": user["id"],
-                "name": user["name"],
-                "has_google_calendar": has_google_calendar
-            }
-            
-        except Exception as e:
-            raise RuntimeError(f"Error checking user registration: {str(e)}")
-
+    
     async def send_availability_request(
         self,
         phone_number: str,
@@ -641,6 +532,115 @@ class OpenRouterService:
                 "time_slots": time_slots,
                 "message": "Thanks! I've noted your availability."
             }
+        
+    async def get_google_calendar_busy_times(
+        self,
+        user_id: str,
+        start_date: str,
+        end_date: str
+    ) -> list[dict]:
+        """Get busy times from a registered user's Google Calendar within a date range."""
+        if not self.current_event_id:
+            raise RuntimeError("No current event set - create an event first")
+            
+        # Verify user is registered and has Google Calendar access
+        tokens = await self.token_manager.get_token(user_id)
+        if not tokens:
+            raise RuntimeError(f"User {user_id} not found or not registered with Google Calendar")
+            
+        # Get events from Google Calendar
+        events = self.google_calendar_service.get_all_events(
+            tokens['google_access_token'],
+            start_date,
+            end_date
+        )
+        
+        # Convert events to busy time slots
+        busy_slots = []
+        for event in events:
+            # Skip events that are marked as free
+            if event.get('transparency') == 'transparent':
+                continue
+                
+            busy_slots.append({
+                "id": str(uuid4()),
+                "participant_id": user_id,
+                "start_time": event['start'].get('dateTime', event['start'].get('date')),
+                "end_time": event['end'].get('dateTime', event['end'].get('date')),
+                "source": "calendar"
+            })
+            
+        # Store the busy times in the database
+        await self.db_service.store_participant_busy_times(
+            self.current_event_id,
+            user_id,
+            busy_slots
+        )
+            
+        return busy_slots
+    
+    async def create_unregistered_time_slots(
+        self,
+        phone_number: str,
+        time_slots: list[dict]
+    ) -> list[dict]:
+        """Store time slots for an unregistered user based on their text responses."""
+        if not self.current_event_id:
+            raise RuntimeError("No current event set - create an event first")
+            
+        # Get all event participants and find the matching unregistered one
+        participants = await self.db_service.get_event_participants(self.current_event_id)
+        participant = next(
+            (p for p in participants 
+             if p["phone_number"] == phone_number and not p["registered"]),
+            None
+        )
+        if not participant:
+            raise RuntimeError(f"No unregistered participant found with phone number {phone_number}")
+            
+        # Verify there's an active conversation for this participant
+        conversations = await self.db_service.get_conversations(
+            self.current_event_id,
+            phone_number
+        )
+        if not any(c["type"] == "availability_request" and c["status"] == "active" 
+                  for c in conversations):
+            raise RuntimeError(
+                f"No active availability conversation found for {phone_number} - "
+                "create conversation first using create_availability_conversation"
+            )
+            
+        # Convert raw slots to TimeSlot objects
+        formatted_slots = []
+        for slot in time_slots:
+            time_slot = TimeSlot(
+                id=str(uuid4()),
+                phone_number=phone_number,
+                start_time=datetime.fromisoformat(slot["start_time"]),
+                end_time=datetime.fromisoformat(slot["end_time"]),
+                slot_type=slot["slot_type"],
+                source="text",
+                confidence=slot.get("confidence"),
+                raw_text=slot.get("raw_text")
+            )
+            formatted_slots.append(time_slot.dict())
+            
+        # Store the time slots
+        await self.db_service.store_unregistered_time_slots(
+            self.current_event_id,
+            phone_number,
+            formatted_slots
+        )
+        
+        # Update conversation status if we got valid slots
+        if formatted_slots:
+            await self.db_service.update_conversation_status(
+                self.current_event_id,
+                phone_number,
+                "completed"
+            )
+        
+        return formatted_slots
 
     async def _extract_time_slots_from_text(self, text: str) -> list[dict]:
         """Extracts time slots from text using LLM.

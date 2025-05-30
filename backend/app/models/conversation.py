@@ -14,10 +14,11 @@ class Message(BaseModel):
 
 class Conversation(BaseModel):
     id: UUID
-    phone_number: str # phone number used for identification for unregistered users
-    recipient_id: Optional[UUID] # id of the registered user
-    user_name: str # name of the unregistered user
     event_id: UUID
+    phone_number: str # phone number used for identification for unregistered users
+    user_id: Optional[UUID] # id of the registered user
+    user_name: str # name of the unregistered user
+    type: str # "unregistered" or "registered"
     messages: List[Message]  # Ordered list of Message objects
     status: str  # "active", "completed", "failed" (for retry logic or edge cases)
     created_at: datetime

@@ -350,9 +350,9 @@ class DatabaseService:
         data = {
             "event_id": event_id,
             "phone_number": phone_number,
+            "user_id": user_id,
             "user_name": user_name,
             "type": conversation_type,
-            "user_id": user_id,
             "status": "active",
             "created_at": datetime.now(),
             "updated_at": datetime.now()
