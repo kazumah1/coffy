@@ -488,3 +488,29 @@ class DatabaseService:
             raise RuntimeError(f"Failed to update conversation status: {response.error.message}")
             
         return self.from_iso_strings(response.data[0])
+
+    async def update_event_participant(
+        self,
+        event_id: str,
+        phone_number: str,
+        update_data: Dict[str, Any]
+    ) -> dict:
+        """Update an event participant's information.
+        
+        Args:
+            event_id: UUID of the event
+            phone_number: Phone number of the participant
+            update_data: Dictionary of fields to update
+        """
+        update_data["updated_at"] = datetime.now()
+        update_data = self.to_iso_strings(update_data)
+        
+        response = self.client.table("event_participants").update(update_data).eq("event_id", event_id).eq("phone_number", phone_number).execute()
+        
+        if response.error:
+            raise RuntimeError(f"Failed to update event participant: {response.error.message}")
+            
+        if not response.data:
+            raise RuntimeError(f"Event participant not found: {event_id} - {phone_number}")
+            
+        return self.from_iso_strings(response.data[0])

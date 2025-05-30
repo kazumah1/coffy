@@ -127,7 +127,7 @@ class OpenRouterService:
             logger.error(f"{context}: Unexpected error: {str(error)}")
             raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
-    async def prompt_agent(self, prompt: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def prompt_agent(self, prompt: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Send a prompt to the OpenRouter agent and get a response"""
         try:
             payload = {
@@ -138,6 +138,9 @@ class OpenRouterService:
                 ],
                 "temperature": 0.0,
             }
+            if context:
+                payload["messages"].append({"role": "system", "content": json.dumps(context)})
+            
             headers = {
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.api_key}",
@@ -145,7 +148,7 @@ class OpenRouterService:
                 "X-Title": "W2M Calendar Assistant"
             }
             response = requests.post(self.api_url, json=payload, headers=headers, timeout=30)
-            response.raise_for_status()  # Raise an exception for bad status codes
+            response.raise_for_status()
             
             json_response = response.json()
             raw = json_response.get("choices", [{}])[0].get("message", {}).get("content")
@@ -250,6 +253,8 @@ class OpenRouterService:
         )
             
         return busy_slots
+    
+    # TODO: read from here (checked out from this point)
 
     async def create_availability_conversation(
         self,
@@ -319,11 +324,12 @@ class OpenRouterService:
             # Send the initial message
             await self.texting_service.send_message(phone_number, message)
             
-            # Update conversation status
+            # Update conversation status to active (not message_sent)
             await self.db_service.update_conversation_status(
                 self.current_event_id,
                 phone_number,
-                "message_sent"
+                "active",
+                user_name
             )
             
         except Exception as e:
@@ -331,7 +337,8 @@ class OpenRouterService:
             await self.db_service.update_conversation_status(
                 self.current_event_id,
                 phone_number,
-                "failed"
+                "failed",
+                user_name
             )
             raise RuntimeError(f"Failed to send availability request: {str(e)}")
         
@@ -1067,8 +1074,8 @@ class OpenRouterService:
             await self.db_service.update_conversation_status(
                 event_id,
                 phone_number,
-                participant["name"],
-                "reminder_sent"
+                "reminder_sent",
+                participant["name"]
             )
             
             return {
@@ -1084,8 +1091,8 @@ class OpenRouterService:
                 await self.db_service.update_conversation_status(
                     event_id,
                     phone_number,
-                    participant["name"],
-                    "failed"
+                    "failed",
+                    participant["name"]
                 )
             self._handle_error(e, "Failed to send reminder")
 
@@ -1224,6 +1231,7 @@ class OpenRouterService:
         include_ics: bool = True
     ) -> dict:
         """Sends an event invitation text message to a participant, with optional ICS calendar file for registered users."""
+        conversation = None
         try:
             # Get event details
             event = await self.db_service.get_event_by_id(event_id)
@@ -1313,8 +1321,8 @@ class OpenRouterService:
             await self.db_service.update_conversation_status(
                 event_id,
                 phone_number,
-                participant["name"],
-                "invitation_sent"
+                "invitation_sent",
+                participant["name"]
             )
             
             return {
@@ -1325,12 +1333,12 @@ class OpenRouterService:
             }
             
         except Exception as e:
-            # Update conversation status to failed
-            if conversation:
+            # Update conversation status to failed if we have a conversation
+            if conversation and participant:
                 await self.db_service.update_conversation_status(
                     event_id,
                     phone_number,
-                    participant["name"],
-                    "failed"
+                    "failed",
+                    participant["name"]
                 )
             self._handle_error(e, "Failed to send event invitation")
