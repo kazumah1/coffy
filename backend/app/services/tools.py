@@ -10,11 +10,11 @@ CREATE_DRAFT_EVENT_TOOL = {
             "properties": {
                 "creator_id": {
                     "type": "string",
-                    "description": "UUID of the event creator"
+                    "description": "UUID of the event creator. Could also be listed as 'owner_id' in the database or other tools."
                 },
                 "title": {
                     "type": "string",
-                    "description": "Title of the event"
+                    "description": "Title of the event. Create a title based on the initial user input."
                 },
                 "description": {
                     "type": "string",
@@ -349,8 +349,6 @@ SEND_EVENT_INVITATION_TOOL = {
     }
 }
 
-
-
 SEND_REMINDER_TOOL = {
     "type": "function",
     "function": {
@@ -451,4 +449,23 @@ AVAILABLE_TOOLS = [
     SEND_REMINDER_TOOL,
     HANDLE_SCHEDULING_CONFLICT_TOOL,
     CHECK_CONVERSATION_STATE_TOOL,
-] 
+]
+
+# Dictionary mapping tool names to their indices in AVAILABLE_TOOLS
+TOOL_NAME_TO_INDEX = {
+    "create_draft_event": 0,
+    "create_event_participant": 1,
+    "search_contacts": 2,
+    "get_google_calendar_busy_times": 3,
+    "create_availability_conversation": 4,
+    "check_user_registration": 5,
+    "parse_confirmation": 6,
+    "send_text": 7,
+    "create_unregistered_time_slots": 8,
+    "create_final_time_slots": 9,
+    "schedule_event": 10,
+    "send_event_invitation": 11,
+    "send_reminder": 12,
+    "handle_scheduling_conflict": 13,
+    "check_conversation_state": 14
+} 

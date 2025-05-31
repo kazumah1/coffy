@@ -45,19 +45,35 @@ class DatabaseService:
         return self.from_iso_strings(response.data[0])
     
     def to_iso_strings(self, data: dict) -> dict:
-        # Convert datetime objects to ISO strings
-        return {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in data.items()}
+        """Convert datetime objects to ISO strings, handling nested structures."""
+        def convert_value(v):
+            if isinstance(v, datetime):
+                return v.isoformat()
+            elif isinstance(v, dict):
+                return {k: convert_value(val) for k, val in v.items()}
+            elif isinstance(v, list):
+                return [convert_value(item) for item in v]
+            return v
+            
+        return {k: convert_value(v) for k, v in data.items()}
 
     def from_iso_strings(self, data: dict) -> dict:
-        # Convert ISO strings back to datetime objects
-        for k, v in data.items():
+        """Convert ISO strings back to datetime objects, handling nested structures."""
+        def convert_value(v):
             if isinstance(v, str):
                 try:
+                    # Check if the string matches ISO format (YYYY-MM-DDTHH:MM:SS)
                     if len(v) >= 19 and v[4] == '-' and v[10] == 'T':
-                        data[k] = datetime.fromisoformat(v)
+                        return datetime.fromisoformat(v)
                 except Exception:
                     pass
-        return data
+            elif isinstance(v, dict):
+                return {k: convert_value(val) for k, val in v.items()}
+            elif isinstance(v, list):
+                return [convert_value(item) for item in v]
+            return v
+            
+        return {k: convert_value(v) for k, v in data.items()}
 
     async def create_user(
         self,
@@ -169,6 +185,7 @@ class DatabaseService:
         description: str = None
     ) -> dict:
         # Create a draft event that can be completed later
+        now = datetime.now()
         event = {
             "id": str(uuid4()),
             "creator_id": creator_id,
@@ -177,17 +194,19 @@ class DatabaseService:
             "status": "pending",
             "proposed_times": [],
             "final_time": None,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now()
+            "end_time": None,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
         }
         
-        data = self.to_iso_strings(event)
-        response = self.client.table("events").insert(data).execute()
+        # Convert all datetime objects to ISO format strings
+
+        response = self.client.table("events").insert(event).execute()
         
-        if response.error:
-            raise RuntimeError(f"Failed to create event: {response.error.message}")
+        if not response.data:
+            raise RuntimeError("Failed to create event: No data returned from database")
             
-        return self.from_iso_strings(response.data[0])
+        return event
 
     async def search_contacts(
         self,
@@ -198,29 +217,34 @@ class DatabaseService:
         limit: int = 15,
         days_ago: int = 30
     ) -> list[dict]:
-        # Search contacts with flexible filtering and pagination
-        query_builder = self.client.table("contacts").select("*").eq("owner_id", owner_id)
-        
-        if query:
-            # Search in name and phone number using Postgres full-text search
-            query_builder = query_builder.or_(f"name.ilike.%{query}%,phone_number.ilike.%{query}%")
+        """Search contacts with flexible filtering and pagination."""
+        try:
+            query_builder = self.client.table("contacts").select("*").eq("owner_id", owner_id)
             
-        if min_relationship_score is not None:
-            query_builder = query_builder.gte("relationship_score", min_relationship_score)
+            if query:
+                # Search in name and phone number using Postgres full-text search
+                query_builder = query_builder.or_(f"name.ilike.%{query}%,phone_number.ilike.%{query}%")
+                
+            if min_relationship_score is not None:
+                query_builder = query_builder.gte("relationship_score", min_relationship_score)
+                
+            # TODO: add recent only and last interaction query (implemented using datetime in isoformat and then logic handled here)
+            # Order by relationship score and last interaction
+            query_builder = query_builder.order("relationship_score", desc=True)
             
-        if recent_only:
-            # Get contacts with interactions in the last x days
-            x_days_ago = (datetime.now() - timedelta(days=days_ago)).isoformat()
-            query_builder = query_builder.gte("last_interaction", x_days_ago)
+            # Apply limit
+            query_builder = query_builder.limit(limit)
             
-        # Order by relationship score and last interaction
-        query_builder = query_builder.order("relationship_score", desc=True)
-        query_builder = query_builder.order("last_interaction", desc=True)
-        
-        # Apply limit
-        query_builder = query_builder.limit(limit)
-        
-        response = query_builder.execute()
+            response = query_builder.execute()
+            
+            # The response.data will be None if there was an error
+            if response.data is None:
+                raise RuntimeError("Failed to search contacts: No data returned")
+                
+        except Exception as e:
+            raise RuntimeError(f"Failed to search contacts: {e}")
+            
+        # Convert all datetime fields in the response
         return [self.from_iso_strings(c) for c in response.data]
 
     async def store_participant_busy_times(

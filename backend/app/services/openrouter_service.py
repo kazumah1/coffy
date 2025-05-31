@@ -2,7 +2,7 @@ import os
 import requests
 import json
 from typing import Optional, Dict, List, Any
-from .tools import AVAILABLE_TOOLS
+from .tools import AVAILABLE_TOOLS, TOOL_NAME_TO_INDEX
 from services.database_service import DatabaseService
 from core.config import settings
 from services.google_calendar_service import GoogleCalendarService
@@ -15,33 +15,11 @@ from fastapi import HTTPException
 import logging
 from pydantic import BaseModel, Field, validator
 from services.prompts import AVAILABLE_PROMPTS
+import asyncio
+from openai import OpenAI
 
-API_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "gpt-3.5-turbo:free"
-
-SYSTEM_PROMPT = (
-    """
-You are a calendar assistant. Take the user's request and return ONLY valid JSON matching this schema:
-
-{
-  "event": {
-    "title":        "string",
-    "start_time":   "string in ISO 8601 format",
-    "end_time":     "string in ISO 8601 format",
-    "location":     "string or null"
-  },
-  "participants": [
-    {
-      "name":         "string",
-      "email":        "string or null",
-      "role":         "string"
-    }
-  ]
-}
-
-Respond with ONLY the JSON object, no additional text. Do NOT include any explanatory text.
-"""
-)
+API_URL = "https://openrouter.ai/api/v1"
+MODEL = "google/gemini-2.0-flash-001"
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +72,7 @@ class OpenRouterService:
     ):
         self.api_url = API_URL
         self.model = MODEL
-        self.api_key = settings.openrouter_api_key
+        self.api_key = "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"
         if not self.api_key:
             raise RuntimeError("OPENROUTER_API_KEY not set in environment")
         self._current_event_id: Optional[str] = None
@@ -105,6 +83,21 @@ class OpenRouterService:
         self.token_manager = token_manager
         self.texting_service = texting_service
         self.available_tools = AVAILABLE_TOOLS
+
+        self.TOOL_MAPPINGS = {
+            "create_draft_event": self.create_draft_event,
+            "search_contacts": self.search_contacts,
+            "check_user_registration": self.check_user_registration,
+            "create_event_participant": self.create_event_participant,
+            "create_availability_conversation": self.create_availability_conversation,
+            "parse_confirmation": self.parse_confirmation,
+            "send_text": self.send_text,
+            "get_google_calendar_busy_times": self.get_google_calendar_busy_times,
+            "create_unregistered_time_slots": self.create_unregistered_time_slots,
+            "create_final_time_slots": self.create_final_time_slots,
+            "schedule_event": self.schedule_event,
+            "send_event_invitation": self.send_event_invitation
+        }
 
     @property
     def current_event_id(self) -> Optional[str]:
@@ -147,35 +140,57 @@ class OpenRouterService:
             logger.error(f"{context}: Unexpected error: {str(error)}")
             raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
-    async def prompt_agent(self, prompt: str, messages: list[dict[str, str]]) -> Dict[str, Any]:
+    async def prompt_agent(self, messages: list[dict[str, str]], tools: list[dict[str, Any]]) -> Dict[str, Any]:
         """Send a prompt to the OpenRouter agent and get a response"""
         try:
-            payload = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": 0.0,
-            }
-            
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.api_key}",
-                "HTTP-Referer": settings.backend_url,
-                "X-Title": "W2M Calendar Assistant"
-            }
-            response = requests.post(self.api_url, json=payload, headers=headers, timeout=30)
-            response.raise_for_status()
+            client = OpenAI(
+                api_key=self.api_key,
+                base_url="https://openrouter.ai/api/v1",
+            )
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=tools
+            ).choices[0].message
+            # response = await asyncio.to_thread(requests.post,
+            #     url="https://openrouter.ai/api/v1/chat/completions",
+            #     headers={
+            #         "Authorization": f"Bearer {self.api_key}",
+            #         "Content-Type": "application/json",
+            #     },
+            #     data=json.dumps({
+            #         "model": "meta-llama/llama-3.2-3b-instruct",
+            #         "messages": messages,
+            #     })
+            # )
+            return response
+            response.raise_for_status()  # This will raise an exception for 4XX/5XX responses
             
             json_response = response.json()
-            raw = json_response.get("choices", [{}])[0].get("message", {}).get("content")
-            if not isinstance(raw, str):
-                raise RuntimeError("unexpected response from OpenRouter")
-            try:
-                parsed = json.loads(raw)
-            except Exception:
-                raise RuntimeError(f"invalid JSON from llm:\n{raw}")
-            return parsed
+            if not json_response.get("choices"):
+                raise RuntimeError("No choices in response from OpenRouter")
+                
+            message = json_response["choices"][0].get("message", {})
+            if not message:
+                raise RuntimeError("No message in response from OpenRouter")
+                
+            # Parse the content as JSON if it's a string
+            content = message.get("content", "")
+            if isinstance(content, str):
+                try:
+                    content = json.loads(content)
+                except json.JSONDecodeError:
+                    # If it's not valid JSON, keep it as a string
+                    pass
+                    
+            return response.json()
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"OpenRouter API request failed: {str(e)}")
+            raise RuntimeError(f"Failed to communicate with OpenRouter API: {str(e)}")
         except Exception as e:
-            self._handle_error(e, "Failed to prompt agent")
+            logger.error(f"Error processing OpenRouter response: {str(e)}")
+            raise RuntimeError(f"Failed to process OpenRouter response: {str(e)}")
 
     async def create_draft_event(self, creator_id: UUID, title: str, description: Optional[str] = None) -> dict:
         """Create a draft event"""
@@ -218,6 +233,7 @@ class OpenRouterService:
                 return {
                     "is_registered": False,
                     "user_id": None,
+                    "owner_id": self._current_owner_id,
                     "name": name,
                     "phone_number": phone_number,
                     "has_google_calendar": False
@@ -236,6 +252,7 @@ class OpenRouterService:
                 "is_registered": True,
                 "user_id": user["id"],
                 "name": user["name"],  # Use registered user's name from database
+                "owner_id": self._current_owner_id,
                 "phone_number": phone_number,
                 "has_google_calendar": has_google_calendar
             }
@@ -1045,8 +1062,40 @@ class OpenRouterService:
     ) -> dict:
         """Check the current state of the conversation and determine if the loop should continue or advance to the next stage."""
         try:
+            # For other stages, we need an event
+            if current_stage == "draft":
+                if not event_id:
+                    return {
+                        "should_advance": False,
+                        "reason": "Waiting for event creation",
+                        "current_status": {
+                            "event_status": None,
+                            "participant_statuses": {},
+                            "current_stage": current_stage
+                        }
+                    }
+                elif not phone_numbers:
+                    return {
+                        "should_advance": False,
+                        "reason": "Waiting for participants to be added",
+                        "current_status": {
+                            "event_status": None,
+                            "participant_statuses": {},
+                            "current_stage": current_stage
+                        }
+                    }
+                else:
+                    return {
+                        "should_advance": True,
+                        "reason": "Event creation and participant setup complete",
+                        "current_status": {
+                            "event_status": None,
+                            "participant_statuses": {},
+                            "current_stage": current_stage
+                        }
+                    }
             event = await self.db_service.get_event_by_id(event_id)
-            if not event:
+            if current_stage != "draft" and not event:
                 raise RuntimeError(f"Event {event_id} not found")
             participants = await self.db_service.get_event_participants(event_id)
             participant_statuses = {p["phone_number"]: p["status"] for p in participants}
@@ -1054,13 +1103,7 @@ class OpenRouterService:
             should_advance = False
             reason = None
 
-            if current_stage == "draft":
-                # Advance if event draft is created and at least one participant is identified
-                if event and participants:
-                    should_advance = True
-                    reason = "Draft created and participants identified."
-
-            elif current_stage == "participant_setup":
+            if current_stage == "participant_setup":
                 # Advance if all participants have been messaged (e.g., have a conversation started)
                 all_messaged = True
                 for phone in phone_numbers:
@@ -1138,19 +1181,118 @@ class OpenRouterService:
     }
 
     async def run_agent_loop(self, user_input: str, creator_id: str):
-        context = {"user_input": user_input, "creator_id": creator_id}
         stage_idx = 0
+        messages = []
+        phone_numbers = set()  # Using set to avoid duplicates
+        response = None
+        hard_stop = 4
+        tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["draft"] if tool_name in self.TOOL_MAPPINGS]]
+        self._current_owner_id = creator_id
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_input}
+            {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[0]]},
+            {"role": "user", "content": user_input + " (owner_id: " + self._current_owner_id + ")"}
         ]
-        phone_numbers = []
 
-        while stage_idx < len(self.STAGES):
-            stage = self.STAGES[stage_idx]
-            tools = self.TOOLS_FOR_STAGE[stage]
+        while stage_idx < len(self.STAGES) and hard_stop > 0:
+            try:
+                stage = self.STAGES[stage_idx]
 
-            prompt = AVAILABLE_PROMPTS[stage]
-            response = await self.prompt_agent(user_input, messages)
-            messages.append(response)
-            conversation_state = await self.check_conversation_state(self.current_event_id, phone_numbers, stage)
+                # Add previous response if exists
+                if response:
+                    # Handle the response based on its type
+                    content = str(response)
+                    tool_calls = response.tool_calls
+                        
+                    messages.append(content)
+                    
+                    # Handle tool calls
+                    if tool_calls:
+                        for tool_call in tool_calls:
+                            print("<<<<<<<<<<<<<<<<<<<<<<<")
+                            print(f"Tool call: {tool_call}")
+                            print(">>>>>>>>>>>>>>>>>>>>>>>")
+                            try:
+                                tool_name = tool_call.function.name
+                                tool_args = json.loads(tool_call.function.arguments)
+                                
+                                if not tool_name or tool_name not in self.TOOL_MAPPINGS:
+                                    logger.error(f"Invalid tool name: {tool_name}")
+                                    continue
+                                
+                                # Execute tool and get response
+                                tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                                
+                                # Add tool response to messages
+                                messages.append({
+                                    "role": "tool",
+                                    "tool_call_id": tool_call.id,
+                                    "name": tool_name,
+                                    "content": json.dumps(tool_response)
+                                })
+                                
+                                # Update phone numbers if tool returns them
+                                if isinstance(tool_response, dict) and "phone_number" in tool_response:
+                                    phone_numbers.add(tool_response["phone_number"])
+                                    
+                            except Exception as e:
+                                logger.error(f"Error executing tool {tool_name}: {str(e)}")
+                                messages.append({
+                                    "role": "tool",
+                                    "tool_call_id": tool_call.id,
+                                    "name": tool_name,
+                                    "content": json.dumps({"error": str(e)})
+                                })
+                    else:
+                        stage_idx += 1
+                        messages = [
+                            {"role": "system", "content": AVAILABLE_PROMPTS[stage]},
+                            {"role": "user", "content": user_input + " (owner_id: " + self._current_owner_id + ")"}
+                        ]
+                        tools = []
+                        for tool_name in self.TOOLS_FOR_STAGE[stage]:
+                            if tool_name in self.TOOL_MAPPINGS:
+                                tools.append(AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]])
+                        hard_stop -= 1
+                        continue
+                
+                # Get next response from agent
+                print(f"Stage {stage} messages: {messages}")
+                response = await self.prompt_agent(messages, tools)
+                print("--------------------------------")
+                print(f"Stage {stage} response: {response}")
+                print("================================")
+                
+                # Check conversation state and advance if needed
+                # conversation_state = await self.check_conversation_state(
+                #     self.current_event_id,
+                #     list(phone_numbers),  # Convert set to list
+                #     stage
+                # )
+                
+                # if conversation_state["should_advance"]:
+                #     logger.info(f"Advancing to next stage: {conversation_state['reason']}")
+                #     stage_idx += 1
+                #     messages = [
+                #         {"role": "system", "content": AVAILABLE_PROMPTS[stage]},
+                #         {"role": "user", "content": user_input + " (owner_id: " + self._current_owner_id + ")"}
+                #     ]
+                #     tools = []
+                #     for tool_name in self.TOOLS_FOR_STAGE[stage]:
+                #         if tool_name in self.TOOL_MAPPINGS:
+                #             tools.append(AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]])
+                # else:
+                #     logger.info(f"Remaining in stage {stage}: {conversation_state['reason']}")
+                hard_stop -= 1
+                    
+            except Exception as e:
+                logger.error(f"Error in agent loop at stage {stage}: {str(e)}")
+                raise RuntimeError(f"Agent loop failed: {str(e)}")
+                
+        return {
+            "success": True,
+            "stage_idx": stage_idx,
+            "final_stage": self.STAGES[stage_idx - 1],
+            "phone_numbers": list(phone_numbers),
+            "event_id": self.current_event_id,
+            "response": response
+        }

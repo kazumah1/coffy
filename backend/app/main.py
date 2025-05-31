@@ -5,6 +5,7 @@ from api.routes.events import router as events_router
 from api.routes.participants import router as participants_router
 from api.routes.availability import router as availability_router
 from api.routes.texting import router as texting_router
+from api.routes.llm import router as llm_router
 
 app = FastAPI(
     title="CoffyChat",
@@ -25,6 +26,7 @@ app.include_router(events_router, prefix="/events", tags=["events"])
 app.include_router(availability_router, prefix="/availability", tags=["availability"])
 app.include_router(participants_router, prefix="/participants", tags=["participants"])
 app.include_router(texting_router, prefix="/texting", tags=["texting"])
+app.include_router(llm_router, prefix="/llm", tags=["llm"])
 
 @app.get("/")
 def read_root():
