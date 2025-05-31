@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # Supabase settings
     SUPABASE_URL: str
     SUPABASE_KEY: str
+    TEXTING_API_KEY: str
     
     class Config:
         env_file = ".env"

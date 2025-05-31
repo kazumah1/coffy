@@ -2,6 +2,10 @@ import os
 import requests
 from typing import Optional
 import aiohttp
+import logging
+from core.config import settings
+
+logger = logging.getLogger(__name__)
 
 class TextingService:
     def __init__(self):
@@ -13,10 +17,10 @@ class TextingService:
             async with session.post(
                 "https://textbelt.com/text", 
                 data={
-                    "phone": to_number,
-                    "message": message,
+                    "phone": "6265905589",
+                    "message": "message",
                     "replyWebhookUrl": "https://coffy.app/texting/reply",
-                    "key": os.getenv("TEXTING_API_KEY")
+                    "key": settings.TEXTING_API_KEY
                 }
             ) as response:
                 return await response.json()
@@ -24,6 +28,7 @@ class TextingService:
     async def handle_text_reply(self, request: dict):
         """Handle a text reply"""
         print(request)
+        logger.info(request)
         reply = request["text"]
         from_number = request["fromNumber"]
         #return {"message": reply, "from_number": from_number}
