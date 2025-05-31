@@ -31,10 +31,14 @@ export default function ContactsScreen() {
   const [loading, setLoading] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [savedContactsCount, setSavedContactsCount] = useState(0);
 
   useEffect(() => {
     checkPermission();
-  }, []);
+    if (user) {
+      checkSavedContacts();
+    }
+  }, [user]);
 
   useEffect(() => {
     if (searchQuery) {
@@ -79,15 +83,36 @@ export default function ContactsScreen() {
         .map(contact => ({
           id: contact.id || Math.random().toString(),
           name: contact.name || 'Unknown',
-          phoneNumbers: contact.phoneNumbers || [],
-          emails: contact.emails || []
+          phoneNumbers: contact.phoneNumbers?.filter(phone => phone.number).map(phone => ({ number: phone.number! })) || [],
+          emails: contact.emails?.filter(email => email.email).map(email => ({ email: email.email! })) || []
         }));
 
       setContacts(formattedContacts);
       
       // Sync contacts with backend
       if (user) {
-        await syncContactsWithBackend(formattedContacts);
+        const syncSuccess = await syncContactsWithBackend(formattedContacts);
+        
+        // Show success message
+        if (syncSuccess) {
+          Alert.alert(
+            'Success! ☕',
+            `Loaded and saved ${formattedContacts.length} contacts to your account. You can now select your best friends!`,
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert(
+            'Contacts Loaded ⚠️',
+            `Loaded ${formattedContacts.length} contacts but could not save to server. Please check your connection and try again.`,
+            [{ text: 'OK' }]
+          );
+        }
+      } else {
+        Alert.alert(
+          'Success! ☕',
+          `Loaded ${formattedContacts.length} contacts!`,
+          [{ text: 'OK' }]
+        );
       }
     } catch (error) {
       console.error('Error loading contacts:', error);
@@ -99,7 +124,9 @@ export default function ContactsScreen() {
 
   const syncContactsWithBackend = async (contactsList: Contact[]) => {
     try {
-      await fetch(`${BACKEND_URL}/api/contacts/sync`, {
+      console.log(`Syncing ${contactsList.length} contacts to backend...`);
+      
+      const response = await fetch(`${BACKEND_URL}/api/contacts/sync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -109,8 +136,46 @@ export default function ContactsScreen() {
           contacts: contactsList
         }),
       });
+
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        console.log(`✅ Successfully synced ${contactsList.length} contacts to database`);
+        // Refresh saved contacts count
+        setSavedContactsCount(contactsList.length);
+        return true;
+      } else {
+        console.error('❌ Failed to sync contacts:', data.message || 'Unknown error');
+        Alert.alert(
+          'Sync Warning',
+          'Contacts loaded but may not be saved to server. Please try again if you want to select best friends.',
+          [{ text: 'OK' }]
+        );
+        return false;
+      }
     } catch (error) {
-      console.error('Error syncing contacts with backend:', error);
+      console.error('❌ Error syncing contacts with backend:', error);
+      Alert.alert(
+        'Sync Warning', 
+        'Contacts loaded but could not connect to server. Best friends feature may not work until contacts are synced.',
+        [{ text: 'OK' }]
+      );
+      return false;
+    }
+  };
+
+  const checkSavedContacts = async () => {
+    if (!user) return;
+    
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/contacts/best-friends/${user.id}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setSavedContactsCount(data.contacts.length);
+      }
+    } catch (error) {
+      console.log('Could not check saved contacts:', error);
     }
   };
 
@@ -205,18 +270,44 @@ export default function ContactsScreen() {
       {contacts.length === 0 && !loading ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateText}>No contacts found</Text>
+          {savedContactsCount > 0 && (
+            <Text style={styles.databaseStatusText}>
+              📊 {savedContactsCount} contacts saved in database
+            </Text>
+          )}
           <TouchableOpacity style={styles.loadButton} onPress={loadContacts}>
             <Text style={styles.loadButtonText}>Load Contacts</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <>
+          {savedContactsCount > 0 && (
+            <View style={styles.databaseStatus}>
+              <Text style={styles.databaseStatusText}>
+                📊 Database: {savedContactsCount} contacts saved
+              </Text>
+              <TouchableOpacity 
+                style={styles.refreshButton} 
+                onPress={checkSavedContacts}
+              >
+                <Text style={styles.refreshButtonText}>↻ Refresh</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          
           <View style={styles.actionsContainer}>
             <TouchableOpacity 
               style={styles.bestFriendsButton} 
               onPress={navigateToBestFriends}
             >
               <Text style={styles.bestFriendsButtonText}>Select Best Friends ☕</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.viewBestFriendsButton} 
+              onPress={() => router.push('/view-best-friends')}
+            >
+              <Text style={styles.viewBestFriendsButtonText}>👥 View My Best Friends</Text>
             </TouchableOpacity>
           </View>
 
@@ -351,6 +442,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 16,
   },
+  viewBestFriendsButton: {
+    backgroundColor: '#8B4513',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  viewBestFriendsButtonText: {
+    color: '#F5E6D3',
+    fontWeight: '600',
+    fontSize: 16,
+  },
   emptyState: {
     flex: 1,
     alignItems: 'center',
@@ -431,5 +535,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8B4513',
     opacity: 0.7,
+  },
+  databaseStatus: {
+    backgroundColor: '#8B4513',
+    padding: 10,
+    borderRadius: 10,
+    marginHorizontal: 20,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  databaseStatusText: {
+    color: '#F5E6D3',
+    fontWeight: '600',
+    fontSize: 14,
+    flex: 1,
+  },
+  refreshButton: {
+    backgroundColor: '#F5E6D3',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 15,
+    alignItems: 'center',
+  },
+  refreshButtonText: {
+    color: '#8B4513',
+    fontWeight: '600',
+    fontSize: 12,
   },
 }); 

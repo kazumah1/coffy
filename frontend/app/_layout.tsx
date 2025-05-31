@@ -26,6 +26,7 @@ export default function RootLayout() {
           <Stack.Screen name="chat" options={{ headerShown: false }} />
           <Stack.Screen name="contacts" options={{ headerShown: false }} />
           <Stack.Screen name="best-friends" options={{ headerShown: false }} />
+          <Stack.Screen name="view-best-friends" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" />
         </Stack>
         <StatusBar style="auto" />

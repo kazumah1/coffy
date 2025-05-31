@@ -547,6 +547,119 @@ class DatabaseService:
             raise RuntimeError(f"Failed to update event participant: {response.error.message}")
             
         if not response.data:
-            raise RuntimeError(f"Event participant not found: {event_id} - {phone_number}")
+            raise RuntimeError(f"Event participant not found for phone {phone_number}")
             
-        return event_participant
+        return self.from_iso_strings(response.data[0])
+
+    # Contacts management methods
+    async def create_contact(self, contact_data: dict) -> dict:
+        """Create a new contact"""
+        import json
+        now = datetime.now()
+        contact = {
+            "id": str(uuid4()),
+            "user_id": contact_data["user_id"],
+            "device_contact_id": contact_data["device_contact_id"],
+            "name": contact_data["name"],
+            "phone_numbers": json.dumps(contact_data.get("phone_numbers", [])),
+            "emails": json.dumps(contact_data.get("emails", [])),
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
+        }
+        
+        response = self.client.table("contacts").insert(contact).execute()
+        
+        if not response.data:
+            raise RuntimeError(f"Failed to create contact: {response.error.message}")
+            
+        return self.from_iso_strings(response.data[0])
+
+    async def update_contact(self, contact_id: str, contact_data: dict) -> dict:
+        """Update an existing contact"""
+        import json
+        update_data = {
+            "name": contact_data["name"],
+            "phone_numbers": json.dumps(contact_data.get("phone_numbers", [])),
+            "emails": json.dumps(contact_data.get("emails", [])),
+            "updated_at": datetime.now().isoformat()
+        }
+        
+        response = self.client.table("contacts").update(update_data).eq("id", contact_id).execute()
+        
+        if not response.data:
+            raise RuntimeError(f"Failed to update contact: {contact_id}")
+            
+        return self.from_iso_strings(response.data[0])
+
+    async def get_contact_by_device_id(self, user_id: str, device_contact_id: str) -> dict:
+        """Get contact by device contact ID"""
+        response = self.client.table("contacts").select("*").eq("user_id", user_id).eq("device_contact_id", device_contact_id).execute()
+        
+        if not response.data:
+            return None
+            
+        return self.from_iso_strings(response.data[0])
+
+    async def get_user_contacts(self, user_id: str) -> list[dict]:
+        """Get all contacts for a user"""
+        response = self.client.table("contacts").select("*").eq("user_id", user_id).execute()
+        return [self.from_iso_strings(contact) for contact in response.data]
+
+    async def add_best_friend(self, user_id: str, contact_id: str) -> dict:
+        """Add a contact as a best friend"""
+        now = datetime.now()
+        best_friend = {
+            "id": str(uuid4()),
+            "user_id": user_id,
+            "contact_id": contact_id,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
+        }
+        
+        response = self.client.table("best_friends").insert(best_friend).execute()
+        
+        if not response.data:
+            raise RuntimeError(f"Failed to add best friend")
+            
+        return self.from_iso_strings(response.data[0])
+
+    async def clear_best_friends(self, user_id: str) -> bool:
+        """Clear all best friends for a user"""
+        response = self.client.table("best_friends").delete().eq("user_id", user_id).execute()
+        return True
+
+    async def get_best_friends(self, user_id: str) -> list[dict]:
+        """Get all best friends for a user"""
+        response = self.client.table("best_friends").select("*").eq("user_id", user_id).execute()
+        return [self.from_iso_strings(bf) for bf in response.data]
+
+    async def get_best_friends_with_details(self, user_id: str) -> list[dict]:
+        """Get all best friends with contact details"""
+        response = self.client.table("best_friends").select(
+            """
+            *,
+            contacts:contact_id (
+                id,
+                device_contact_id,
+                name,
+                phone_numbers,
+                emails
+            )
+            """
+        ).eq("user_id", user_id).execute()
+        
+        best_friends = []
+        for bf in response.data:
+            if bf.get("contacts"):
+                contact = bf["contacts"]
+                # Flatten the structure
+                best_friend = {
+                    "id": contact["id"],
+                    "device_contact_id": contact["device_contact_id"],
+                    "name": contact["name"],
+                    "phone_numbers": contact["phone_numbers"],
+                    "emails": contact["emails"]
+                }
+                best_friends.append(self.from_iso_strings(best_friend))
+        
+        return best_friends
