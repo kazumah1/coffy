@@ -6,10 +6,6 @@ class TextingService:
     def __init__(self):
         self.base_url = os.getenv("TEXTING_SERVICE_URL", "http://localhost:9090")
 
-    def send_text(self, to_number: str, message: str):
-        """Legacy method - use send_message instead"""
-        return self.send_message(to_number, message)
-
     def send_message(self, to_number: str, message: str):
         """Send a text message to a phone number"""
         response = requests.post(

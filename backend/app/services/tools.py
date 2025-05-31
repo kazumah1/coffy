@@ -111,7 +111,7 @@ CREATE_AVAILABILITY_CONVERSATION_TOOL = {
     "type": "function",
     "function": {
         "name": "create_availability_conversation",
-        "description": "Create a new SMS conversation for getting availability and preferences from a user. Works for both registered and unregistered users. For registered users, this creates a shorter conversation to confirm availability and preferences. For unregistered users, this creates a more detailed conversation to collect availability through SMS.",
+        "description": "Create a new SMS conversation to check if a user is interested in an event. This is the first step in the availability collection process. After creating the conversation, the user will be asked if they are interested in the event through an SMS message.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -126,6 +126,14 @@ CREATE_AVAILABILITY_CONVERSATION_TOOL = {
                 "user_id": {
                     "type": "string",
                     "description": "Optional UUID of the registered user. If provided, creates a shorter conversation for registered users."
+                },
+                "start_date": {
+                    "type": "string",
+                    "description": "Optional start date in ISO format (YYYY-MM-DD) for availability window"
+                },
+                "end_date": {
+                    "type": "string",
+                    "description": "Optional end date in ISO format (YYYY-MM-DD) for availability window"
                 }
             },
             "required": ["phone_number", "user_name"]
@@ -137,7 +145,7 @@ CREATE_UNREGISTERED_TIME_SLOTS_TOOL = {
     "type": "function",
     "function": {
         "name": "create_unregistered_time_slots",
-        "description": "Store time slots (busy or available) for an unregistered user based on their text responses. This must be called after creating the availability conversation and receiving their response.",
+        "description": "Store time slots for an unregistered user. The LLM should have already parsed and formatted the time slots correctly.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -147,7 +155,7 @@ CREATE_UNREGISTERED_TIME_SLOTS_TOOL = {
                 },
                 "time_slots": {
                     "type": "array",
-                    "description": "List of time slots extracted from user's messages",
+                    "description": "List of time slots that the LLM has already parsed and formatted",
                     "items": {
                         "type": "object",
                         "properties": {
@@ -163,14 +171,6 @@ CREATE_UNREGISTERED_TIME_SLOTS_TOOL = {
                                 "type": "string",
                                 "description": "Type of slot: 'busy' or 'available'",
                                 "enum": ["busy", "available"]
-                            },
-                            "confidence": {
-                                "type": "number",
-                                "description": "Confidence score for the slot (0-1), optional"
-                            },
-                            "raw_text": {
-                                "type": "string",
-                                "description": "Original text that generated this slot, optional"
                             }
                         },
                         "required": ["start_time", "end_time", "slot_type"]
@@ -200,41 +200,11 @@ CHECK_USER_REGISTRATION_TOOL = {
     }
 }
 
-SEND_AVAILABILITY_REQUEST_TOOL = {
+PARSE_CONFIRMATION_TOOL = {
     "type": "function",
     "function": {
-        "name": "send_availability_request",
-        "description": "Send an initial availability request to an unregistered user via SMS. This must be called after creating the event participant and availability conversation.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "phone_number": {
-                    "type": "string",
-                    "description": "Phone number of the unregistered user"
-                },
-                "start_date": {
-                    "type": "string",
-                    "description": "Start date in ISO format (YYYY-MM-DD) for availability window"
-                },
-                "end_date": {
-                    "type": "string",
-                    "description": "End date in ISO format (YYYY-MM-DD) for availability window"
-                },
-                "event_title": {
-                    "type": "string",
-                    "description": "Title of the event to include in the message"
-                }
-            },
-            "required": ["phone_number", "start_date", "end_date", "event_title"]
-        }
-    }
-}
-
-PARSE_AVAILABILITY_RESPONSE_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "parse_availability_response",
-        "description": "Parse a user's response to an availability request. For registered users, this checks if they've given permission to access their calendar. For unregistered users, this extracts time slots from their text response.",
+        "name": "parse_confirmation",
+        "description": "Update conversation and participant status based on user's confirmation response. The LLM should have already determined if the user confirmed or declined.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -242,16 +212,83 @@ PARSE_AVAILABILITY_RESPONSE_TOOL = {
                     "type": "string",
                     "description": "Phone number of the user"
                 },
-                "response_text": {
+                "confirmation": {
+                    "type": "boolean",
+                    "description": "Whether the user confirmed interest in the event"
+                },
+                "message": {
                     "type": "string",
-                    "description": "The user's response text to parse"
+                    "description": "The user's response message (for record keeping)"
+                }
+            },
+            "required": ["phone_number", "confirmation", "message"]
+        }
+    }
+}
+
+SEND_TEXT_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "send_text",
+        "description": "Send a text message to a user. This is used for sending follow-up questions or responses.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "phone_number": {
+                    "type": "string",
+                    "description": "Phone number of the user to send the message to"
+                },
+                "message": {
+                    "type": "string",
+                    "description": "The message to send"
+                }
+            },
+            "required": ["phone_number", "message"]
+        }
+    }
+}
+
+CREATE_FINAL_TIME_SLOTS_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "create_final_time_slots",
+        "description": "Store final time slots once the LLM has collected all necessary information. The LLM should have already formatted the time slots correctly.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "phone_number": {
+                    "type": "string",
+                    "description": "Phone number of the user"
                 },
                 "user_id": {
                     "type": "string",
-                    "description": "Optional UUID of the registered user. If provided, checks for calendar permission."
+                    "description": "Optional UUID of the registered user"
+                },
+                "time_slots": {
+                    "type": "array",
+                    "description": "List of final time slots that the LLM has already formatted",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "start_time": {
+                                "type": "string",
+                                "description": "Start time in ISO format (YYYY-MM-DDTHH:MM:SS)"
+                            },
+                            "end_time": {
+                                "type": "string",
+                                "description": "End time in ISO format (YYYY-MM-DDTHH:MM:SS)"
+                            },
+                            "slot_type": {
+                                "type": "string",
+                                "description": "Type of slot: 'busy' or 'available'",
+                                "enum": ["busy", "available"]
+                            }
+                        },
+                        "required": ["start_time", "end_time", "slot_type"]
+                    }
                 }
             },
-            "required": ["phone_number", "response_text"]
+            "required": ["phone_number", "time_slots"]
         }
     }
 }
@@ -312,31 +349,7 @@ SEND_EVENT_INVITATION_TOOL = {
     }
 }
 
-HANDLE_EVENT_RESPONSE_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "handle_event_response",
-        "description": "Process participant responses to event invitations. This tool parses responses like 'yes', 'no', or custom messages and updates participant status accordingly.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "event_id": {
-                    "type": "string",
-                    "description": "UUID of the event"
-                },
-                "phone_number": {
-                    "type": "string",
-                    "description": "Phone number of the participant responding"
-                },
-                "response_text": {
-                    "type": "string",
-                    "description": "The participant's response text to parse"
-                }
-            },
-            "required": ["event_id", "phone_number", "response_text"]
-        }
-    }
-}
+
 
 SEND_REMINDER_TOOL = {
     "type": "function",
@@ -395,6 +408,32 @@ HANDLE_SCHEDULING_CONFLICT_TOOL = {
     }
 }
 
+CHECK_CONVERSATION_STATE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "check_conversation_state",
+        "description": "Check the current state of the conversation and determine if the loop should continue or stop. This tool helps manage the flow of the conversation and ensures all necessary steps are completed.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "event_id": {
+                    "type": "string",
+                    "description": "UUID of the current event"
+                },
+                "phone_number": {
+                    "type": "string",
+                    "description": "Phone number of the current participant"
+                },
+                "current_stage": {
+                    "type": "string",
+                    "description": "Current stage of the conversation (e.g., 'initial_contact', 'availability_collection', 'scheduling', 'confirmation')"
+                }
+            },
+            "required": ["event_id", "phone_number", "current_stage"]
+        }
+    }
+}
+
 # List of all available tools
 AVAILABLE_TOOLS = [
     CREATE_DRAFT_EVENT_TOOL,
@@ -402,14 +441,14 @@ AVAILABLE_TOOLS = [
     SEARCH_CONTACTS_TOOL,
     GET_GOOGLE_CALENDAR_BUSY_TIMES_TOOL,
     CREATE_AVAILABILITY_CONVERSATION_TOOL,
-    CREATE_UNREGISTERED_TIME_SLOTS_TOOL,
     CHECK_USER_REGISTRATION_TOOL,
-    SEND_AVAILABILITY_REQUEST_TOOL,
-    PARSE_AVAILABILITY_RESPONSE_TOOL,
+    PARSE_CONFIRMATION_TOOL,
+    SEND_TEXT_TOOL,
+    CREATE_UNREGISTERED_TIME_SLOTS_TOOL,
+    CREATE_FINAL_TIME_SLOTS_TOOL,
     SCHEDULE_EVENT_TOOL,
     SEND_EVENT_INVITATION_TOOL,
-    HANDLE_EVENT_RESPONSE_TOOL,
     SEND_REMINDER_TOOL,
     HANDLE_SCHEDULING_CONFLICT_TOOL,
-    # Add more tools here as they are implemented
+    CHECK_CONVERSATION_STATE_TOOL,
 ] 

@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from fastapi import HTTPException
 import logging
 from pydantic import BaseModel, Field, validator
+from services.prompts import AVAILABLE_PROMPTS
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL = "gpt-3.5-turbo:free"
@@ -98,6 +99,7 @@ class OpenRouterService:
             raise RuntimeError("OPENROUTER_API_KEY not set in environment")
         self._current_event_id: Optional[str] = None
         self._current_owner_id: Optional[str] = None  # ID of the registered user making the request
+        self._current_participants: Optional[dict[str, dict]] = None  # Dict of phone_number -> participant for current event
         self.db_service = db_service
         self.google_calendar_service = google_calendar_service
         self.token_manager = token_manager
@@ -112,11 +114,29 @@ class OpenRouterService:
     def set_current_event(self, event_id: str) -> None:
         # Set the ID of the event currently being worked on
         self._current_event_id = event_id
+        self._current_participants = None  # Clear cached participants
 
     def clear_current_event(self) -> None:
-        # Clear the current event ID
+        # Clear the current event ID and related data
         self._current_event_id = None
         self._current_owner_id = None
+        self._current_participants = None
+
+    async def _get_current_participants(self) -> dict[str, dict]:
+        """Get participants for current event, using cache if available.
+        Returns a dictionary mapping phone numbers to participant data."""
+        if not self.current_event_id:
+            raise RuntimeError("No current event set")
+            
+        if self._current_participants is None:
+            # Get participants from database
+            participants_list = await self.db_service.get_event_participants(self.current_event_id)
+            # Convert to dictionary with phone numbers as keys
+            self._current_participants = {
+                p["phone_number"]: p for p in participants_list
+            }
+            
+        return self._current_participants
 
     def _handle_error(self, error: Exception, context: str) -> None:
         """Standardized error handling for the service"""
@@ -127,19 +147,14 @@ class OpenRouterService:
             logger.error(f"{context}: Unexpected error: {str(error)}")
             raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
-    async def prompt_agent(self, prompt: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def prompt_agent(self, prompt: str, messages: list[dict[str, str]]) -> Dict[str, Any]:
         """Send a prompt to the OpenRouter agent and get a response"""
         try:
             payload = {
                 "model": self.model,
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
+                "messages": messages,
                 "temperature": 0.0,
             }
-            if context:
-                payload["messages"].append({"role": "system", "content": json.dumps(context)})
             
             headers = {
                 "Content-Type": "application/json",
@@ -237,29 +252,33 @@ class OpenRouterService:
         if not self.current_event_id:
             raise RuntimeError("No current event set")
             
-        return await self.db_service.create_event_participant(
+        participant = await self.db_service.create_event_participant(
             self.current_event_id,
             phone_number,
             name
         )
+        
+        # Update cache if it exists
+        if self._current_participants is not None:
+            self._current_participants[phone_number] = participant
+            
+        return participant
 
     async def create_availability_conversation(
         self,
         phone_number: str,
         user_name: str,
-        user_id: str = None
+        user_id: str = None,
+        start_date: str = None,
+        end_date: str = None
     ) -> dict:
-        """Creates an availability conversation - a shorter one for registered users (with user_id) or a detailed SMS-based one for unregistered users."""
+        """Creates an availability conversation - first asks if they're interested, then gets availability if they confirm."""
         if not self.current_event_id:
             raise RuntimeError("No current event set - create an event first")
             
         # Get all event participants and find the matching one
-        participants = await self.db_service.get_event_participants(self.current_event_id)
-        participant = next(
-            (p for p in participants 
-             if p["phone_number"] == phone_number),
-            None
-        )
+        participants = await self._get_current_participants()
+        participant = participants.get(phone_number)
         
         if not participant:
             raise RuntimeError(
@@ -282,7 +301,7 @@ class OpenRouterService:
             self.current_event_id,
             phone_number,
             user_name,
-            "availability_request",
+            "registered" if user_id else "unregistered",
             user_id
         )
         
@@ -291,21 +310,18 @@ class OpenRouterService:
         if not event:
             raise RuntimeError(f"Event {self.current_event_id} not found")
             
-        # Format message based on user type
-        if user_id:
-            # For registered users, ask for confirmation and preferences
-            message = (
-                f"Hi {user_name}! We're trying to schedule '{event['title']}'. "
-                "Would you like me to check your calendar for availability? "
-                "Please reply with 'yes' to let me check your calendar, or let me know your preferences."
-            )
-        else:
-            # For unregistered users, ask for availability directly
-            message = (
-                f"Hi {user_name}! We're trying to schedule '{event['title']}'. "
-                "Could you let me know when you're available? "
-                "Please include any times you're busy or available."
-            )
+        # Get creator's name
+        creator = await self.db_service.get_user_by_id(event["creator_id"])
+        creator_name = creator["name"] if creator else "Someone"
+            
+        # Format message - same for all users initially
+        date_range = ""
+        if start_date and end_date:
+            date_range = f"between {start_date} and {end_date}"
+        message = (
+            f"Hey {user_name}, {creator_name} wants to plan a {event['title']} with you {date_range}. "
+            "Would you be down?"
+        )
             
         try:
             # Send the initial message
@@ -330,209 +346,91 @@ class OpenRouterService:
             raise RuntimeError(f"Failed to send availability request: {str(e)}")
         
         return conversation
-    
-    async def send_availability_request(
-        self,
-        phone_number: str,
-        start_date: str,
-        end_date: str,
-        event_title: str
-    ) -> dict:
-        """Send an initial availability request to an unregistered user via SMS."""
-        if not self.current_event_id:
-            raise RuntimeError("No current event set - create an event first")
-            
-        # Get all event participants and find the matching unregistered one
-        participants = await self.db_service.get_event_participants(self.current_event_id)
-        participant = next(
-            (p for p in participants 
-             if p["phone_number"] == phone_number and not p["registered"]),
-            None
-        )
-        if not participant:
-            raise RuntimeError(f"No unregistered participant found with phone number {phone_number}")
-            
-        # Get active availability conversation
-        conversations = await self.db_service.get_conversations(
-            self.current_event_id,
-            phone_number
-        )
-        conversation = next(
-            (c for c in conversations 
-             if c["type"] == "availability_request" and c["status"] == "active"),
-            None
-        )
-        if not conversation:
-            raise RuntimeError(
-                f"No active availability conversation found for {phone_number} - "
-                "create conversation first using create_availability_conversation"
-            )
-            
-        # Format the message
-        message = (
-            f"Hi {participant['name']}! We're trying to schedule '{event_title}'. "
-            f"Could you let me know when you're available between {start_date} and {end_date}? "
-            "Please include any times you're busy or available."
-        )
-        
-        try:
-            # Send the message
-            await self.texting_service.send_message(phone_number, message)
-            
-            # Update conversation status
-            await self.db_service.update_conversation_status(
-                self.current_event_id,
-                phone_number,
-                "message_sent"
-            )
-            
-            return {
-                "success": True,
-                "conversation_id": conversation["id"],
-                "message": message
-            }
-            
-        except Exception as e:
-            # Update conversation status to failed
-            await self.db_service.update_conversation_status(
-                self.current_event_id,
-                phone_number,
-                "failed"
-            )
-            raise RuntimeError(f"Failed to send availability request: {str(e)}")
 
-    async def parse_availability_response(
+    async def parse_confirmation(
         self,
         phone_number: str,
-        response_text: str,
-        user_id: str = None
+        confirmation: bool,
+        message: str
     ) -> dict:
-        """Parse user's availability response - for registered users checks calendar permission and fetches data, 
-        for unregistered users extracts and stores time slots from text."""
+        """Update conversation and participant status based on user's confirmation response."""
         if not self.current_event_id:
             raise RuntimeError("No current event set - create an event first")
             
         # Get all event participants and find the matching one
-        participants = await self.db_service.get_event_participants(self.current_event_id)
-        participant = next(
-            (p for p in participants 
-             if p["phone_number"] == phone_number),
-            None
-        )
+        participants = await self._get_current_participants()
+        participant = participants.get(phone_number)
         if not participant:
             raise RuntimeError(f"No participant found with phone number {phone_number}")
             
-        # Get active availability conversation
+        # Get active conversation
         conversations = await self.db_service.get_conversations(
             self.current_event_id,
             phone_number
         )
         conversation = next(
             (c for c in conversations 
-             if c["type"] == "availability_request" and c["status"] == "active"),
+             if c["type"] in ["registered", "unregistered"] and c["status"] == "active"),
             None
         )
         if not conversation:
             raise RuntimeError(
-                f"No active availability conversation found for {phone_number} - "
+                f"No active conversation found for {phone_number} - "
                 "create conversation first using create_availability_conversation"
             )
             
-        # For registered users, check if they've given calendar permission
-        if user_id:
-            # Check if response indicates permission to access calendar
-            calendar_permission = any(word in response_text.lower() 
-                                    for word in ["yes", "sure", "ok", "okay", "fine", "go ahead"])
+        # Update participant status
+        update_data = {
+            "status": "confirmed" if confirmation else "declined",
+            "response_text": message,
+            "updated_at": datetime.now()
+        }
+        
+        await self.db_service.update_event_participant(
+            self.current_event_id,
+            phone_number,
+            update_data
+        )
+        
+        # Update cache if it exists
+        if self._current_participants is not None:
+            self._current_participants[phone_number].update(update_data)
             
-            if calendar_permission:
-                try:
-                    # Get their busy times for the next 7 days
-                    start_date = datetime.now().date().isoformat()
-                    end_date = (datetime.now() + timedelta(days=7)).date().isoformat()
-                    
-                    busy_times = await self.get_google_calendar_busy_times(
-                        user_id,
-                        start_date,
-                        end_date
-                    )
-                    
-                    # Store the busy times
-                    await self.db_service.store_participant_busy_times(
-                        self.current_event_id,
-                        user_id,
-                        busy_times
-                    )
-                    
-                    # Update conversation status
-                    await self.db_service.update_conversation_status(
-                        self.current_event_id,
-                        phone_number,
-                        "completed"
-                    )
-                    
-                    return {
-                        "success": True,
-                        "calendar_accessed": True,
-                        "time_slots": busy_times,
-                        "message": "Thanks! I've checked your calendar and noted your availability."
-                    }
-                    
-                except Exception as e:
-                    # If calendar check fails, treat as manual availability
-                    print(f"Failed to get calendar for registered user {user_id}: {str(e)}")
-                    calendar_permission = False
-            
-            # If no calendar permission or calendar check failed, treat as manual availability
-            if not calendar_permission:
-                # Use LLM to extract time slots from response
-                time_slots = await self._extract_time_slots_from_text(response_text)
-                
-                # Store the time slots
-                await self.db_service.store_participant_busy_times(
-                    self.current_event_id,
-                    user_id,
-                    time_slots
-                )
-                
-                # Update conversation status
-                await self.db_service.update_conversation_status(
-                    self.current_event_id,
-                    phone_number,
-                    "completed"
-                )
-                
-                return {
-                    "success": True,
-                    "calendar_accessed": False,
-                    "time_slots": time_slots,
-                    "message": "Thanks! I've noted your availability."
-                }
-                
-        else:
-            # For unregistered users, extract time slots from response
-            time_slots = await self._extract_time_slots_from_text(response_text)
-            
-            # Store the time slots
-            await self.db_service.store_unregistered_time_slots(
+        # Update conversation status
+        if confirmation:
+            await self.db_service.update_conversation_status(
                 self.current_event_id,
                 phone_number,
-                time_slots
+                "waiting_for_availability"
             )
-            
-            # Update conversation status
+        else:
             await self.db_service.update_conversation_status(
                 self.current_event_id,
                 phone_number,
                 "completed"
             )
             
+        return {
+            "success": True,
+            "confirmation": confirmation,
+            "message": message
+        }
+
+    async def send_text(
+        self,
+        phone_number: str,
+        message: str
+    ) -> dict:
+        """Send a text message to a user."""
+        try:
+            await self.texting_service.send_message(phone_number, message)
             return {
                 "success": True,
-                "calendar_accessed": False,
-                "time_slots": time_slots,
-                "message": "Thanks! I've noted your availability."
+                "message": message
             }
-        
+        except Exception as e:
+            raise RuntimeError(f"Failed to send message: {str(e)}")
+
     async def get_google_calendar_busy_times(
         self,
         user_id: str,
@@ -603,7 +501,7 @@ class OpenRouterService:
             self.current_event_id,
             phone_number
         )
-        if not any(c["type"] == "availability_request" and c["status"] == "active" 
+        if not any(c["type"] == "unregistered" and c["status"] == "active" 
                   for c in conversations):
             raise RuntimeError(
                 f"No active availability conversation found for {phone_number} - "
@@ -619,9 +517,7 @@ class OpenRouterService:
                 start_time=datetime.fromisoformat(slot["start_time"]),
                 end_time=datetime.fromisoformat(slot["end_time"]),
                 slot_type=slot["slot_type"],
-                source="text",
-                confidence=slot.get("confidence"),
-                raw_text=slot.get("raw_text")
+                source="text"
             )
             formatted_slots.append(time_slot.dict())
             
@@ -641,81 +537,6 @@ class OpenRouterService:
             )
         
         return formatted_slots
-
-    async def _extract_time_slots_from_text(self, text: str) -> list[dict]:
-        """Extracts time slots from text using LLM.
-        
-        Returns list of dicts with start/end times (ISO format), slot_type (busy/available),
-        confidence score (0-1), and raw text that generated each slot."""
-        # Create a prompt for the LLM to extract time slots
-        prompt = f"""
-        Extract time slots from this text response about availability. Return ONLY valid JSON matching this schema:
-
-        {{
-          "time_slots": [
-            {{
-              "start_time": "string in ISO format (YYYY-MM-DDTHH:MM:SS)",
-              "end_time": "string in ISO format (YYYY-MM-DDTHH:MM:SS)",
-              "slot_type": "busy" or "available",
-              "confidence": number between 0 and 1,
-              "raw_text": "original text that generated this slot"
-            }}
-          ]
-        }}
-
-        Rules:
-        1. If a time is mentioned without a date, assume today or tomorrow
-        2. If only a date is mentioned, assume 9am-5pm for that day
-        3. If a time range is mentioned (e.g. "2-4pm"), create a slot for that range
-        4. If a specific time is mentioned (e.g. "3pm"), create a 1-hour slot
-        5. If a day is mentioned (e.g. "Monday"), create a slot for that day
-        6. Set confidence based on how clear the time reference is
-        7. Include the original text that generated each slot
-
-        Text to parse:
-        {text}
-        """
-        
-        try:
-            # Call OpenRouter to extract time slots
-            response = await self.prompt_agent(prompt)
-            
-            # Validate response format
-            if not isinstance(response, dict) or "time_slots" not in response:
-                raise RuntimeError("Invalid response format from LLM")
-                
-            time_slots = response["time_slots"]
-            
-            # Validate each time slot
-            for slot in time_slots:
-                # Check required fields
-                if not all(k in slot for k in ["start_time", "end_time", "slot_type"]):
-                    raise RuntimeError("Missing required fields in time slot")
-                    
-                # Validate slot type
-                if slot["slot_type"] not in ["busy", "available"]:
-                    raise RuntimeError(f"Invalid slot type: {slot['slot_type']}")
-                    
-                # Validate datetime format
-                try:
-                    datetime.fromisoformat(slot["start_time"])
-                    datetime.fromisoformat(slot["end_time"])
-                except ValueError:
-                    raise RuntimeError(f"Invalid datetime format in slot: {slot}")
-                    
-                # Validate confidence if present
-                if "confidence" in slot:
-                    if not isinstance(slot["confidence"], (int, float)):
-                        raise RuntimeError(f"Invalid confidence value: {slot['confidence']}")
-                    if not 0 <= slot["confidence"] <= 1:
-                        raise RuntimeError(f"Confidence must be between 0 and 1: {slot['confidence']}")
-                        
-            return time_slots
-            
-        except Exception as e:
-            print(f"Error extracting time slots: {str(e)}")
-            # Return empty list if extraction fails
-            return []
 
     async def schedule_event(
         self,
@@ -808,192 +629,6 @@ class OpenRouterService:
             
         except Exception as e:
             raise RuntimeError(f"Failed to schedule event: {str(e)}")
-
-    async def handle_event_response(
-        self,
-        event_id: UUID,
-        phone_number: str,
-        response_text: str
-    ) -> dict:
-        """Handle a participant's response to an event invitation"""
-        try:
-            # Validate input
-            request = EventResponse(
-                event_id=event_id,
-                phone_number=phone_number,
-                response=response_text
-            )
-
-            # Get event details
-            event = await self.db_service.get_event_by_id(request.event_id)
-            if not event:
-                raise OpenRouterError(f"Event not found: {request.event_id}", 404)
-
-            # Get participant details
-            participant = await self.db_service.get_event_participant_by_phone(request.event_id, request.phone_number)
-            if not participant:
-                raise OpenRouterError(f"No participant found with phone number {request.phone_number}", 404)
-                
-            # Get active invitation conversation
-            conversations = await self.db_service.get_conversations(request.event_id, request.phone_number)
-            conversation = next(
-                (c for c in conversations 
-                 if c["type"] == "event_invitation" and c["status"] == "invitation_sent"),
-                None
-            )
-            if not conversation:
-                raise OpenRouterError(
-                    f"No active invitation conversation found for {request.phone_number} - "
-                    "send invitation first using send_event_invitation",
-                    400
-                )
-                
-            # Parse response using LLM
-            prompt = f"""
-            Parse this response to an event invitation. Return ONLY valid JSON matching this schema:
-
-            {{
-              "response_type": "accept" or "decline" or "maybe" or "custom",
-              "confidence": number between 0 and 1,
-              "custom_message": "string (only if response_type is custom)"
-            }}
-
-            Rules:
-            1. "accept" for: yes, sure, ok, okay, fine, I'll be there, etc.
-            2. "decline" for: no, sorry, can't make it, etc.
-            3. "maybe" for: maybe, not sure, I'll try, etc.
-            4. "custom" for: other responses that need human attention
-            5. Set confidence based on how clear the response is
-            6. Include the original message if response_type is custom
-
-            Response to parse:
-            {request.response}
-            """
-            
-            try:
-                # Call OpenRouter to parse response
-                response = await self.prompt_agent(prompt)
-                
-                # Validate response format
-                if not isinstance(response, dict):
-                    raise RuntimeError("Invalid response format from LLM")
-                    
-                response_type = response.get("response_type")
-                if response_type not in ["accept", "decline", "maybe", "custom"]:
-                    raise RuntimeError(f"Invalid response type: {response_type}")
-                    
-                # Update participant status
-                update_data = {
-                    "status": response_type,
-                    "response_text": request.response,
-                    "updated_at": datetime.now()
-                }
-                
-                # For registered users, update their calendar if they accepted
-                if participant["registered"] and response_type == "accept":
-                    try:
-                        # Get their tokens
-                        tokens = await self.token_manager.get_token(participant["id"])
-                        
-                        # Add event to their calendar
-                        await self.google_calendar_service.add_event(
-                            tokens["google_access_token"],
-                            event["title"],
-                            event["final_time"],
-                            event["end_time"],
-                            event.get("location"),
-                            event.get("description")
-                        )
-                    except Exception as e:
-                        print(f"Failed to add event to calendar for {participant['id']}: {str(e)}")
-                        # Continue even if calendar update fails
-                
-                # Update participant status
-                await self.db_service.update_event_participant(
-                    request.event_id,
-                    request.phone_number,
-                    update_data
-                )
-                
-                # Update conversation status
-                await self.db_service.update_conversation_status(
-                    request.event_id,
-                    request.phone_number,
-                    participant["name"],
-                    "response_received"
-                )
-                
-                # Send confirmation message
-                if response_type == "accept":
-                    message = "Great! I've added you to the event."
-                    if participant["registered"]:
-                        message += " I've also added it to your calendar."
-                elif response_type == "decline":
-                    message = "Thanks for letting me know. I'll update the event accordingly."
-                elif response_type == "maybe":
-                    message = "Thanks for letting me know. Please confirm your attendance when you can."
-                else:  # custom
-                    message = "Thanks for your response. I'll make sure the event organizer sees it."
-                
-                await self.texting_service.send_message(request.phone_number, message)
-                
-                return {
-                    "success": True,
-                    "response_type": response_type,
-                    "confidence": response.get("confidence", 1.0),
-                    "custom_message": response.get("custom_message") if response_type == "custom" else None,
-                    "message": message
-                }
-                
-            except Exception as e:
-                # If LLM parsing fails, treat as custom response
-                print(f"Error parsing response: {str(e)}")
-                
-                # Update participant status as custom
-                update_data = {
-                    "status": "custom",
-                    "response_text": request.response,
-                    "updated_at": datetime.now()
-                }
-                
-                await self.db_service.update_event_participant(
-                    request.event_id,
-                    request.phone_number,
-                    update_data
-                )
-                
-                # Update conversation status
-                await self.db_service.update_conversation_status(
-                    request.event_id,
-                    request.phone_number,
-                    participant["name"],
-                    "response_received"
-                )
-                
-                # Send generic response
-                message = "Thanks for your response. I'll make sure the event organizer sees it."
-                await self.texting_service.send_message(request.phone_number, message)
-                
-                return {
-                    "success": True,
-                    "response_type": "custom",
-                    "confidence": 0.0,
-                    "custom_message": request.response,
-                    "message": message
-                }
-            
-        except ValueError as e:
-            raise OpenRouterError(str(e), 400)
-        except Exception as e:
-            # Update conversation status to failed
-            if conversation:
-                await self.db_service.update_conversation_status(
-                    request.event_id,
-                    request.phone_number,
-                    participant["name"],
-                    "failed"
-                )
-            self._handle_error(e, "Failed to handle event response")
 
     # TODO (NOT FOR MVP)
     async def send_reminder(
@@ -1342,3 +977,180 @@ class OpenRouterService:
                     participant["name"]
                 )
             self._handle_error(e, "Failed to send event invitation")
+
+    async def create_final_time_slots(
+        self,
+        phone_number: str,
+        time_slots: list[dict],
+        user_id: str = None
+    ) -> dict:
+        """Create and store final time slots once sufficient availability information has been collected."""
+        if not self.current_event_id:
+            raise RuntimeError("No current event set - create an event first")
+            
+        # Get all event participants and find the matching one
+        participants = await self._get_current_participants()
+        participant = participants.get(phone_number)
+        if not participant:
+            raise RuntimeError(f"No participant found with phone number {phone_number}")
+            
+        # Get active conversation
+        conversations = await self.db_service.get_conversations(
+            self.current_event_id,
+            phone_number
+        )
+        conversation = next(
+            (c for c in conversations 
+             if c["type"] in ["registered", "unregistered"] and c["status"] == "waiting_for_availability"),
+            None
+        )
+        if not conversation:
+            raise RuntimeError(
+                f"No active availability conversation found for {phone_number} - "
+                "user must confirm interest first using parse_confirmation"
+            )
+            
+        # For registered users, store in participant_busy_times
+        if user_id:
+            await self.db_service.store_participant_busy_times(
+                self.current_event_id,
+                user_id,
+                time_slots
+            )
+        else:
+            # For unregistered users, store in unregistered_time_slots
+            await self.db_service.store_unregistered_time_slots(
+                self.current_event_id,
+                phone_number,
+                time_slots
+            )
+            
+        # Update conversation status to completed
+        await self.db_service.update_conversation_status(
+            self.current_event_id,
+            phone_number,
+            "completed"
+        )
+            
+        return {
+            "success": True,
+            "time_slots": time_slots
+        }
+
+    async def check_conversation_state(
+        self,
+        event_id: str,
+        phone_numbers: list[str],
+        current_stage: str
+    ) -> dict:
+        """Check the current state of the conversation and determine if the loop should continue or advance to the next stage."""
+        try:
+            event = await self.db_service.get_event_by_id(event_id)
+            if not event:
+                raise RuntimeError(f"Event {event_id} not found")
+            participants = await self.db_service.get_event_participants(event_id)
+            participant_statuses = {p["phone_number"]: p["status"] for p in participants}
+
+            should_advance = False
+            reason = None
+
+            if current_stage == "draft":
+                # Advance if event draft is created and at least one participant is identified
+                if event and participants:
+                    should_advance = True
+                    reason = "Draft created and participants identified."
+
+            elif current_stage == "participant_setup":
+                # Advance if all participants have been messaged (e.g., have a conversation started)
+                all_messaged = True
+                for phone in phone_numbers:
+                    conversations = await self.db_service.get_conversations(event_id, phone)
+                    if not any(c["type"] in ["registered", "unregistered"] for c in conversations):
+                        all_messaged = False
+                        break
+                if all_messaged:
+                    should_advance = True
+                    reason = "All participants have been messaged."
+
+            elif current_stage == "confirmation":
+                # Advance if all participants have confirmed or declined
+                all_responded = all(
+                    participant_statuses.get(phone) in ["confirmed", "declined"]
+                    for phone in phone_numbers
+                )
+                if all_responded:
+                    should_advance = True
+                    reason = "All participants have confirmed or declined."
+
+            elif current_stage == "availability":
+                # Advance if all participants have provided availability (status == 'availability_provided' or similar)
+                all_provided = all(
+                    participant_statuses.get(phone) in ["availability_provided", "confirmed", "declined"]
+                    for phone in phone_numbers
+                )
+                if all_provided:
+                    should_advance = True
+                    reason = "All participants have provided availability or are not attending."
+
+            elif current_stage == "scheduling":
+                # Advance if event is scheduled
+                if event["status"] == "scheduled":
+                    should_advance = True
+                    reason = "Event has been scheduled."
+
+            return {
+                "should_advance": should_advance,
+                "reason": reason,
+                "current_status": {
+                    "event_status": event["status"],
+                    "participant_statuses": participant_statuses,
+                    "current_stage": current_stage
+                }
+            }
+        except Exception as e:
+            self._handle_error(e, "Failed to check conversation state")
+
+    STAGES = [
+        "draft",                # 1. Understand and draft
+        "participant_setup",    # 2. Participant setup and Initial messaging
+        "confirmation",         # 3. Confirmation Handling
+        "availability",         # 4. Availability collection
+        "scheduling"            # 5. Scheduling and Final notification
+    ]
+
+    TOOLS_FOR_STAGE = {
+        "draft": [
+            "create_draft_event", "search_contacts", "check_user_registration"
+        ],
+        "participant_setup": [
+            "create_event_participant", "create_availability_conversation"
+        ],
+        "confirmation": [
+            "parse_confirmation", "send_text"
+        ],
+        "availability": [
+            "get_google_calendar_busy_times", "create_unregistered_time_slots",
+            "create_final_time_slots", "send_text"
+        ],
+        "scheduling": [
+            "schedule_event", "send_event_invitation", "send_text"
+        ]
+    }
+
+    async def run_agent_loop(self, user_input: str, creator_id: str):
+        context = {"user_input": user_input, "creator_id": creator_id}
+        stage_idx = 0
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_input}
+        ]
+        phone_numbers = []
+
+        while stage_idx < len(self.STAGES):
+            stage = self.STAGES[stage_idx]
+            tools = self.TOOLS_FOR_STAGE[stage]
+
+            prompt = AVAILABLE_PROMPTS[stage]
+            response = await self.prompt_agent(user_input, messages)
+            messages.append(response)
+            conversation_state = await self.check_conversation_state(self.current_event_id, phone_numbers, stage)

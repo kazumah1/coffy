@@ -12,7 +12,7 @@ export default function HomeScreen() {
   return (
     <ThemedView style={styles.container}>
       <LoginButton />
-      <Availability start="2025-05-27T17:00:00-07:00" end="2025-05-31T17:00:00-07:00" />
+      <Availability start="2025-05-26T17:00:00-07:00" end="2025-05-31T17:00:00-07:00" />
     </ThemedView>
   );
 }

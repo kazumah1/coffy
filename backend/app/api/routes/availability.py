@@ -17,6 +17,7 @@ async def get_availability(
 ):
     tokens = await token_manager.get_token(user_id)
     if not tokens:
+        print("Token not found")
         raise HTTPException(status_code=401, detail="Token not found")
     events = google_calendar_service.get_all_events(tokens['google_access_token'], start_date, end_date)
     return events

@@ -6,6 +6,7 @@ from typing import Optional
 from urllib.parse import urlencode
 from core.config import settings
 import aiohttp
+import google.auth.transport.requests
 
 class GoogleOAuthHandler:
     """Handles Google OAuth2 flow for calendar integration."""
@@ -38,8 +39,29 @@ class GoogleOAuthHandler:
         self.flow.fetch_token(code=code)
         return self.flow.credentials
 
-    def refresh_token(self, refresh_token: str) -> google.oauth2.credentials.Credentials:
+    async def refresh_token(self, refresh_token: str) -> google.oauth2.credentials.Credentials:
         """Refresh an expired access token."""
-        credentials = google.oauth2.credentials.Credentials(refresh_token=refresh_token)
-        credentials.refresh(None)
-        return credentials
+        try:
+            # Initialize credentials with all required fields
+            credentials = google.oauth2.credentials.Credentials(
+                None,  # No access token initially
+                refresh_token=refresh_token,
+                token_uri=settings.GOOGLE_TOKEN_URI,
+                client_id=settings.GOOGLE_CLIENT_ID,
+                client_secret=settings.GOOGLE_CLIENT_SECRET,
+                scopes=settings.GOOGLE_CALENDAR_SCOPES
+            )
+            print("credentials", credentials)
+            
+            # Create a request object for token refresh
+            request = google.auth.transport.requests.Request()
+            
+            # Request a new access token
+            credentials.refresh(request)  # This is a synchronous call
+            print("refreshed credentials token", credentials.token)
+            print("refreshed credentials refresh_token", credentials.refresh_token)
+            
+            return credentials
+        except Exception as e:
+            print(f"Error refreshing token: {str(e)}")
+            raise
