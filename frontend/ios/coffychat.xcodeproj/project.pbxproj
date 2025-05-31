@@ -7,29 +7,29 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		00AFF1ECF0B2B2B1B7733044 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E25A0E9B8E878794F24490 /* ExpoModulesProvider.swift */; };
+		0F1B3FCD546EC619A1FD8C89 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 6578B718E32CE7638817B281 /* PrivacyInfo.xcprivacy */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		89DFA07458DA8F05A508E0EF /* libPods-coffychat.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F886065AE496D30ED4394E1A /* libPods-coffychat.a */; };
-		BB062C10CFB851C254035349 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = FBA2B140D4C99286AA8008B7 /* PrivacyInfo.xcprivacy */; };
+		92BC4BB47DE5A7AA6D437424 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D91DC22BBD9D22AE20425E6 /* ExpoModulesProvider.swift */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
+		F87454AE4D99B00835C60C70 /* libPods-coffychat.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 7D2E580E0E7A49D27F3A208F /* libPods-coffychat.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		12E25A0E9B8E878794F24490 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-coffychat/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* coffychat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = coffychat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = coffychat/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = coffychat/Info.plist; sourceTree = "<group>"; };
-		8B867EFB52518CCE70B787C2 /* Pods-coffychat.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-coffychat.release.xcconfig"; path = "Target Support Files/Pods-coffychat/Pods-coffychat.release.xcconfig"; sourceTree = "<group>"; };
-		907A12CE589B73CBC2324ECC /* Pods-coffychat.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-coffychat.debug.xcconfig"; path = "Target Support Files/Pods-coffychat/Pods-coffychat.debug.xcconfig"; sourceTree = "<group>"; };
+		6578B718E32CE7638817B281 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = coffychat/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		6D91DC22BBD9D22AE20425E6 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-coffychat/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		7D2E580E0E7A49D27F3A208F /* libPods-coffychat.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-coffychat.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		976467617C7FCCF033483419 /* Pods-coffychat.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-coffychat.debug.xcconfig"; path = "Target Support Files/Pods-coffychat/Pods-coffychat.debug.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = coffychat/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
+		C9CF36F791461D1E613DCC93 /* Pods-coffychat.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-coffychat.release.xcconfig"; path = "Target Support Files/Pods-coffychat/Pods-coffychat.release.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = coffychat/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* coffychat-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "coffychat-Bridging-Header.h"; path = "coffychat/coffychat-Bridging-Header.h"; sourceTree = "<group>"; };
-		F886065AE496D30ED4394E1A /* libPods-coffychat.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-coffychat.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		FBA2B140D4C99286AA8008B7 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = coffychat/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -37,13 +37,21 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				89DFA07458DA8F05A508E0EF /* libPods-coffychat.a in Frameworks */,
+				F87454AE4D99B00835C60C70 /* libPods-coffychat.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		056A060D6C89D2E222C18B82 /* coffychat */ = {
+			isa = PBXGroup;
+			children = (
+				6D91DC22BBD9D22AE20425E6 /* ExpoModulesProvider.swift */,
+			);
+			name = coffychat;
+			sourceTree = "<group>";
+		};
 		13B07FAE1A68108700A75B9A /* coffychat */ = {
 			isa = PBXGroup;
 			children = (
@@ -53,41 +61,25 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				FBA2B140D4C99286AA8008B7 /* PrivacyInfo.xcprivacy */,
+				6578B718E32CE7638817B281 /* PrivacyInfo.xcprivacy */,
 			);
 			name = coffychat;
-			sourceTree = "<group>";
-		};
-		1FD6AF02ABEEA955E71CE397 /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				79BED8963101DBA0BD57378E /* coffychat */,
-			);
-			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				F886065AE496D30ED4394E1A /* libPods-coffychat.a */,
+				7D2E580E0E7A49D27F3A208F /* libPods-coffychat.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		79BED8963101DBA0BD57378E /* coffychat */ = {
+		794388A5FBBF959B1ED49DF7 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				12E25A0E9B8E878794F24490 /* ExpoModulesProvider.swift */,
-			);
-			name = coffychat;
-			sourceTree = "<group>";
-		};
-		7D6363501B677E57D51F953A /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				907A12CE589B73CBC2324ECC /* Pods-coffychat.debug.xcconfig */,
-				8B867EFB52518CCE70B787C2 /* Pods-coffychat.release.xcconfig */,
+				976467617C7FCCF033483419 /* Pods-coffychat.debug.xcconfig */,
+				C9CF36F791461D1E613DCC93 /* Pods-coffychat.release.xcconfig */,
 			);
 			name = Pods;
 			path = Pods;
@@ -107,8 +99,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				7D6363501B677E57D51F953A /* Pods */,
-				1FD6AF02ABEEA955E71CE397 /* ExpoModulesProviders */,
+				794388A5FBBF959B1ED49DF7 /* Pods */,
+				BF16BF63D75745F0D1939CFA /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -132,6 +124,14 @@
 			path = coffychat/Supporting;
 			sourceTree = "<group>";
 		};
+		BF16BF63D75745F0D1939CFA /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				056A060D6C89D2E222C18B82 /* coffychat */,
+			);
+			name = ExpoModulesProviders;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -140,13 +140,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "coffychat" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				78EEB4181D7EBC13907E6F4C /* [Expo] Configure project */,
+				5348650BA00F268A44720E75 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				58732F4156451AC959D3AFB1 /* [CP] Embed Pods Frameworks */,
+				563D66FC79169CD74E0E6BD0 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -196,7 +196,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				BB062C10CFB851C254035349 /* PrivacyInfo.xcprivacy in Resources */,
+				0F1B3FCD546EC619A1FD8C89 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -240,25 +240,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		58732F4156451AC959D3AFB1 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-coffychat/Pods-coffychat-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-coffychat/Pods-coffychat-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		78EEB4181D7EBC13907E6F4C /* [Expo] Configure project */ = {
+		5348650BA00F268A44720E75 /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -276,6 +258,24 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-coffychat/expo-configure-project.sh\"\n";
+		};
+		563D66FC79169CD74E0E6BD0 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-coffychat/Pods-coffychat-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-coffychat/Pods-coffychat-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -329,7 +329,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				00AFF1ECF0B2B2B1B7733044 /* ExpoModulesProvider.swift in Sources */,
+				92BC4BB47DE5A7AA6D437424 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -338,7 +338,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 907A12CE589B73CBC2324ECC /* Pods-coffychat.debug.xcconfig */;
+			baseConfigurationReference = 976467617C7FCCF033483419 /* Pods-coffychat.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -374,7 +374,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 8B867EFB52518CCE70B787C2 /* Pods-coffychat.release.xcconfig */;
+			baseConfigurationReference = C9CF36F791461D1E613DCC93 /* Pods-coffychat.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;

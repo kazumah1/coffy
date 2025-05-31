@@ -45,6 +45,12 @@ export default function HomeScreen() {
       )}
       
       {user && (
+        <TouchableOpacity style={styles.contactsButton} onPress={() => router.push('/contacts')}>
+          <Text style={styles.contactsButtonText}>📱 Manage Contacts</Text>
+        </TouchableOpacity>
+      )}
+      
+      {user && (
         <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
@@ -124,5 +130,17 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     position: 'absolute',
+  },
+  contactsButton: {
+    marginTop: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: '#8B4513',
+    borderRadius: 8,
+  },
+  contactsButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });
