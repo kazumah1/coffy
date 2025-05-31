@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     # Google OAuth settings
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
-    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/auth/google/callback"
+    GOOGLE_REDIRECT_URI: str = "https://coffy.app/auth/google/callback"
     GOOGLE_CALENDAR_SCOPES: list[str] = [
         "https://www.googleapis.com/auth/calendar.events",
         "https://www.googleapis.com/auth/calendar.readonly",
@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     ]
     GOOGLE_AUTH_URI: str = "https://accounts.google.com/o/oauth2/auth"
     GOOGLE_TOKEN_URI: str = "https://oauth2.googleapis.com/token"
-    GOOGLE_LOGIN_URI: str = "http://localhost:8000/auth/google/login"
+    GOOGLE_LOGIN_URI: str = "https://coffy.app/auth/google/login"
     
     # Supabase settings
     SUPABASE_URL: str

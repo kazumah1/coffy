@@ -117,7 +117,7 @@ CREATE_AVAILABILITY_CONVERSATION_TOOL = {
             "properties": {
                 "phone_number": {
                     "type": "string",
-                    "description": "Phone number of the user"
+                    "description": "Phone number of the user. Format: '5551234567'"
                 },
                 "user_name": {
                     "type": "string",
@@ -214,7 +214,7 @@ PARSE_CONFIRMATION_TOOL = {
             "properties": {
                 "phone_number": {
                     "type": "string",
-                    "description": "Phone number of the user"
+                    "description": "Phone number of the user. Format: '5551234567'"
                 },
                 "confirmation": {
                     "type": "boolean",
@@ -240,11 +240,11 @@ SEND_TEXT_TOOL = {
             "properties": {
                 "phone_number": {
                     "type": "string",
-                    "description": "Phone number of the user to send the message to"
+                    "description": "Phone number of the user to send the message to. Format: '5551234567'"
                 },
                 "message": {
                     "type": "string",
-                    "description": "The message to send"
+                    "description": "The message to send. Keep it short and concise."
                 }
             },
             "required": ["phone_number", "message"]
@@ -262,7 +262,7 @@ CREATE_FINAL_TIME_SLOTS_TOOL = {
             "properties": {
                 "phone_number": {
                     "type": "string",
-                    "description": "Phone number of the user"
+                    "description": "Phone number of the user. Format: '5551234567'"
                 },
                 "user_id": {
                     "type": "string",
@@ -341,7 +341,7 @@ SEND_EVENT_INVITATION_TOOL = {
                 },
                 "phone_number": {
                     "type": "string",
-                    "description": "Phone number of the participant to invite"
+                    "description": "Phone number of the participant to invite. Format: '5551234567'"
                 },
                 "include_ics": {
                     "type": "boolean",
@@ -367,7 +367,7 @@ SEND_REMINDER_TOOL = {
                 },
                 "phone_number": {
                     "type": "string",
-                    "description": "Phone number of the participant to remind"
+                    "description": "Phone number of the participant to remind. Format: '5551234567'"
                 },
                 "reminder_type": {
                     "type": "string",
@@ -410,32 +410,6 @@ HANDLE_SCHEDULING_CONFLICT_TOOL = {
     }
 }
 
-CHECK_CONVERSATION_STATE_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "check_conversation_state",
-        "description": "Check the current state of the conversation and determine if the loop should continue or stop. This tool helps manage the flow of the conversation and ensures all necessary steps are completed.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "event_id": {
-                    "type": "string",
-                    "description": "UUID of the current event"
-                },
-                "phone_number": {
-                    "type": "string",
-                    "description": "Phone number of the current participant"
-                },
-                "current_stage": {
-                    "type": "string",
-                    "description": "Current stage of the conversation (e.g., 'initial_contact', 'availability_collection', 'scheduling', 'confirmation')"
-                }
-            },
-            "required": ["event_id", "phone_number", "current_stage"]
-        }
-    }
-}
-
 # List of all available tools
 AVAILABLE_TOOLS = [
     CREATE_DRAFT_EVENT_TOOL,
@@ -452,7 +426,6 @@ AVAILABLE_TOOLS = [
     SEND_EVENT_INVITATION_TOOL,
     SEND_REMINDER_TOOL,
     HANDLE_SCHEDULING_CONFLICT_TOOL,
-    CHECK_CONVERSATION_STATE_TOOL,
 ]
 
 # Dictionary mapping tool names to their indices in AVAILABLE_TOOLS
@@ -470,6 +443,5 @@ TOOL_NAME_TO_INDEX = {
     "schedule_event": 10,
     "send_event_invitation": 11,
     "send_reminder": 12,
-    "handle_scheduling_conflict": 13,
-    "check_conversation_state": 14
+    "handle_scheduling_conflict": 13
 } 

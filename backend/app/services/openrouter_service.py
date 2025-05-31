@@ -72,7 +72,7 @@ class OpenRouterService:
     ):
         self.api_url = API_URL
         self.model = MODEL
-        self.api_key = "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"
+        self.api_key = os.getenv("OPENROUTER_API_KEY")
         if not self.api_key:
             raise RuntimeError("OPENROUTER_API_KEY not set in environment")
         self._current_event_id: Optional[str] = "8b1cb9db-9f6d-488b-afc4-707223210988" # TODO: remove this
@@ -152,38 +152,7 @@ class OpenRouterService:
                 messages=messages,
                 tools=tools
             ).choices[0].message
-            # response = await asyncio.to_thread(requests.post,
-            #     url="https://openrouter.ai/api/v1/chat/completions",
-            #     headers={
-            #         "Authorization": f"Bearer {self.api_key}",
-            #         "Content-Type": "application/json",
-            #     },
-            #     data=json.dumps({
-            #         "model": "meta-llama/llama-3.2-3b-instruct",
-            #         "messages": messages,
-            #     })
-            # )
             return response
-            response.raise_for_status()  # This will raise an exception for 4XX/5XX responses
-            
-            json_response = response.json()
-            if not json_response.get("choices"):
-                raise RuntimeError("No choices in response from OpenRouter")
-                
-            message = json_response["choices"][0].get("message", {})
-            if not message:
-                raise RuntimeError("No message in response from OpenRouter")
-                
-            # Parse the content as JSON if it's a string
-            content = message.get("content", "")
-            if isinstance(content, str):
-                try:
-                    content = json.loads(content)
-                except json.JSONDecodeError:
-                    # If it's not valid JSON, keep it as a string
-                    pass
-                    
-            return response.json()
             
         except requests.exceptions.RequestException as e:
             logger.error(f"OpenRouter API request failed: {str(e)}")
@@ -349,7 +318,8 @@ class OpenRouterService:
                 f"Hey {user_name}, {creator_name} wants to plan a {event['title']} with you {date_range}. "
                 "Would you be down?"
             )
-            
+        
+        message = "Hi! I'm Coffy." + message
         try:
             # Send the initial message
             await self.texting_service.send_message(phone_number, message)

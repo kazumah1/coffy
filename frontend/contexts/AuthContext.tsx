@@ -20,7 +20,7 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const BACKEND_URL = "http://localhost:8000";
+const BACKEND_URL = "https://coffy.app";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
