@@ -121,22 +121,26 @@ CREATE_AVAILABILITY_CONVERSATION_TOOL = {
                 },
                 "user_name": {
                     "type": "string",
-                    "description": "Name of the user"
+                    "description": "Name of the user as it appears in their contact"
                 },
                 "user_id": {
                     "type": "string",
-                    "description": "Optional UUID of the registered user. If provided, creates a shorter conversation for registered users."
+                    "description": "Optional UUID for registered users. Must be provided if the user is registered."
                 },
                 "start_date": {
                     "type": "string",
-                    "description": "Optional start date in ISO format (YYYY-MM-DD) for availability window"
+                    "description": "Start date in ISO format (YYYY-MM-DD) for availability window"
                 },
                 "end_date": {
                     "type": "string",
-                    "description": "Optional end date in ISO format (YYYY-MM-DD) for availability window"
+                    "description": "End date in ISO format (YYYY-MM-DD) for availability window"
+                },
+                "message": {
+                    "type": "string",
+                    "description": "Initial SMS text message to send to the user. Should be short and concise."
                 }
             },
-            "required": ["phone_number", "user_name"]
+            "required": ["phone_number", "user_name", "start_date", "end_date", "message"]
         }
     }
 }
@@ -151,7 +155,7 @@ CREATE_UNREGISTERED_TIME_SLOTS_TOOL = {
             "properties": {
                 "phone_number": {
                     "type": "string",
-                    "description": "Phone number of the unregistered user"
+                    "description": "Phone number of the unregistered user. Format: '5551234567'"
                 },
                 "time_slots": {
                     "type": "array",

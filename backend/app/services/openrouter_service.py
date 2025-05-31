@@ -75,8 +75,8 @@ class OpenRouterService:
         self.api_key = "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"
         if not self.api_key:
             raise RuntimeError("OPENROUTER_API_KEY not set in environment")
-        self._current_event_id: Optional[str] = None
-        self._current_owner_id: Optional[str] = None  # ID of the registered user making the request
+        self._current_event_id: Optional[str] = "8b1cb9db-9f6d-488b-afc4-707223210988" # TODO: remove this
+        self._current_owner_id: Optional[str] = "a2777a98-c0bc-4ecd-b3c2-bcb5c8e0e3eb" # TODO: remove this # ID of the registered user making the request
         self._current_participants: Optional[dict[str, dict]] = None  # Dict of phone_number -> participant for current event
         self.db_service = db_service
         self.google_calendar_service = google_calendar_service
@@ -269,6 +269,14 @@ class OpenRouterService:
         if not self.current_event_id:
             raise RuntimeError("No current event set")
             
+        # Check if participant already exists
+        existing_participant = await self.db_service.get_event_participant_by_phone(
+            self.current_event_id,
+            phone_number
+        )
+        if existing_participant:
+            return existing_participant
+            
         participant = await self.db_service.create_event_participant(
             self.current_event_id,
             phone_number,
@@ -287,7 +295,8 @@ class OpenRouterService:
         user_name: str,
         user_id: str = None,
         start_date: str = None,
-        end_date: str = None
+        end_date: str = None,
+        message: str = None
     ) -> dict:
         """Creates an availability conversation - first asks if they're interested, then gets availability if they confirm."""
         if not self.current_event_id:
@@ -335,10 +344,11 @@ class OpenRouterService:
         date_range = ""
         if start_date and end_date:
             date_range = f"between {start_date} and {end_date}"
-        message = (
-            f"Hey {user_name}, {creator_name} wants to plan a {event['title']} with you {date_range}. "
-            "Would you be down?"
-        )
+        if not message:
+            message = (
+                f"Hey {user_name}, {creator_name} wants to plan a {event['title']} with you {date_range}. "
+                "Would you be down?"
+            )
             
         try:
             # Send the initial message
@@ -352,6 +362,13 @@ class OpenRouterService:
                 user_name
             )
             
+            return {
+                "success": True,
+                "conversation": conversation,
+                "message": message,
+                "phone_number": phone_number
+            }
+            
         except Exception as e:
             # Update conversation status to failed
             await self.db_service.update_conversation_status(
@@ -361,8 +378,6 @@ class OpenRouterService:
                 user_name
             )
             raise RuntimeError(f"Failed to send availability request: {str(e)}")
-        
-        return conversation
 
     async def parse_confirmation(
         self,
@@ -1181,28 +1196,40 @@ class OpenRouterService:
     }
 
     async def run_agent_loop(self, user_input: str, creator_id: str):
-        stage_idx = 0
+        stage_idx = 1
         messages = []
         phone_numbers = set()  # Using set to avoid duplicates
         response = None
-        hard_stop = 4
-        tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["draft"] if tool_name in self.TOOL_MAPPINGS]]
+        hard_stop = 3
+        tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["participant_setup"] if tool_name in self.TOOL_MAPPINGS]]
         self._current_owner_id = creator_id
-        messages = [
-            {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[0]]},
-            {"role": "user", "content": user_input + " (owner_id: " + self._current_owner_id + ")"}
-        ]
+        tool_call_history = []
+
+        creator = await self.db_service.get_user_by_id(creator_id)
+        creator_name = creator["name"] if creator else "Someone"
 
         while stage_idx < len(self.STAGES) and hard_stop > 0:
             try:
                 stage = self.STAGES[stage_idx]
-
+                if hard_stop == 3:
+                    messages = [
+                        {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[1]]},
+                        {"role": "user", "content": user_input + " (creator_name: " + creator_name + ", owner_id: " + self._current_owner_id + ")"},
+                        {"role": "assistant", "content": "Okay, I've planned a coffee chat with Kazuma Hakushi.\nKazuma's contact ID is 76ddf919-11f4-4f9c-94bd-b90831649799 and their phone number is 6265905589.\nKazuma is not a registered user.\nThe event ID is 8b1cb9db-9f6d-488b-afc4-707223210988.\nEvent Title: Coffee with Kazuma\nDescription: Plan a coffee chat with Kazuma this weekend\n"}
+                    ]
+                else:
+                    messages = [
+                        {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[1]]},
+                        {"role": "user", "content": user_input + " (creator_name: " + creator_name + ", owner_id: " + self._current_owner_id + ")"}
+                    ]
                 # Add previous response if exists
                 if response:
                     # Handle the response based on its type
                     content = str(response)
                     tool_calls = response.tool_calls
-                        
+                    
+                    for t in tool_call_history:
+                        messages.append(t)
                     messages.append(content)
                     
                     # Handle tool calls
@@ -1229,6 +1256,12 @@ class OpenRouterService:
                                     "name": tool_name,
                                     "content": json.dumps(tool_response)
                                 })
+                                tool_call_history.append({
+                                    "role": "tool",
+                                    "tool_call_id": tool_call.id,
+                                    "name": tool_name,
+                                    "content": json.dumps(tool_response)
+                                })
                                 
                                 # Update phone numbers if tool returns them
                                 if isinstance(tool_response, dict) and "phone_number" in tool_response:
@@ -1242,18 +1275,21 @@ class OpenRouterService:
                                     "name": tool_name,
                                     "content": json.dumps({"error": str(e)})
                                 })
-                    else:
+                    else: # logic for when to go to next stage
                         stage_idx += 1
+                        stage = self.STAGES[stage_idx]
                         messages = [
                             {"role": "system", "content": AVAILABLE_PROMPTS[stage]},
-                            {"role": "user", "content": user_input + " (owner_id: " + self._current_owner_id + ")"}
+                            {"role": "user", "content": user_input + " (owner_id: " + self._current_owner_id + ")"},
+                            content
                         ]
                         tools = []
+                        tool_call_history = []
                         for tool_name in self.TOOLS_FOR_STAGE[stage]:
                             if tool_name in self.TOOL_MAPPINGS:
                                 tools.append(AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]])
                         hard_stop -= 1
-                        continue
+                        break
                 
                 # Get next response from agent
                 print(f"Stage {stage} messages: {messages}")

@@ -106,6 +106,13 @@ class DatabaseService:
             return self.from_iso_strings(response.data[0])
             
         return await self.create_user(name, email)
+    
+    async def get_user_by_id(self, user_id: str) -> dict:
+        # Get user by ID
+        response = self.client.table("users").select("*").eq("id", user_id).execute()
+        if not response.data:
+            return None
+        return self.from_iso_strings(response.data[0])
 
     async def get_user_by_phone(self, phone_number: str) -> dict:
         # Get user by phone number
@@ -152,8 +159,10 @@ class DatabaseService:
         # Create a new event participant, checking if they're a registered user
         user = await self.get_user_by_phone(phone_number)
         
-        data = {
-            "id": user["id"] if user else None,  # NULL for unregistered users
+        now = datetime.now()
+        event_participant = {
+            "id": str(uuid4()),
+            "user_id": user["id"] if user else None,  # NULL for unregistered users
             "event_id": event_id,
             "phone_number": phone_number,
             "name": name,
@@ -161,17 +170,16 @@ class DatabaseService:
             "status": "invited",
             "response_text": None,
             "availability_slots": [],
-            "created_at": datetime.now(),
-            "updated_at": datetime.now()
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
         }
         
-        data = self.to_iso_strings(data)
-        response = self.client.table("event_participants").insert(data).execute()
+        response = self.client.table("event_participants").insert(event_participant).execute()
         
-        if response.error:
+        if not response.data:
             raise RuntimeError(f"Failed to create event participant: {response.error.message}")
             
-        return self.from_iso_strings(response.data[0])
+        return event_participant
     
     async def get_event_participants(self, event_id: str) -> list[dict]:
         # Get all participants for an event
@@ -371,23 +379,24 @@ class DatabaseService:
         user_id: str = None
     ) -> dict:
         """Create a new conversation for an unregistered user."""
-        data = {
+        now = datetime.now()
+        conversation = {
+            "id": str(uuid4()),
             "event_id": event_id,
             "phone_number": phone_number,
             "user_id": user_id,
             "user_name": user_name,
             "type": conversation_type,
             "status": "active",
-            "created_at": datetime.now(),
-            "updated_at": datetime.now()
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
         }
-        data = self.to_iso_strings(data)
-        response = self.client.table("conversations").insert(data).execute()
+        response = self.client.table("conversations").insert(conversation).execute()
         
-        if response.error:
-            raise RuntimeError(f"Failed to create conversation: {response.error.message}")
+        if not response.data:
+            raise RuntimeError("Failed to create conversation: No data returned from database")
             
-        return self.from_iso_strings(response.data[0])
+        return conversation
 
     async def store_unregistered_time_slots(
         self,
@@ -497,21 +506,20 @@ class DatabaseService:
         user_name: str = None
     ) -> dict:
         """Update the status of a conversation."""
-        data = {
+        now = datetime.now()
+        conversation = {
             "status": status,
-            "updated_at": datetime.now()
+            "updated_at": now.isoformat()
         }
         if user_name:
-            data["user_name"] = user_name
-            
-        data = self.to_iso_strings(data)
+            conversation["user_name"] = user_name
         
-        response = self.client.table("conversations").update(data).eq("event_id", event_id).eq("phone_number", phone_number).execute()
+        response = self.client.table("conversations").update(conversation).eq("event_id", event_id).eq("phone_number", phone_number).execute()
         
-        if response.error:
+        if not response.data:
             raise RuntimeError(f"Failed to update conversation status: {response.error.message}")
             
-        return self.from_iso_strings(response.data[0])
+        return conversation
 
     async def update_event_participant(
         self,
@@ -526,15 +534,19 @@ class DatabaseService:
             phone_number: Phone number of the participant
             update_data: Dictionary of fields to update
         """
-        update_data["updated_at"] = datetime.now()
-        update_data = self.to_iso_strings(update_data)
+        now = datetime.now()
+        event_participant = {
+            "updated_at": now.isoformat()
+        }
+        if update_data:
+            event_participant.update(update_data)
         
-        response = self.client.table("event_participants").update(update_data).eq("event_id", event_id).eq("phone_number", phone_number).execute()
+        response = self.client.table("event_participants").update(event_participant).eq("event_id", event_id).eq("phone_number", phone_number).execute()
         
-        if response.error:
+        if not response.data:
             raise RuntimeError(f"Failed to update event participant: {response.error.message}")
             
         if not response.data:
             raise RuntimeError(f"Event participant not found: {event_id} - {phone_number}")
             
-        return self.from_iso_strings(response.data[0])
+        return event_participant
