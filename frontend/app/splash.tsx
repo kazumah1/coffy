@@ -44,14 +44,12 @@ export default function SplashScreen({ onAnimationComplete }: SplashScreenProps)
       <StatusBar style="light" backgroundColor="transparent" translucent />
       
       <Animated.View style={[styles.fullScreenContainer, animatedStyle]}>
-        {/* Your GIF Animation - Middle Ground Zoom */}
-        <View style={styles.oversizedContainer}>
-          <Image
-            source={require('../assets/images/splash-animation.gif')}
-            style={styles.oversizedGif}
-            contentFit="contain" // Use contain but in an oversized container
-          />
-        </View>
+        {/* Your GIF Animation - Very Zoomed In */}
+        <Image
+          source={require('../assets/images/splash-animation.gif')}
+          style={styles.fullScreenGif}
+          contentFit="cover" // Back to cover for very zoomed in effect
+        />
       </Animated.View>
     </View>
   );
@@ -70,16 +68,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: width,
     height: height,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  oversizedContainer: {
-    width: '300%',
-    height: '300%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  oversizedGif: {
+  fullScreenGif: {
     width: '100%',
     height: '100%',
   },
