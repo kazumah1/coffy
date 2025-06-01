@@ -38,7 +38,7 @@ app.include_router(availability_router, prefix="/availability", tags=["availabil
 app.include_router(participants_router, prefix="/participants", tags=["participants"])
 app.include_router(texting_router, prefix="/text", tags=["texting"])
 app.include_router(llm_router, prefix="/llm", tags=["llm"])
-app.include_router(contacts_router, prefix="/api/contacts", tags=["contacts"])
+app.include_router(contacts_router, prefix="/contacts", tags=["contacts"])
 
 @app.get("/")
 def read_root():

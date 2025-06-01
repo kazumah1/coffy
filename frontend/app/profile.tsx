@@ -189,8 +189,8 @@ export default function ProfileScreen() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/users/update-profile`, {
-        method: 'PUT',
+      const response = await fetch(`${BACKEND_URL}/auth/users/update-profile`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -198,7 +198,7 @@ export default function ProfileScreen() {
           user_id: user?.id,
           name: name.trim(),
           phone_number: phoneNumber.trim(),
-          profile_image_url: profileImage,
+          email: user?.email
         }),
       });
 
@@ -356,7 +356,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Availability Status */}
-        <View style={styles.availabilitySection}>
+        {/* <View style={styles.availabilitySection}>
           <Text style={styles.sectionTitle}>Coffy Availability</Text>
           
           <TouchableOpacity 
@@ -374,7 +374,7 @@ export default function ProfileScreen() {
           <Text style={styles.statusHint}>
             Your availability status helps friends see when you're free for spontaneous Coffy meetups through Coffy Radar.
           </Text>
-        </View>
+        </View> */}
 
         {/* Action Buttons */}
         <View style={styles.actionsSection}>

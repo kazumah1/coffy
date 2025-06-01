@@ -4,7 +4,9 @@ from app.services.google_oauth_service import GoogleOAuthHandler
 from app.services.token_manager import TokenManager
 from app.services.database_service import DatabaseService
 from app.dependencies import get_oauth_handler, get_token_manager, get_database_service
+from app.models.update_profile_request import UpdateProfileRequest
 from jose import jwt
+
 
 router = APIRouter()
 
@@ -66,6 +68,13 @@ async def get_user(user_id: str, db_service: DatabaseService = Depends(get_datab
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
+@router.get("/user/google/{google_id}")
+async def get_user_by_google_id(google_id: str, db_service: DatabaseService = Depends(get_database_service)):
+    user = await db_service.get_user_by_google_id(google_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
 @router.post("/google/refresh")
 async def google_refresh(user_id: str, token_manager: TokenManager = Depends(get_token_manager)):
     try:
@@ -77,3 +86,11 @@ async def google_refresh(user_id: str, token_manager: TokenManager = Depends(get
 @router.post("/google/revoke")
 async def google_revoke(user_id: str, token_manager: TokenManager = Depends(get_token_manager)):
     return {"message": "No revoke logic implemented"}
+
+@router.post("/users/update-profile")
+async def update_profile(request: UpdateProfileRequest, db_service: DatabaseService = Depends(get_database_service)):
+    print("Updating profile", request.user_id, request.name, request.email, request.phone_number)
+    user = await db_service.update_user(request.user_id, request.name, request.email, request.phone_number)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user

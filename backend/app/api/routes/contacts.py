@@ -5,6 +5,13 @@ from uuid import UUID
 import json
 from app.services.database_service import DatabaseService
 from app.dependencies import get_database_service
+import re
+
+def standardize_phone_number(phone: str) -> str:
+    digits = re.sub(r'\\D', '', phone)
+    if not digits.startswith('1'):
+        digits = '1' + digits
+    return f'+{digits}'
 
 router = APIRouter()
 
@@ -36,25 +43,31 @@ async def sync_contacts(
     """Sync user's device contacts with the backend"""
     try:
         # Get existing contacts for the user
+        print("Syncing contacts for user", request.user_id)
         existing_contacts = await db_service.get_user_contacts(request.user_id)
-        existing_contact_map = {c["device_contact_id"]: c for c in existing_contacts}
+        existing_contact_map = {c["phone_number"]: c for c in existing_contacts}
         
         # Process each contact from the device
+        print("Processing contacts", request.contacts)
         for contact in request.contacts:
-            contact_data = {
-                "owner_id": request.user_id,
-                "device_contact_id": contact.id,
-                "name": contact.name,
-                "phone_numbers": [p.number for p in contact.phoneNumbers] if contact.phoneNumbers else [],
-                "emails": [e.email for e in contact.emails] if contact.emails else []
-            }
-            
-            # Check if contact already exists
-            if contact.id in existing_contact_map:
+            print("Contact", contact.phoneNumbers[0].number) # TODO: allow multiple phone numbers
+            if contact.phoneNumbers[0].number in existing_contact_map:
+                contact_data = {
+                    "name": contact.name,
+                    "phone_number": standardize_phone_number(contact.phoneNumbers[0].number)
+                }
                 # Update existing contact
-                await db_service.update_contact(existing_contact_map[contact.id]["id"], contact_data)
+                print("Updating contact", contact.phoneNumbers[0].number)
+                await db_service.update_contact(existing_contact_map[contact.phoneNumbers[0].number]["id"], contact_data)
             else:
                 # Create new contact
+                print("Creating new contact", contact.phoneNumbers[0].number)
+                contact_data = {
+                    "owner_id": request.user_id,
+                    "name": contact.name,
+                    "phone_number": standardize_phone_number(contact.phoneNumbers[0].number)
+                }
+                print("Contact data", contact_data)
                 await db_service.create_contact(contact_data)
         
         return {"success": True, "message": f"Synced {len(request.contacts)} contacts"}

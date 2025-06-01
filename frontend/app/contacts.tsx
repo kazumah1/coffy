@@ -36,7 +36,8 @@ const colors = {
   background: '#FFFEF7',
 };
 
-interface Contact {
+// Define our app's contact type that matches the backend
+interface AppContact {
   id: string;
   name: string;
   phoneNumbers?: { number: string }[];
@@ -61,10 +62,18 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout 
     }
 };
 
+// Convert expo-contacts Contact to our AppContact type
+const convertToAppContact = (contact: Contacts.Contact): AppContact => ({
+  id: contact.id || '',
+  name: contact.name || 'Unknown',
+  phoneNumbers: contact.phoneNumbers?.map(p => ({ number: p.number || '' })).filter(p => p.number) || [],
+  emails: contact.emails?.map(e => ({ email: e.email || '' })).filter(e => e.email) || []
+});
+
 export default function ContactsScreen() {
   const { user } = useAuth();
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
+  const [contacts, setContacts] = useState<AppContact[]>([]);
+  const [filteredContacts, setFilteredContacts] = useState<AppContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [savedContactsCount, setSavedContactsCount] = useState(0);
@@ -74,7 +83,7 @@ export default function ContactsScreen() {
   const slideAnim = new Animated.Value(50);
 
   useEffect(() => {
-    loadSavedContacts();
+    loadContacts();
     if (user) {
       checkSavedContacts();
     }
@@ -107,50 +116,68 @@ export default function ContactsScreen() {
     }
   }, [searchQuery, contacts]);
 
-  const loadSavedContacts = async () => {
+  const loadContacts = async () => {
     setLoading(true);
-    console.log('🔍 Loading contacts from local storage...');
+    console.log('🔍 Loading contacts...');
     
-    // Debug: Check all stored keys first
-    console.log('🔍 DEBUG: Checking all SecureStore keys...');
     try {
-      const keys = ['user', 'userProfile', 'userContacts', 'userBestFriends'];
-      for (const key of keys) {
-        const value = await SecureStore.getItemAsync(key);
-        if (value) {
-          try {
-            const parsed = JSON.parse(value);
-            console.log(`🔑 ${key}:`, typeof parsed === 'object' ? `${Object.keys(parsed).length} properties` : parsed);
-            if (key === 'userContacts' && Array.isArray(parsed)) {
-              console.log(`   📱 Contacts count: ${parsed.length}`);
-              console.log(`   📱 First 3 names:`, parsed.slice(0, 3).map((c: Contact) => c.name));
-            }
-          } catch (e) {
-            console.log(`🔑 ${key}:`, value.substring(0, 100) + '...');
+      // Request permission to access contacts
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('❌ Permission to access contacts was denied');
+        Alert.alert(
+          'Permission Required',
+          'Please grant permission to access your contacts to use this feature.',
+          [{ text: 'OK' }]
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Get all contacts from device
+      const { data: deviceContacts } = await Contacts.getContactsAsync({
+        fields: [
+          Contacts.Fields.Name,
+          Contacts.Fields.PhoneNumbers,
+          Contacts.Fields.Emails,
+        ],
+      });
+
+      console.log(`📱 Found ${deviceContacts.length} contacts on device`);
+
+      // Convert to our app's contact type
+      const appContacts = deviceContacts.map(convertToAppContact);
+
+      // Sync with backend if user is logged in
+      if (user) {
+        console.log('📱 Syncing contacts with backend...');
+        const response = await fetchWithTimeout(`${BACKEND_URL}/contacts/sync`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_id: user.id,
+            contacts: appContacts
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            console.log(`✅ Successfully synced ${appContacts.length} contacts with backend`);
           }
         } else {
-          console.log(`🔑 ${key}: null`);
+          console.log('⚠️ Could not sync with backend, saving contacts locally only');
         }
       }
+
+      // Update state and local storage
+      setContacts(appContacts);
+      await SecureStore.setItemAsync('userContacts', JSON.stringify(appContacts));
+      console.log(`✅ Loaded ${appContacts.length} contacts`);
     } catch (error) {
-      console.error('💥 DEBUG: Error checking SecureStore:', error);
-    }
-    
-    try {
-      // First try to load from local storage
-      const savedContacts = await SecureStore.getItemAsync('userContacts');
-      console.log('📱 Raw savedContacts from SecureStore:', savedContacts ? 'Data found' : 'No data');
-      
-      if (savedContacts) {
-        const contactsData = JSON.parse(savedContacts);
-        console.log(`✅ Loaded ${contactsData.length} contacts from local storage:`, contactsData.slice(0, 3).map((c: Contact) => c.name));
-        setContacts(contactsData);
-      } else {
-        console.log('❌ No contacts found in local storage');
-        setContacts([]);
-      }
-    } catch (error) {
-      console.error('💥 Error loading saved contacts:', error);
+      console.error('💥 Error loading contacts:', error);
       setContacts([]);
     } finally {
       setLoading(false);
@@ -158,48 +185,24 @@ export default function ContactsScreen() {
     }
   };
 
-  const syncContactsWithBackend = async (contactsList: Contact[]) => {
-    try {
-      const response = await fetchWithTimeout(`${BACKEND_URL}/api/contacts/sync`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: user?.id,
-          contacts: contactsList
-        }),
-      });
-
-      if (response.status === 404) {
-        console.log('Backend endpoint not available yet - contacts saved locally');
-        return;
-      }
-
-      const data = await response.json();
-      if (response.ok && data.success) {
-        setSavedContactsCount(contactsList.length);
-      }
-    } catch (error) {
-      console.log('Could not sync with backend, saved locally');
-    }
-  };
-
   const checkSavedContacts = async () => {
     if (!user) return;
     
     try {
+      console.log('📱 Checking saved contacts count from backend...');
       const response = await fetchWithTimeout(`${BACKEND_URL}/api/contacts/best-friends/${user.id}`);
-      if (response.status === 404) {
-        return; // Backend not available yet
-      }
       
-      const data = await response.json();
-      if (data.success) {
-        setSavedContactsCount(data.contacts.length);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          console.log(`✅ Found ${data.contacts.length} contacts in backend`);
+          setSavedContactsCount(data.contacts.length);
+        }
+      } else {
+        console.log('⚠️ Could not check backend contacts count');
       }
     } catch (error) {
-      // Silently handle - backend may not be ready
+      console.error('💥 Error checking saved contacts:', error);
     }
   };
 
@@ -220,11 +223,11 @@ export default function ContactsScreen() {
   };
 
   const goToProfileSetup = () => {
-    router.push('/profile-setup');
+    router.push('/profile-setup' as any);
   };
 
   const refreshContacts = async () => {
-    await loadSavedContacts();
+    await loadContacts();
     if (contacts.length === 0) {
       Alert.alert(
         'No Contacts Found',
@@ -237,7 +240,7 @@ export default function ContactsScreen() {
     }
   };
 
-  const renderContact = ({ item, index }: { item: Contact; index: number }) => {
+  const renderContact = ({ item, index }: { item: AppContact; index: number }) => {
     const phoneNumber = item.phoneNumbers?.[0]?.number || '';
     const email = item.emails?.[0]?.email || '';
 
@@ -337,7 +340,7 @@ export default function ContactsScreen() {
             {/* Temporary Debug Button */}
             <TouchableOpacity 
               style={[styles.loadButton, { backgroundColor: colors.coffeeAccent, marginTop: 16 }]} 
-              onPress={loadSavedContacts}
+              onPress={loadContacts}
             >
               <Text style={styles.loadButtonText}>🔍 Debug: Reload Contacts</Text>
             </TouchableOpacity>

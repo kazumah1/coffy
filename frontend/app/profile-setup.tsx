@@ -68,7 +68,7 @@ export default function ProfileSetupScreen() {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<SetupStep>('profile');
   const [name, setName] = useState(user?.name || '');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [rawPhoneNumber, setRawPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
@@ -118,15 +118,13 @@ export default function ProfileSetupScreen() {
       return;
     }
 
-    if (!phoneNumber.trim()) {
+    if (!rawPhoneNumber.trim()) {
       Alert.alert('Required Field', 'Please enter your phone number so Joe can coordinate with your friends.');
       return;
     }
 
-    // Basic phone number validation
-    const phoneRegex = /^\+?[\d\s\-\(\)]{10,}$/;
-    if (!phoneRegex.test(phoneNumber.trim())) {
-      Alert.alert('Invalid Phone', 'Please enter a valid phone number.');
+    if (rawPhoneNumber.length !== 10) {
+      Alert.alert('Invalid Phone', 'Please enter a valid 10-digit US phone number.');
       return;
     }
 
@@ -145,7 +143,6 @@ export default function ProfileSetupScreen() {
   const requestContactsPermission = async () => {
     const { status } = await Contacts.requestPermissionsAsync();
     setHasContactsPermission(status === 'granted');
-    
     if (status === 'granted') {
       await loadContacts();
     } else {
@@ -164,11 +161,17 @@ export default function ProfileSetupScreen() {
     setContactsLoading(true);
     console.log('📱 Profile Setup: Starting contacts load...');
     try {
+      // Always get contacts from device
+      const { status } = await Contacts.getPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant permission to access your contacts.');
+        setContactsLoading(false);
+        return;
+      }
       const { data } = await Contacts.getContactsAsync({
         fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers, Contacts.Fields.Emails],
         sort: Contacts.SortTypes.FirstName,
       });
-
       const formattedContacts = data
         .filter(contact => contact.name && (contact.phoneNumbers || contact.emails))
         .map(contact => ({
@@ -177,20 +180,13 @@ export default function ProfileSetupScreen() {
           phoneNumbers: contact.phoneNumbers?.filter(phone => phone.number).map(phone => ({ number: phone.number! })) || [],
           emails: contact.emails?.filter(email => email.email).map(email => ({ email: email.email! })) || []
         }));
-
-      console.log(`📝 Profile Setup: Formatted ${formattedContacts.length} contacts`);
       setContacts(formattedContacts);
-      
-      // Save contacts locally immediately
-      console.log('💾 Profile Setup: Saving contacts to SecureStore with key "userContacts"...');
       await SecureStore.setItemAsync('userContacts', JSON.stringify(formattedContacts));
-      console.log('✅ Profile Setup: Contacts saved successfully to local storage');
-      
-      // Try to sync with backend (graceful degradation if not available)
+      console.log('✅ Loaded contacts from device');
+      // Sync with backend (using the sync endpoint)
       if (user) {
         await syncContactsWithBackend(formattedContacts);
       }
-      
       Alert.alert(
         'Contacts Loaded! ☕',
         `Successfully loaded ${formattedContacts.length} contacts. Joe can now help coordinate meetups!`,
@@ -206,7 +202,7 @@ export default function ProfileSetupScreen() {
 
   const syncContactsWithBackend = async (contactsList: Contact[]) => {
     try {
-      const response = await fetchWithTimeout(`${BACKEND_URL}/api/contacts/sync`, {
+      const response = await fetchWithTimeout(`${BACKEND_URL}/contacts/sync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -242,22 +238,23 @@ export default function ProfileSetupScreen() {
 
     try {
       // Try to save profile to backend
-      const response = await fetchWithTimeout(`${BACKEND_URL}/api/users/setup-profile`, {
+      console.log("Saving profile to backend", user?.id, name.trim(), user?.email, '+1' + rawPhoneNumber)
+      const response = await fetchWithTimeout(`${BACKEND_URL}/auth/users/update-profile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           user_id: user?.id,
-          email: user?.email,
           name: name.trim(),
-          phone_number: phoneNumber.trim(),
+          email: user?.email,
+          phone_number: '+1' + rawPhoneNumber,
         }),
       });
 
       // Check if the endpoint exists
       if (response.status === 404) {
-        console.log('Backend endpoint not implemented yet, saving locally');
+        console.log('Backend endpoint not implemented yet, saving profile locally');
       } else if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.detail || 'Failed to setup profile');
@@ -274,7 +271,7 @@ export default function ProfileSetupScreen() {
         await SecureStore.setItemAsync('user', JSON.stringify(updatedUser));
         await SecureStore.setItemAsync('userProfile', JSON.stringify({
           name: name.trim(),
-          phone_number: phoneNumber.trim(),
+          phone_number: '+1' + rawPhoneNumber,
           user_id: user.id,
           contacts_loaded: true
         }));
@@ -296,7 +293,7 @@ export default function ProfileSetupScreen() {
         await SecureStore.setItemAsync('user', JSON.stringify(updatedUser));
         await SecureStore.setItemAsync('userProfile', JSON.stringify({
           name: name.trim(),
-          phone_number: phoneNumber.trim(),
+          phone_number: '+1' + rawPhoneNumber,
           user_id: user.id,
           contacts_loaded: true
         }));
@@ -310,6 +307,21 @@ export default function ProfileSetupScreen() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  function formatPhoneNumber(digits: string) {
+    const part1 = digits.slice(0, 3);
+    const part2 = digits.slice(3, 6);
+    const part3 = digits.slice(6, 10);
+    if (digits.length === 0) return '';
+    if (digits.length < 4) return `(${part1}`;
+    if (digits.length < 7) return `(${part1}) ${part2}`;
+    return `(${part1}) ${part2}-${part3}`;
+  }
+
+  const handlePhoneChange = (input: string) => {
+    const digits = input.replace(/\D/g, '').slice(0, 10);
+    setRawPhoneNumber(digits);
   };
 
   const renderProfileStep = () => (
@@ -360,12 +372,12 @@ export default function ProfileSetupScreen() {
           <View style={styles.inputWrapper}>
             <TextInput
               style={styles.input}
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              placeholder="+1 (555) 123-4567"
+              value={formatPhoneNumber(rawPhoneNumber)}
+              onChangeText={handlePhoneChange}
+              placeholder="(123) 456-7890"
               placeholderTextColor={colors.textLight}
-              keyboardType="phone-pad"
-              maxLength={20}
+              keyboardType="number-pad"
+              maxLength={14}
             />
           </View>
           <Text style={styles.hint}>Joe will use this to coordinate coffee meetups</Text>
@@ -495,7 +507,7 @@ export default function ProfileSetupScreen() {
         </View>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryIcon}>📞</Text>
-          <Text style={styles.summaryText}>Phone: {phoneNumber}</Text>
+          <Text style={styles.summaryText}>Phone: {formatPhoneNumber(rawPhoneNumber)}</Text>
         </View>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryIcon}>📱</Text>
@@ -652,13 +664,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+    height: 48,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
   },
   input: {
-    paddingHorizontal: 20,
-    paddingVertical: 18,
     fontSize: 17,
     color: colors.textPrimary,
-    lineHeight: 24,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   hint: {
     fontSize: 14,

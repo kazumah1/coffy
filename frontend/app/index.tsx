@@ -16,7 +16,7 @@ export default function IndexScreen() {
 
   // Handle navigation when user is authenticated and splash is complete
   useEffect(() => {
-    if (user && !showSplash && !loading) {
+    if (user && !loading) {
       if (user.needsProfileSetup) {
         router.replace('/profile-setup');
       } else {
@@ -43,10 +43,6 @@ export default function IndexScreen() {
     );
   }
 
-  // Show splash screen first
-  if (showSplash) {
-    return <SplashScreen onAnimationComplete={handleSplashComplete} />;
-  }
 
   // Show login screen if not authenticated
   return <LoginScreen />;

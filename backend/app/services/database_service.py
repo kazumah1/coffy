@@ -115,6 +115,34 @@ class DatabaseService:
             return None
         return self.from_iso_strings(response.data[0])
 
+    async def update_user(self, user_id: str, name: str, email: str, phone_number: str) -> dict:
+        # Update user by ID
+        update_data = {}
+        if name:
+            update_data["name"] = name
+        if email:
+            update_data["email"] = email
+        if phone_number:
+            update_data["phone_number"] = phone_number
+        response = self.client.table("users").update(update_data).eq("id", user_id).execute()
+        if not response.data:
+            return None
+        
+        contact_response = self.client.table("contacts").select("*").eq("phone_number", phone_number).execute()
+        if contact_response.data:
+            for contact in contact_response.data:
+                contact["updated_at"] = datetime.now().isoformat()
+                self.client.table("contacts").update(contact).eq("recipient_id", user_id).execute()
+
+        return response.data[0]
+    
+    async def get_user_by_google_id(self, google_id: str) -> dict:
+        # Get user by Google ID
+        response = self.client.table("users").select("*").eq("google_id", google_id).execute()
+        if not response.data:
+            return None
+        return self.from_iso_strings(response.data[0])
+
     async def get_user_by_phone(self, phone_number: str) -> dict:
         # Get user by phone number
         response = self.client.table("users").select("*").eq("phone_number", phone_number).execute()
@@ -566,25 +594,20 @@ class DatabaseService:
     # Contacts management methods
     async def create_contact(self, contact_data: dict) -> dict:
         """Create a new contact"""
-        import json
         now = datetime.now()
         contact = {
             "id": str(uuid4()),
             "owner_id": contact_data["owner_id"],
-            "device_contact_id": contact_data["device_contact_id"],
             "name": contact_data["name"],
-            "phone_numbers": json.dumps(contact_data["phone_numbers"]),
-            "emails": json.dumps(contact_data["emails"]),
+            "phone_number": contact_data["phone_number"],
             "created_at": now.isoformat(),
             "updated_at": now.isoformat()
         }
         
         # Check if any phone number belongs to a registered user
-        for phone in contact_data["phone_numbers"]:
-            check_registered = await self.get_user_by_phone(phone)
-            if check_registered:
-                contact["recipient_id"] = check_registered["id"]
-                break
+        check_registered = await self.get_user_by_phone(contact_data["phone_number"])
+        if check_registered:
+            contact["recipient_id"] = check_registered["id"]
         else:
             contact["recipient_id"] = None
         
@@ -597,20 +620,16 @@ class DatabaseService:
 
     async def update_contact(self, contact_id: str, contact_data: dict) -> dict:
         """Update an existing contact"""
-        import json
         update_data = {
             "name": contact_data["name"],
-            "phone_numbers": json.dumps(contact_data["phone_numbers"]),
-            "emails": json.dumps(contact_data["emails"]),
+            "phone_number": contact_data["phone_number"],
             "updated_at": datetime.now().isoformat()
         }
         
         # Check if any phone number belongs to a registered user
-        for phone in contact_data["phone_numbers"]:
-            check_registered = await self.get_user_by_phone(phone)
-            if check_registered:
-                update_data["recipient_id"] = check_registered["id"]
-                break
+        check_registered = await self.get_user_by_phone(contact_data["phone_number"])
+        if check_registered:
+            update_data["recipient_id"] = check_registered["id"]
         else:
             update_data["recipient_id"] = None
         
@@ -633,7 +652,9 @@ class DatabaseService:
     async def get_user_contacts(self, owner_id: str) -> list[dict]:
         """Get all contacts for a user"""
         response = self.client.table("contacts").select("*").eq("owner_id", owner_id).execute()
-        return response.data
+        if not response.data:
+            return []
+        return [c for c in response.data]
 
     # TODO: not for MVP
     async def add_best_friend(self, user_id: str, contact_id: str) -> dict:

@@ -81,7 +81,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!userIdToCheck) return true;
 
         try {
-            const response = await fetchWithTimeout(`${BACKEND_URL}/api/users/profile/${userIdToCheck}`);
+            const response = await fetchWithTimeout(`${BACKEND_URL}/auth/user/${userIdToCheck}`);
             
             if (response.status === 404) {
                 // Backend endpoint doesn't exist yet - check local storage
@@ -102,6 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
             
             if (response.ok) {
+                console.log('Backend available, checking profile completion');
                 const profileData = await response.json();
                 // Check if user has completed essential profile info and loaded contacts
                 const hasProfile = profileData.name && profileData.phone_number;
@@ -152,7 +153,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     };
                     
                     setUser(userData);
-                    await SecureStore.setItemAsync('user', JSON.stringify(userData));
                     Alert.alert("Success", "Logged in successfully!");
                 } else {
                     Alert.alert("Error", "Missing user info in callback");

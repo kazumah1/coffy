@@ -207,7 +207,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Coffee Radar - Revolutionary Feature */}
+        {/* Coffee Radar - Revolutionary Feature
         <Animated.View 
           style={[
             styles.radarContainer,
@@ -230,19 +230,19 @@ export default function HomeScreen() {
               <Text style={styles.radarSubtitle}>See who's available right now</Text>
             </View>
             
-            {/* Mini Radar Preview */}
+            Mini Radar Preview
             <View style={styles.miniRadar}>
               <View style={styles.radarCircle}>
-                {/* Radar rings */}
+                Radar rings
                 <View style={[styles.radarRing, { width: 80, height: 80 }]} />
                 <View style={[styles.radarRing, { width: 60, height: 60 }]} />
                 <View style={[styles.radarRing, { width: 40, height: 40 }]} />
                 
-                {/* Center dot */}
+                Center dot
                 <View style={styles.radarCenter}>
                 </View>
                 
-                {/* Sample availability dots */}
+                Sample availability dots
                 <View style={[styles.availabilityDot, styles.available, { top: 15, right: 20 }]} />
                 <View style={[styles.availabilityDot, styles.maybe, { bottom: 25, left: 15 }]} />
                 <View style={[styles.availabilityDot, styles.busy, { top: 35, left: 35 }]} />
@@ -259,7 +259,7 @@ export default function HomeScreen() {
               <Text style={styles.radarActionText}>Tap to coordinate instant Coffy →</Text>
             </View>
           </TouchableOpacity>
-        </Animated.View>
+        </Animated.View> */}
       </ScrollView>
     </SafeAreaView>
   );
