@@ -1,4 +1,5 @@
 """Database service for Supabase operations."""
+#TODO: ADD A WAY TO UPDATE CONTACTS ON USER SIGN UP (TO BE REGISTERED)
 from supabase import create_client, Client
 from core.config import settings
 from datetime import datetime, timedelta
@@ -167,7 +168,7 @@ class DatabaseService:
             "phone_number": phone_number,
             "name": name,
             "registered": bool(user),
-            "status": "invited",
+            "status": "pending_confirmation", # pending_confirmation, pending_availability, pending_scheduling, confirmed, declined
             "response_text": None,
             "availability_slots": [],
             "created_at": now.isoformat(),
@@ -204,7 +205,8 @@ class DatabaseService:
             "final_time": None,
             "end_time": None,
             "created_at": now.isoformat(),
-            "updated_at": now.isoformat()
+            "updated_at": now.isoformat(),
+            "stage": 0,
         }
         
         # Convert all datetime objects to ISO format strings
@@ -388,6 +390,7 @@ class DatabaseService:
             "user_name": user_name,
             "type": conversation_type,
             "status": "active",
+            "last_message": None,
             "created_at": now.isoformat(),
             "updated_at": now.isoformat()
         }
@@ -406,20 +409,25 @@ class DatabaseService:
     ) -> dict:
         """Store time slots (busy/available) for an unregistered user, including slot metadata like times, type, source, and confidence."""
         data = {
+            "id": str(uuid4()),
             "event_id": event_id,
             "phone_number": phone_number,
             "time_slots": time_slots,
-            "updated_at": datetime.now()
+            "updated_at": datetime.now().isoformat()
         }
         data = self.to_iso_strings(data)
         
         # Upsert to handle both new and existing records
-        response = self.client.table("unregistered_time_slots").upsert(data).execute()
+        # When a duplicate is found, update the time_slots and updated_at fields
+        response = self.client.table("unregistered_time_slots").upsert(
+            data,
+            on_conflict="event_id,phone_number"
+        ).execute()
         
-        if response.error:
-            raise RuntimeError(f"Failed to store time slots: {response.error.message}")
+        if not response.data:
+            raise RuntimeError("Failed to store time slots: No data returned from database")
             
-        return self.from_iso_strings(response.data[0])
+        return data
 
     async def get_unregistered_time_slots(
         self,
@@ -432,7 +440,7 @@ class DatabaseService:
         if not response.data:
             return []
             
-        return self.from_iso_strings(response.data[0]).get("time_slots", [])
+        return response.data[0].get("time_slots", [])
 
     async def get_all_unregistered_time_slots(
         self,
@@ -446,7 +454,7 @@ class DatabaseService:
             
         # Convert to dictionary of phone_number -> time_slots
         return {
-            record["phone_number"]: self.from_iso_strings(record).get("time_slots", [])
+            record["phone_number"]: record.get("time_slots", [])
             for record in response.data
         }
 
@@ -472,7 +480,7 @@ class DatabaseService:
                 continue
                 
             # Get time slots and convert to datetime objects
-            time_slots = self.from_iso_strings(record).get("time_slots", [])
+            time_slots = record.get("time_slots", [])
             
             # Filter slots that overlap with the time range
             overlapping_slots = []
@@ -498,12 +506,13 @@ class DatabaseService:
         response = self.client.table("conversations").select("*").eq("event_id", event_id).eq("phone_number", phone_number).execute()
         return [self.from_iso_strings(c) for c in response.data]
 
-    async def update_conversation_status(
+    async def update_conversation(
         self,
         event_id: str,
         phone_number: str,
         status: str,
-        user_name: str = None
+        user_name: str = None,
+        last_message: str = None
     ) -> dict:
         """Update the status of a conversation."""
         now = datetime.now()
@@ -513,6 +522,8 @@ class DatabaseService:
         }
         if user_name:
             conversation["user_name"] = user_name
+        if last_message:
+            conversation["last_message"] = last_message
         
         response = self.client.table("conversations").update(conversation).eq("event_id", event_id).eq("phone_number", phone_number).execute()
         

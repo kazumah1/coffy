@@ -1,5 +1,5 @@
 """Google OAuth handler for calendar integration."""
-
+# TODO: MAKE A WAY TO GET USER PHONE NUMBERS ON SIGN UP
 import google.oauth2.credentials
 import google_auth_oauthlib.flow
 from typing import Optional
