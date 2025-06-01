@@ -14,7 +14,7 @@ import {
   Easing
 } from 'react-native';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
 const { width, height } = Dimensions.get('window');
@@ -51,6 +51,9 @@ const BACKEND_URL = "http://localhost:8000";
 
 export default function ChatScreen() {
   const { user } = useAuth();
+  const params = useLocalSearchParams();
+  const autoPrompt = params.autoPrompt as string;
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -63,7 +66,7 @@ export default function ChatScreen() {
 
   // Welcome screen animation
   useEffect(() => {
-    if (messages.length === 0) {
+    if (messages.length === 0 && !autoPrompt) {
       Animated.timing(welcomeAnim, {
         toValue: 1,
         duration: 800,
@@ -71,7 +74,17 @@ export default function ChatScreen() {
         useNativeDriver: true,
       }).start();
     }
-  }, [messages]);
+  }, [messages, autoPrompt]);
+
+  // Handle auto-prompt from quick actions
+  useEffect(() => {
+    if (autoPrompt && messages.length === 0) {
+      // Automatically send the prompt
+      setTimeout(() => {
+        sendMessage(autoPrompt);
+      }, 500);
+    }
+  }, [autoPrompt]);
 
   const animateNewMessage = (messageId: string) => {
     const anim = new Animated.Value(0);
@@ -222,8 +235,8 @@ export default function ChatScreen() {
 
       {/* Main Chat Area */}
       <View style={styles.chatContainer}>
-        {messages.length === 0 ? (
-          // Welcome Screen
+        {messages.length === 0 && !autoPrompt ? (
+          // Welcome Screen (only show if no auto-prompt)
           <Animated.View 
             style={[
               styles.welcomeScreen,

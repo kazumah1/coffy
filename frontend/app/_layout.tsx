@@ -24,9 +24,19 @@ export default function RootLayout() {
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="chat" options={{ headerShown: false }} />
+          <Stack.Screen name="profile" options={{ headerShown: false }} />
+          <Stack.Screen name="profile-setup" options={{ headerShown: false }} />
           <Stack.Screen name="contacts" options={{ headerShown: false }} />
           <Stack.Screen name="best-friends" options={{ headerShown: false }} />
           <Stack.Screen name="view-best-friends" options={{ headerShown: false }} />
+          <Stack.Screen 
+            name="coffee-radar" 
+            options={{ 
+              headerShown: false,
+              presentation: 'modal',
+              gestureEnabled: true,
+            }} 
+          />
           <Stack.Screen name="+not-found" />
         </Stack>
         <StatusBar style="auto" />

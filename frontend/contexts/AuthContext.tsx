@@ -9,6 +9,8 @@ export type User = {
     id: string;
     email: string;
     name: string | null;
+    needsProfileSetup?: boolean;
+    contactsLoaded?: boolean;
 };
 
 // AuthContext type
@@ -17,10 +19,30 @@ interface AuthContextType {
     loading: boolean;
     handleGoogleLogin: () => Promise<void>;
     signOut: () => Promise<void>;
+    checkProfileCompletion: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const BACKEND_URL = "http://localhost:8000";
+const REQUEST_TIMEOUT = 3000; // 3 seconds timeout
+
+// Helper function to add timeout to fetch requests
+const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = REQUEST_TIMEOUT): Promise<Response> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+    }
+};
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
@@ -32,7 +54,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             try {
                 const userJson = await SecureStore.getItemAsync('user');
                 if (userJson) {
-                    setUser(JSON.parse(userJson));
+                    const userData = JSON.parse(userJson);
+                    setUser(userData);
+                    
+                    // Check if user needs profile setup
+                    if (userData.id && !userData.needsProfileSetup) {
+                        const needsSetup = await checkProfileCompletion(userData.id);
+                        if (needsSetup) {
+                            const updatedUser = { ...userData, needsProfileSetup: true };
+                            setUser(updatedUser);
+                            await SecureStore.setItemAsync('user', JSON.stringify(updatedUser));
+                        }
+                    }
                 }
             } catch (e) {
                 console.error('Failed to load user from storage', e);
@@ -42,6 +75,57 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
         loadUser();
     }, []);
+
+    const checkProfileCompletion = async (userId?: string): Promise<boolean> => {
+        const userIdToCheck = userId || user?.id;
+        if (!userIdToCheck) return true;
+
+        try {
+            const response = await fetchWithTimeout(`${BACKEND_URL}/api/users/profile/${userIdToCheck}`);
+            
+            if (response.status === 404) {
+                // Backend endpoint doesn't exist yet - check local storage
+                console.log('Backend not available, checking local profile completion');
+                try {
+                    const localProfile = await SecureStore.getItemAsync('userProfile');
+                    const localContacts = await SecureStore.getItemAsync('userContacts');
+                    if (localProfile) {
+                        const profileData = JSON.parse(localProfile);
+                        const hasProfile = profileData.name && profileData.phone_number;
+                        const hasContacts = localContacts && JSON.parse(localContacts).length > 0;
+                        return !(hasProfile && hasContacts);
+                    }
+                } catch (localError) {
+                    console.error('Error checking local profile:', localError);
+                }
+                return true; // Default to needing setup if we can't check
+            }
+            
+            if (response.ok) {
+                const profileData = await response.json();
+                // Check if user has completed essential profile info and loaded contacts
+                const hasProfile = profileData.name && profileData.phone_number;
+                const hasContacts = profileData.contacts_loaded || false;
+                return !(hasProfile && hasContacts);
+            }
+        } catch (error) {
+            console.log('Backend not available, checking local profile completion');
+            // Fallback to local storage check immediately
+            try {
+                const localProfile = await SecureStore.getItemAsync('userProfile');
+                const localContacts = await SecureStore.getItemAsync('userContacts');
+                if (localProfile) {
+                    const profileData = JSON.parse(localProfile);
+                    const hasProfile = profileData.name && profileData.phone_number;
+                    const hasContacts = localContacts && JSON.parse(localContacts).length > 0;
+                    return !(hasProfile && hasContacts);
+                }
+            } catch (localError) {
+                console.error('Error checking local profile:', localError);
+            }
+        }
+        return true; // Default to needing setup if we can't verify
+    };
 
     async function handleGoogleLogin() {
         try {
@@ -55,8 +139,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 const email = url.searchParams.get("email");
                 const userId = url.searchParams.get("user_id");
                 const name = url.searchParams.get("name");
+                
                 if (email && userId) {
-                    const userData: User = { id: userId, email, name };
+                    // Check if this is a new user or needs profile setup
+                    const needsSetup = await checkProfileCompletion(userId);
+                    
+                    const userData: User = { 
+                        id: userId, 
+                        email, 
+                        name,
+                        needsProfileSetup: needsSetup
+                    };
+                    
                     setUser(userData);
                     await SecureStore.setItemAsync('user', JSON.stringify(userData));
                     Alert.alert("Success", "Logged in successfully!");
@@ -76,7 +170,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     return (
-        <AuthContext.Provider value={{ user, loading, handleGoogleLogin, signOut }}>
+        <AuthContext.Provider value={{ user, loading, handleGoogleLogin, signOut, checkProfileCompletion }}>
             {children}
         </AuthContext.Provider>
     );

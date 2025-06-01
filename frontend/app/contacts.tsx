@@ -8,14 +8,33 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
-  TextInput
+  TextInput,
+  SafeAreaView,
+  Animated,
+  Easing
 } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import * as Contacts from 'expo-contacts';
 import { useAuth } from '@/contexts/AuthContext';
+import * as SecureStore from 'expo-secure-store';
 
 const BACKEND_URL = "http://localhost:8000";
+const REQUEST_TIMEOUT = 3000; // 3 seconds timeout
+
+// Coffee-themed color palette
+const colors = {
+  coffeeDark: '#4A3728',
+  coffeeMedium: '#8B4513',
+  coffeeLight: '#D2B48C',
+  coffeeCream: '#F5F5DC',
+  coffeeWhite: '#FFFEF7',
+  coffeeAccent: '#CD853F',
+  textPrimary: '#2D1B12',
+  textSecondary: '#6B4E3D',
+  textLight: '#8B7355',
+  background: '#FFFEF7',
+};
 
 interface Contact {
   id: string;
@@ -24,20 +43,57 @@ interface Contact {
   emails?: { email: string }[];
 }
 
+// Helper function to add timeout to fetch requests
+const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = REQUEST_TIMEOUT): Promise<Response> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+    }
+};
+
 export default function ContactsScreen() {
   const { user } = useAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [hasPermission, setHasPermission] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [savedContactsCount, setSavedContactsCount] = useState(0);
+  
+  // Animation values
+  const fadeAnim = new Animated.Value(0);
+  const slideAnim = new Animated.Value(50);
 
   useEffect(() => {
-    checkPermission();
+    loadSavedContacts();
     if (user) {
       checkSavedContacts();
     }
+    
+    // Entrance animation
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, [user]);
 
   useEffect(() => {
@@ -51,82 +107,60 @@ export default function ContactsScreen() {
     }
   }, [searchQuery, contacts]);
 
-  const checkPermission = async () => {
-    const { status } = await Contacts.getPermissionsAsync();
-    setHasPermission(status === 'granted');
-  };
-
-  const requestContactsPermission = async () => {
-    const { status } = await Contacts.requestPermissionsAsync();
-    if (status === 'granted') {
-      setHasPermission(true);
-      loadContacts();
-    } else {
-      Alert.alert(
-        'Permission Required',
-        'We need access to your contacts to help you plan coffee chats with friends.',
-        [{ text: 'OK' }]
-      );
-    }
-  };
-
-  const loadContacts = async () => {
+  const loadSavedContacts = async () => {
     setLoading(true);
+    console.log('🔍 Loading contacts from local storage...');
+    
+    // Debug: Check all stored keys first
+    console.log('🔍 DEBUG: Checking all SecureStore keys...');
     try {
-      const { data } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers, Contacts.Fields.Emails],
-        sort: Contacts.SortTypes.FirstName,
-      });
-
-      const formattedContacts = data
-        .filter(contact => contact.name && (contact.phoneNumbers || contact.emails))
-        .map(contact => ({
-          id: contact.id || Math.random().toString(),
-          name: contact.name || 'Unknown',
-          phoneNumbers: contact.phoneNumbers?.filter(phone => phone.number).map(phone => ({ number: phone.number! })) || [],
-          emails: contact.emails?.filter(email => email.email).map(email => ({ email: email.email! })) || []
-        }));
-
-      setContacts(formattedContacts);
-      
-      // Sync contacts with backend
-      if (user) {
-        const syncSuccess = await syncContactsWithBackend(formattedContacts);
-        
-        // Show success message
-        if (syncSuccess) {
-          Alert.alert(
-            'Success! ☕',
-            `Loaded and saved ${formattedContacts.length} contacts to your account. You can now select your best friends!`,
-            [{ text: 'OK' }]
-          );
+      const keys = ['user', 'userProfile', 'userContacts', 'userBestFriends'];
+      for (const key of keys) {
+        const value = await SecureStore.getItemAsync(key);
+        if (value) {
+          try {
+            const parsed = JSON.parse(value);
+            console.log(`🔑 ${key}:`, typeof parsed === 'object' ? `${Object.keys(parsed).length} properties` : parsed);
+            if (key === 'userContacts' && Array.isArray(parsed)) {
+              console.log(`   📱 Contacts count: ${parsed.length}`);
+              console.log(`   📱 First 3 names:`, parsed.slice(0, 3).map((c: Contact) => c.name));
+            }
+          } catch (e) {
+            console.log(`🔑 ${key}:`, value.substring(0, 100) + '...');
+          }
         } else {
-          Alert.alert(
-            'Contacts Loaded ⚠️',
-            `Loaded ${formattedContacts.length} contacts but could not save to server. Please check your connection and try again.`,
-            [{ text: 'OK' }]
-          );
+          console.log(`🔑 ${key}: null`);
         }
-      } else {
-        Alert.alert(
-          'Success! ☕',
-          `Loaded ${formattedContacts.length} contacts!`,
-          [{ text: 'OK' }]
-        );
       }
     } catch (error) {
-      console.error('Error loading contacts:', error);
-      Alert.alert('Error', 'Failed to load contacts. Please try again.');
+      console.error('💥 DEBUG: Error checking SecureStore:', error);
+    }
+    
+    try {
+      // First try to load from local storage
+      const savedContacts = await SecureStore.getItemAsync('userContacts');
+      console.log('📱 Raw savedContacts from SecureStore:', savedContacts ? 'Data found' : 'No data');
+      
+      if (savedContacts) {
+        const contactsData = JSON.parse(savedContacts);
+        console.log(`✅ Loaded ${contactsData.length} contacts from local storage:`, contactsData.slice(0, 3).map((c: Contact) => c.name));
+        setContacts(contactsData);
+      } else {
+        console.log('❌ No contacts found in local storage');
+        setContacts([]);
+      }
+    } catch (error) {
+      console.error('💥 Error loading saved contacts:', error);
+      setContacts([]);
     } finally {
       setLoading(false);
+      console.log('🏁 Contacts loading complete');
     }
   };
 
   const syncContactsWithBackend = async (contactsList: Contact[]) => {
     try {
-      console.log(`Syncing ${contactsList.length} contacts to backend...`);
-      
-      const response = await fetch(`${BACKEND_URL}/api/contacts/sync`, {
+      const response = await fetchWithTimeout(`${BACKEND_URL}/api/contacts/sync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -137,30 +171,17 @@ export default function ContactsScreen() {
         }),
       });
 
+      if (response.status === 404) {
+        console.log('Backend endpoint not available yet - contacts saved locally');
+        return;
+      }
+
       const data = await response.json();
-      
       if (response.ok && data.success) {
-        console.log(`✅ Successfully synced ${contactsList.length} contacts to database`);
-        // Refresh saved contacts count
         setSavedContactsCount(contactsList.length);
-        return true;
-      } else {
-        console.error('❌ Failed to sync contacts:', data.message || 'Unknown error');
-        Alert.alert(
-          'Sync Warning',
-          'Contacts loaded but may not be saved to server. Please try again if you want to select best friends.',
-          [{ text: 'OK' }]
-        );
-        return false;
       }
     } catch (error) {
-      console.error('❌ Error syncing contacts with backend:', error);
-      Alert.alert(
-        'Sync Warning', 
-        'Contacts loaded but could not connect to server. Best friends feature may not work until contacts are synced.',
-        [{ text: 'OK' }]
-      );
-      return false;
+      console.log('Could not sync with backend, saved locally');
     }
   };
 
@@ -168,14 +189,17 @@ export default function ContactsScreen() {
     if (!user) return;
     
     try {
-      const response = await fetch(`${BACKEND_URL}/api/contacts/best-friends/${user.id}`);
-      const data = await response.json();
+      const response = await fetchWithTimeout(`${BACKEND_URL}/api/contacts/best-friends/${user.id}`);
+      if (response.status === 404) {
+        return; // Backend not available yet
+      }
       
+      const data = await response.json();
       if (data.success) {
         setSavedContactsCount(data.contacts.length);
       }
     } catch (error) {
-      console.log('Could not check saved contacts:', error);
+      // Silently handle - backend may not be ready
     }
   };
 
@@ -184,343 +208,433 @@ export default function ContactsScreen() {
   };
 
   const navigateToBestFriends = () => {
+    if (contacts.length === 0) {
+      Alert.alert(
+        'Load Contacts First',
+        'Please load your contacts before selecting your coffee crew.',
+        [{ text: 'Got It' }]
+      );
+      return;
+    }
     router.push('/best-friends');
   };
 
-  const renderContact = ({ item }: { item: Contact }) => {
+  const goToProfileSetup = () => {
+    router.push('/profile-setup');
+  };
+
+  const refreshContacts = async () => {
+    await loadSavedContacts();
+    if (contacts.length === 0) {
+      Alert.alert(
+        'No Contacts Found',
+        'Please complete your profile setup to load contacts first.',
+        [
+          { text: 'Go to Setup', onPress: goToProfileSetup },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    }
+  };
+
+  const renderContact = ({ item, index }: { item: Contact; index: number }) => {
     const phoneNumber = item.phoneNumbers?.[0]?.number || '';
     const email = item.emails?.[0]?.email || '';
 
     return (
-      <TouchableOpacity style={styles.contactItem}>
+      <Animated.View 
+        style={[
+          styles.contactItem,
+          {
+            opacity: fadeAnim,
+            transform: [
+              {
+                translateY: slideAnim.interpolate({
+                  inputRange: [0, 50],
+                  outputRange: [0, 50],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
         <View style={styles.contactAvatar}>
           <Text style={styles.contactInitial}>
             {item.name.charAt(0).toUpperCase()}
           </Text>
         </View>
+        
         <View style={styles.contactInfo}>
           <Text style={styles.contactName}>{item.name}</Text>
-          {phoneNumber ? (
-            <Text style={styles.contactDetail}>{phoneNumber}</Text>
-          ) : null}
-          {email ? (
-            <Text style={styles.contactDetail}>{email}</Text>
-          ) : null}
+          <Text style={styles.contactDetail}>
+            {phoneNumber || email || 'No contact info'}
+          </Text>
         </View>
-      </TouchableOpacity>
+      </Animated.View>
     );
   };
 
-  if (!hasPermission) {
+  if (loading) {
     return (
-      <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#F5E6D3" />
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         
+        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Contacts</Text>
           <TouchableOpacity style={styles.backButton} onPress={goBack}>
-            <Text style={styles.backButtonText}>←</Text>
+            <Text style={styles.backButtonText}>✕</Text>
           </TouchableOpacity>
+          <Text style={styles.headerTitle}>Contacts</Text>
         </View>
 
-        <View style={styles.permissionContainer}>
-          <Image 
-            source={require('@/assets/images/coffee-hello.png')} 
-            style={styles.coffeeCharacter}
-            contentFit="contain"
-          />
-          
-          <Text style={styles.permissionTitle}>Access Your Contacts</Text>
-          <Text style={styles.permissionDescription}>
-            We need access to your contacts to help you plan amazing coffee chats with your friends and family!
-          </Text>
-          
-          <TouchableOpacity 
-            style={styles.permissionButton} 
-            onPress={requestContactsPermission}
-          >
-            <Text style={styles.permissionButtonText}>Allow Access</Text>
-          </TouchableOpacity>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.coffeeMedium} />
+          <Text style={styles.loadingText}>Loading contacts...</Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F5E6D3" />
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Contacts</Text>
         <TouchableOpacity style={styles.backButton} onPress={goBack}>
-          <Text style={styles.backButtonText}>←</Text>
+          <Text style={styles.backButtonText}>✕</Text>
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>Contacts</Text>
       </View>
 
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search contacts..."
-          placeholderTextColor="#8B4513"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
-
-      {contacts.length === 0 && !loading ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>No contacts found</Text>
-          {savedContactsCount > 0 && (
-            <Text style={styles.databaseStatusText}>
-              📊 {savedContactsCount} contacts saved in database
-            </Text>
-          )}
-          <TouchableOpacity style={styles.loadButton} onPress={loadContacts}>
-            <Text style={styles.loadButtonText}>Load Contacts</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          {savedContactsCount > 0 && (
-            <View style={styles.databaseStatus}>
-              <Text style={styles.databaseStatusText}>
-                📊 Database: {savedContactsCount} contacts saved
-              </Text>
-              <TouchableOpacity 
-                style={styles.refreshButton} 
-                onPress={checkSavedContacts}
-              >
-                <Text style={styles.refreshButtonText}>↻ Refresh</Text>
-              </TouchableOpacity>
+      <Animated.View 
+        style={[
+          styles.content,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        {contacts.length === 0 ? (
+          // Empty State
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIcon}>
+              <Text style={styles.emptyIconText}>📱</Text>
             </View>
-          )}
-          
-          <View style={styles.actionsContainer}>
-            <TouchableOpacity 
-              style={styles.bestFriendsButton} 
-              onPress={navigateToBestFriends}
-            >
-              <Text style={styles.bestFriendsButtonText}>Select Best Friends ☕</Text>
-            </TouchableOpacity>
+            <Text style={styles.emptyTitle}>Contacts Not Loaded</Text>
+            <Text style={styles.emptySubtitle}>
+              Complete your profile setup to load contacts and start building your coffee crew
+            </Text>
             
             <TouchableOpacity 
-              style={styles.viewBestFriendsButton} 
-              onPress={() => router.push('/view-best-friends')}
+              style={styles.loadButton} 
+              onPress={goToProfileSetup}
             >
-              <Text style={styles.viewBestFriendsButtonText}>👥 View My Best Friends</Text>
+              <Text style={styles.loadButtonText}>Complete Profile Setup</Text>
+            </TouchableOpacity>
+
+            {/* Temporary Debug Button */}
+            <TouchableOpacity 
+              style={[styles.loadButton, { backgroundColor: colors.coffeeAccent, marginTop: 16 }]} 
+              onPress={loadSavedContacts}
+            >
+              <Text style={styles.loadButtonText}>🔍 Debug: Reload Contacts</Text>
             </TouchableOpacity>
           </View>
-
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#8B4513" />
-              <Text style={styles.loadingText}>Loading contacts...</Text>
+        ) : (
+          // Contacts List
+          <>
+            {/* Search Bar */}
+            <View style={styles.searchContainer}>
+              <View style={styles.searchBar}>
+                <Text style={styles.searchIcon}>🔍</Text>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search contacts..."
+                  placeholderTextColor={colors.textLight}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+              </View>
             </View>
-          ) : (
+
+            {/* Stats Bar */}
+            <View style={styles.statsContainer}>
+              <Text style={styles.statsText}>
+                {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''}
+              </Text>
+              <TouchableOpacity style={styles.bestFriendsButton} onPress={navigateToBestFriends}>
+                <Text style={styles.bestFriendsText}>Select Coffee Crew</Text>
+                <Text style={styles.bestFriendsArrow}>→</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Contacts List */}
             <FlatList
               data={filteredContacts}
               renderItem={renderContact}
               keyExtractor={(item) => item.id}
-              style={styles.contactsList}
               showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.listContainer}
             />
-          )}
-        </>
-      )}
-    </View>
+          </>
+        )}
+      </Animated.View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5E6D3',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 50,
-    paddingBottom: 10,
     paddingHorizontal: 20,
-    backgroundColor: '#8B4513',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: `${colors.coffeeMedium}10`,
     position: 'relative',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#F5E6D3',
   },
   backButton: {
     position: 'absolute',
     left: 20,
-    top: 50,
-    padding: 5,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.coffeeCream,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.coffeeDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   backButtonText: {
-    fontSize: 24,
-    color: '#F5E6D3',
-    fontWeight: 'bold',
+    fontSize: 16,
+    color: colors.coffeeDark,
+    fontWeight: '500',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.coffeeDark,
+    letterSpacing: -0.4,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
   },
   permissionContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    paddingHorizontal: 40,
   },
-  coffeeCharacter: {
-    width: 150,
-    height: 150,
-    marginBottom: 30,
+  permissionIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: colors.coffeeCream,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    shadowColor: colors.coffeeDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  permissionImage: {
+    width: 70,
+    height: 70,
   },
   permissionTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#8B4513',
+    fontWeight: '700',
+    color: colors.coffeeDark,
     textAlign: 'center',
-    marginBottom: 15,
+    marginBottom: 12,
+    letterSpacing: -0.5,
   },
-  permissionDescription: {
+  permissionSubtitle: {
     fontSize: 16,
-    color: '#8B4513',
+    color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 30,
-    paddingHorizontal: 20,
-    lineHeight: 22,
+    lineHeight: 24,
+    marginBottom: 32,
+    maxWidth: 280,
   },
   permissionButton: {
-    backgroundColor: '#8B4513',
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 25,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    backgroundColor: colors.coffeeDark,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    shadowColor: colors.coffeeDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   permissionButtonText: {
-    color: '#F5E6D3',
+    fontSize: 16,
     fontWeight: '600',
-    fontSize: 16,
+    color: colors.coffeeWhite,
   },
-  searchContainer: {
-    padding: 20,
-  },
-  searchInput: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#8B4513',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  actionsContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 10,
-  },
-  bestFriendsButton: {
-    backgroundColor: '#8B4513',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    alignItems: 'center',
-  },
-  bestFriendsButtonText: {
-    color: '#F5E6D3',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  viewBestFriendsButton: {
-    backgroundColor: '#8B4513',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    alignItems: 'center',
-    marginLeft: 10,
-  },
-  viewBestFriendsButtonText: {
-    color: '#F5E6D3',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  emptyState: {
+  emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    paddingHorizontal: 40,
   },
-  emptyStateText: {
-    fontSize: 18,
-    color: '#8B4513',
-    marginBottom: 20,
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.coffeeCream,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  emptyIconText: {
+    fontSize: 40,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: colors.coffeeDark,
+    textAlign: 'center',
+    marginBottom: 12,
+    letterSpacing: -0.5,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 32,
+    maxWidth: 280,
   },
   loadButton: {
-    backgroundColor: '#8B4513',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 20,
+    backgroundColor: colors.coffeeDark,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    shadowColor: colors.coffeeDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+    minWidth: 160,
+    alignItems: 'center',
+  },
+  loadButtonDisabled: {
+    backgroundColor: colors.coffeeLight,
+    shadowOpacity: 0.1,
   },
   loadButtonText: {
-    color: '#F5E6D3',
+    fontSize: 16,
     fontWeight: '600',
-    fontSize: 16,
+    color: colors.coffeeWhite,
   },
-  loadingContainer: {
-    flex: 1,
+  searchContainer: {
+    paddingVertical: 20,
+  },
+  searchBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
+    backgroundColor: colors.coffeeCream,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: colors.coffeeDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  loadingText: {
-    fontSize: 16,
-    color: '#8B4513',
-    marginTop: 10,
+  searchIcon: {
+    fontSize: 18,
+    marginRight: 12,
+    opacity: 0.6,
   },
-  contactsList: {
+  searchInput: {
     flex: 1,
-    paddingHorizontal: 20,
+    fontSize: 16,
+    color: colors.textPrimary,
+    lineHeight: 22,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  statsText: {
+    fontSize: 14,
+    color: colors.textLight,
+    fontWeight: '500',
+  },
+  bestFriendsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.coffeeDark,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    shadowColor: colors.coffeeDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  bestFriendsText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.coffeeWhite,
+    marginRight: 4,
+  },
+  bestFriendsArrow: {
+    fontSize: 16,
+    color: colors.coffeeWhite,
+    fontWeight: '600',
+  },
+  listContainer: {
+    paddingBottom: 20,
   },
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 15,
-    marginVertical: 5,
-    borderRadius: 15,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    backgroundColor: colors.background,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: `${colors.coffeeMedium}15`,
+    shadowColor: colors.coffeeDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 2,
   },
   contactAvatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#8B4513',
+    backgroundColor: colors.coffeeMedium,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 15,
+    marginRight: 16,
   },
   contactInitial: {
-    color: '#F5E6D3',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.coffeeWhite,
   },
   contactInfo: {
     flex: 1,
@@ -528,40 +642,22 @@ const styles = StyleSheet.create({
   contactName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#8B4513',
+    color: colors.coffeeDark,
     marginBottom: 4,
   },
   contactDetail: {
     fontSize: 14,
-    color: '#8B4513',
-    opacity: 0.7,
+    color: colors.textLight,
   },
-  databaseStatus: {
-    backgroundColor: '#8B4513',
-    padding: 10,
-    borderRadius: 10,
-    marginHorizontal: 20,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  databaseStatusText: {
-    color: '#F5E6D3',
-    fontWeight: '600',
-    fontSize: 14,
+  loadingContainer: {
     flex: 1,
-  },
-  refreshButton: {
-    backgroundColor: '#F5E6D3',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 15,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  refreshButtonText: {
-    color: '#8B4513',
-    fontWeight: '600',
-    fontSize: 12,
+  loadingText: {
+    fontSize: 16,
+    color: colors.coffeeDark,
+    fontWeight: '500',
+    marginTop: 20,
   },
 }); 

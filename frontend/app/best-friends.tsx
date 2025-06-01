@@ -8,14 +8,32 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
-  Animated
+  Animated,
+  SafeAreaView,
+  Easing
 } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/contexts/AuthContext';
+import * as SecureStore from 'expo-secure-store';
 
 const BACKEND_URL = "http://localhost:8000";
+const REQUEST_TIMEOUT = 3000; // 3 seconds timeout
+
+// Coffee-themed color palette
+const colors = {
+  coffeeDark: '#4A3728',
+  coffeeMedium: '#8B4513',
+  coffeeLight: '#D2B48C',
+  coffeeCream: '#F5F5DC',
+  coffeeWhite: '#FFFEF7',
+  coffeeAccent: '#CD853F',
+  textPrimary: '#2D1B12',
+  textSecondary: '#6B4E3D',
+  textLight: '#8B7355',
+  background: '#FFFEF7',
+};
 
 interface Contact {
   id: string;
@@ -28,44 +46,142 @@ interface BestFriend extends Contact {
   isBestFriend: boolean;
 }
 
+// Helper function to add timeout to fetch requests
+const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = REQUEST_TIMEOUT): Promise<Response> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+    }
+};
+
 export default function BestFriendsScreen() {
   const { user } = useAuth();
   const [contacts, setContacts] = useState<BestFriend[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedCount, setSelectedCount] = useState(0);
+  
+  // Animation values
+  const fadeAnim = new Animated.Value(0);
+  const slideAnim = new Animated.Value(50);
+  const headerScale = new Animated.Value(0.8);
 
   useEffect(() => {
     loadContactsAndBestFriends();
+    
+    // Entrance animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.spring(headerScale, {
+        toValue: 1,
+        tension: 100,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
   const loadContactsAndBestFriends = async () => {
     if (!user) return;
     
     try {
-      const response = await fetch(`${BACKEND_URL}/api/contacts/best-friends/${user.id}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setContacts(data.contacts);
-        setSelectedCount(data.contacts.filter((c: BestFriend) => c.isBestFriend).length);
+      // First try to load contacts from local storage
+      const savedContacts = await SecureStore.getItemAsync('userContacts');
+      if (savedContacts) {
+        const contactsData = JSON.parse(savedContacts);
+        const contactsWithBestFriends = contactsData.map((contact: Contact) => ({
+          ...contact,
+          isBestFriend: false
+        }));
+        
+        // Try to load best friends selection from backend or local storage
+        try {
+          const response = await fetchWithTimeout(`${BACKEND_URL}/api/contacts/best-friends/${user.id}`);
+          
+          if (response.status !== 404 && response.ok) {
+            const data = await response.json();
+            if (data.success && data.contacts) {
+              // Mark best friends from backend
+              const bestFriendIds = data.contacts.filter((c: BestFriend) => c.isBestFriend).map((c: BestFriend) => c.id);
+              contactsWithBestFriends.forEach((contact: BestFriend) => {
+                contact.isBestFriend = bestFriendIds.includes(contact.id);
+              });
+            }
+          } else {
+            // Fallback to local storage for best friends
+            const localBestFriends = await SecureStore.getItemAsync('userBestFriends');
+            if (localBestFriends) {
+              const bestFriendIds = JSON.parse(localBestFriends);
+              contactsWithBestFriends.forEach((contact: BestFriend) => {
+                contact.isBestFriend = bestFriendIds.includes(contact.id);
+              });
+            }
+          }
+        } catch (error) {
+          console.log('Could not load best friends data, using default');
+          // Try local storage fallback
+          try {
+            const localBestFriends = await SecureStore.getItemAsync('userBestFriends');
+            if (localBestFriends) {
+              const bestFriendIds = JSON.parse(localBestFriends);
+              contactsWithBestFriends.forEach((contact: BestFriend) => {
+                contact.isBestFriend = bestFriendIds.includes(contact.id);
+              });
+            }
+          } catch (localError) {
+            console.log('Could not load from local storage either');
+          }
+        }
+        
+        setContacts(contactsWithBestFriends);
+        setSelectedCount(contactsWithBestFriends.filter((c: BestFriend) => c.isBestFriend).length);
       } else {
-        // If no contacts found, try to load regular contacts
-        console.log('No best friends data, checking for regular contacts...');
+        // No contacts found - redirect to profile setup
         Alert.alert(
-          'No Contacts Found',
-          'Please sync your contacts first by going back and tapping "Load Contacts".',
+          'Complete Profile Setup',
+          'Please complete your profile setup to load contacts first.',
           [
             {
-              text: 'Go Back',
-              onPress: () => router.back()
+              text: 'Go to Profile Setup',
+              onPress: () => router.push('/profile-setup')
             }
           ]
         );
+        return;
       }
     } catch (error) {
       console.error('Error loading contacts and best friends:', error);
-      Alert.alert('Error', 'Failed to load contacts. Please make sure your contacts are synced first.');
+      Alert.alert(
+        'Error Loading Contacts',
+        'Please complete your profile setup to load contacts first.',
+        [
+          {
+            text: 'Go to Profile Setup',
+            onPress: () => router.push('/profile-setup')
+          }
+        ]
+      );
     } finally {
       setLoading(false);
     }
@@ -91,11 +207,24 @@ export default function BestFriendsScreen() {
   const saveBestFriends = async () => {
     if (!user) return;
     
+    if (selectedCount === 0) {
+      Alert.alert(
+        'Select Your Coffee Crew',
+        'Please select at least one friend to add to your coffee crew.',
+        [{ text: 'Got It' }]
+      );
+      return;
+    }
+    
     setSaving(true);
     try {
       const bestFriends = contacts.filter(contact => contact.isBestFriend);
+      const bestFriendIds = bestFriends.map(contact => contact.id);
       
-      const response = await fetch(`${BACKEND_URL}/api/contacts/best-friends/save`, {
+      // Save locally first
+      await SecureStore.setItemAsync('userBestFriends', JSON.stringify(bestFriendIds));
+      
+      const response = await fetchWithTimeout(`${BACKEND_URL}/api/contacts/best-friends/save`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -106,28 +235,54 @@ export default function BestFriendsScreen() {
         }),
       });
 
+      if (response.status === 404) {
+        // Backend not available - saved locally already
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          'Coffee Crew Saved! ☕', 
+          `Selected ${selectedCount} friend${selectedCount !== 1 ? 's' : ''} for your coffee crew! Saved locally and will sync when server is available.`,
+          [
+            {
+              text: 'Perfect',
+              onPress: () => router.back()
+            }
+          ]
+        );
+        return;
+      }
+
       const data = await response.json();
       
       if (data.success) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
-          'Success! ☕', 
-          `Saved ${selectedCount} best friends! Now you can easily plan coffee chats with them.`,
+          'Coffee Crew Ready! ☕', 
+          `Saved ${selectedCount} friend${selectedCount !== 1 ? 's' : ''} to your coffee crew! Joe can now help coordinate meetups.`,
           [
             {
-              text: 'OK',
+              text: 'Perfect',
               onPress: () => router.back()
             }
           ]
         );
       } else {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert('Error', 'Failed to save best friends. Please try again.');
+        Alert.alert('Oops!', 'Failed to save your coffee crew. Please try again.');
       }
     } catch (error) {
       console.error('Error saving best friends:', error);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', 'Failed to save best friends. Please try again.');
+      // Already saved locally above
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Saved Locally ☕', 
+        `Your coffee crew of ${selectedCount} friend${selectedCount !== 1 ? 's' : ''} has been saved locally and will sync when connection is available.`,
+        [
+          {
+            text: 'Got It',
+            onPress: () => router.back()
+          }
+        ]
+      );
     } finally {
       setSaving(false);
     }
@@ -135,8 +290,8 @@ export default function BestFriendsScreen() {
 
   const clearAllSelections = () => {
     Alert.alert(
-      'Clear All Selections',
-      'Are you sure you want to clear all best friend selections?',
+      'Clear All Selections?',
+      'This will remove all friends from your coffee crew selection.',
       [
         {
           text: 'Cancel',
@@ -144,11 +299,13 @@ export default function BestFriendsScreen() {
         },
         {
           text: 'Clear All',
+          style: 'destructive',
           onPress: () => {
             setContacts(prevContacts => 
               prevContacts.map(contact => ({ ...contact, isBestFriend: false }))
             );
             setSelectedCount(0);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           },
         },
       ]
@@ -159,7 +316,7 @@ export default function BestFriendsScreen() {
     router.back();
   };
 
-  const ContactItem = ({ item }: { item: BestFriend }) => {
+  const ContactItem = ({ item, index }: { item: BestFriend; index: number }) => {
     const [scaleValue] = useState(new Animated.Value(1));
     const phoneNumber = item.phoneNumbers?.[0]?.number || '';
     const email = item.emails?.[0]?.email || '';
@@ -183,7 +340,20 @@ export default function BestFriendsScreen() {
     };
 
     return (
-      <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
+      <Animated.View 
+        style={{
+          opacity: fadeAnim,
+          transform: [
+            { scale: scaleValue },
+            {
+              translateY: slideAnim.interpolate({
+                inputRange: [0, 50],
+                outputRange: [0, 50],
+              }),
+            },
+          ],
+        }}
+      >
         <TouchableOpacity 
           style={[
             styles.contactItem,
@@ -203,6 +373,7 @@ export default function BestFriendsScreen() {
               {item.name.charAt(0).toUpperCase()}
             </Text>
           </View>
+          
           <View style={styles.contactInfo}>
             <Text style={[
               styles.contactName,
@@ -210,22 +381,17 @@ export default function BestFriendsScreen() {
             ]}>
               {item.name}
             </Text>
-            {phoneNumber ? (
-              <Text style={styles.contactDetail}>{phoneNumber}</Text>
-            ) : null}
-            {email ? (
-              <Text style={styles.contactDetail}>{email}</Text>
-            ) : null}
+            <Text style={styles.contactDetail}>
+              {phoneNumber || email || 'No contact info'}
+            </Text>
           </View>
-          <View style={styles.selectionIndicator}>
-            {item.isBestFriend ? (
-              <View style={styles.selectedIndicator}>
-                <Text style={styles.checkmark}>✓</Text>
-              </View>
-            ) : (
-              <View style={styles.unselectedIndicator}>
-                <Text style={styles.plusSign}>+</Text>
-              </View>
+          
+          <View style={[
+            styles.selectionIndicator,
+            item.isBestFriend && styles.selectedIndicator
+          ]}>
+            {item.isBestFriend && (
+              <Text style={styles.selectionCheckmark}>✓</Text>
             )}
           </View>
         </TouchableOpacity>
@@ -235,219 +401,250 @@ export default function BestFriendsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#F5E6D3" />
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Best Friends</Text>
-          <TouchableOpacity style={styles.backButton} onPress={goBack}>
-            <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
-        </View>
-
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B4513" />
-          <Text style={styles.loadingText}>Loading contacts...</Text>
+          <View style={styles.loadingIcon}>
+            <Image 
+              source={require('@/assets/images/coffee-character.png')} 
+              style={styles.loadingImage}
+              contentFit="contain"
+            />
+          </View>
+          <Text style={styles.loadingTitle}>Loading Coffee Crew...</Text>
+          <ActivityIndicator size="large" color={colors.coffeeMedium} style={{ marginTop: 16 }} />
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F5E6D3" />
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Best Friends</Text>
         <TouchableOpacity style={styles.backButton} onPress={goBack}>
-          <Text style={styles.backButtonText}>←</Text>
+          <Text style={styles.backButtonText}>✕</Text>
         </TouchableOpacity>
+        <Animated.Text style={[styles.headerTitle, { transform: [{ scale: headerScale }] }]}>
+          Coffee Crew
+        </Animated.Text>
       </View>
 
-      <View style={styles.instructionsContainer}>
-        <Image 
-          source={require('@/assets/images/coffee-hello.png')} 
-          style={styles.coffeeIcon}
-          contentFit="contain"
-        />
-        <Text style={styles.instructionsText}>
-          Tap contacts to select your best friends for coffee chats!
-        </Text>
-        <View style={styles.statsContainer}>
-          <Text style={styles.selectedCountText}>
-            ☕ {selectedCount} best friends selected
-          </Text>
+      <Animated.View 
+        style={[
+          styles.content,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        {/* Selection Summary */}
+        <View style={styles.summaryContainer}>
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryTitle}>
+              {selectedCount} Selected
+            </Text>
+            <Text style={styles.summarySubtitle}>
+              Choose friends for your coffee crew
+            </Text>
+          </View>
+          
           {selectedCount > 0 && (
             <TouchableOpacity style={styles.clearButton} onPress={clearAllSelections}>
               <Text style={styles.clearButtonText}>Clear All</Text>
             </TouchableOpacity>
           )}
         </View>
-      </View>
 
-      {contacts.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>No contacts found</Text>
-          <Text style={styles.emptyStateSubtext}>
-            Please sync your contacts first by going back and loading contacts.
-          </Text>
-          <TouchableOpacity style={styles.goBackButton} onPress={goBack}>
-            <Text style={styles.goBackButtonText}>Go Back to Contacts</Text>
+        {/* Contacts List */}
+        <FlatList
+          data={contacts}
+          renderItem={({ item, index }) => <ContactItem item={item} index={index} />}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContainer}
+        />
+
+        {/* Save Button */}
+        <View style={styles.saveContainer}>
+          <TouchableOpacity 
+            style={[
+              styles.saveButton, 
+              saving && styles.saveButtonDisabled,
+              selectedCount === 0 && styles.saveButtonInactive
+            ]} 
+            onPress={saveBestFriends}
+            disabled={saving || selectedCount === 0}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color={colors.coffeeWhite} />
+            ) : (
+              <Text style={styles.saveButtonText}>
+                Save Coffee Crew ({selectedCount})
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
-      ) : (
-        <>
-          <FlatList
-            data={contacts}
-            renderItem={({ item }) => <ContactItem item={item} />}
-            keyExtractor={(item) => item.id}
-            style={styles.contactsList}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 20 }}
-          />
-
-          <View style={styles.actionContainer}>
-            <TouchableOpacity 
-              style={[
-                styles.saveButton,
-                saving && styles.saveButtonDisabled,
-                selectedCount === 0 && styles.saveButtonInactive
-              ]} 
-              onPress={saveBestFriends}
-              disabled={saving || selectedCount === 0}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#F5E6D3" />
-              ) : (
-                <Text style={styles.saveButtonText}>
-                  {selectedCount === 0 
-                    ? 'Select friends to save' 
-                    : `Save ${selectedCount} Best Friend${selectedCount === 1 ? '' : 's'} ☕`
-                  }
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
-    </View>
+      </Animated.View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5E6D3',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 50,
-    paddingBottom: 10,
     paddingHorizontal: 20,
-    backgroundColor: '#8B4513',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: `${colors.coffeeMedium}10`,
     position: 'relative',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#F5E6D3',
   },
   backButton: {
     position: 'absolute',
     left: 20,
-    top: 50,
-    padding: 5,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.coffeeCream,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.coffeeDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   backButtonText: {
-    fontSize: 24,
-    color: '#F5E6D3',
-    fontWeight: 'bold',
-  },
-  instructionsContainer: {
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 20,
-    marginVertical: 15,
-    borderRadius: 15,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  coffeeIcon: {
-    width: 60,
-    height: 60,
-    marginBottom: 10,
-  },
-  instructionsText: {
     fontSize: 16,
-    color: '#8B4513',
-    textAlign: 'center',
-    marginBottom: 10,
-    lineHeight: 22,
+    color: colors.coffeeDark,
+    fontWeight: '500',
   },
-  selectedCountText: {
-    fontSize: 14,
-    color: '#8B4513',
+  headerTitle: {
+    fontSize: 18,
     fontWeight: '600',
-    opacity: 0.8,
+    color: colors.coffeeDark,
+    letterSpacing: -0.4,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
   },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    paddingHorizontal: 40,
   },
-  loadingText: {
-    fontSize: 16,
-    color: '#8B4513',
-    marginTop: 10,
+  loadingIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.coffeeCream,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
   },
-  contactsList: {
+  loadingImage: {
+    width: 50,
+    height: 50,
+  },
+  loadingTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.coffeeDark,
+    textAlign: 'center',
+  },
+  summaryContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 20,
+  },
+  summaryCard: {
     flex: 1,
-    paddingHorizontal: 20,
+    backgroundColor: colors.coffeeCream,
+    borderRadius: 16,
+    padding: 16,
+    marginRight: 12,
+    shadowColor: colors.coffeeDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  summaryTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.coffeeDark,
+    marginBottom: 4,
+  },
+  summarySubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  clearButton: {
+    backgroundColor: colors.textLight,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  clearButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.coffeeWhite,
+  },
+  listContainer: {
+    paddingBottom: 100,
   },
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 15,
-    marginVertical: 5,
-    borderRadius: 15,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    backgroundColor: colors.background,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: `${colors.coffeeMedium}15`,
+    shadowColor: colors.coffeeDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 2,
   },
   selectedContactItem: {
-    backgroundColor: '#FFF8DC',
-    borderWidth: 2,
-    borderColor: '#8B4513',
+    backgroundColor: colors.coffeeCream,
+    borderColor: colors.coffeeMedium,
+    shadowOpacity: 0.15,
   },
   contactAvatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#8B4513',
+    backgroundColor: colors.coffeeLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 15,
+    marginRight: 16,
+  },
+  selectedAvatar: {
+    backgroundColor: colors.coffeeDark,
   },
   contactInitial: {
-    color: '#F5E6D3',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.coffeeDark,
+  },
+  selectedInitial: {
+    color: colors.coffeeWhite,
   },
   contactInfo: {
     flex: 1,
@@ -455,132 +652,62 @@ const styles = StyleSheet.create({
   contactName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#8B4513',
+    color: colors.coffeeDark,
     marginBottom: 4,
+  },
+  selectedContactName: {
+    color: colors.coffeeDark,
   },
   contactDetail: {
     fontSize: 14,
-    color: '#8B4513',
-    opacity: 0.7,
+    color: colors.textLight,
   },
   selectionIndicator: {
-    marginLeft: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.coffeeLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   selectedIndicator: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#8B4513',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: colors.coffeeDark,
+    borderColor: colors.coffeeDark,
   },
-  unselectedIndicator: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 2,
-    borderColor: '#8B4513',
-    backgroundColor: 'transparent',
+  selectionCheckmark: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.coffeeWhite,
   },
-  checkmark: {
-    color: '#F5E6D3',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  actionContainer: {
-    padding: 20,
-    backgroundColor: '#F5E6D3',
+  saveContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
   },
   saveButton: {
-    backgroundColor: '#8B4513',
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 25,
+    backgroundColor: colors.coffeeDark,
+    borderRadius: 16,
+    paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowColor: colors.coffeeDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   saveButtonDisabled: {
-    opacity: 0.7,
+    backgroundColor: colors.coffeeLight,
+    shadowOpacity: 0.1,
   },
   saveButtonInactive: {
-    opacity: 0.5,
+    backgroundColor: colors.coffeeLight,
+    shadowOpacity: 0.1,
   },
   saveButtonText: {
-    color: '#F5E6D3',
-    fontWeight: '600',
     fontSize: 16,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 10,
-  },
-  clearButton: {
-    backgroundColor: '#8B4513',
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 15,
-    alignItems: 'center',
-  },
-  clearButtonText: {
-    color: '#F5E6D3',
     fontWeight: '600',
-    fontSize: 14,
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  emptyStateText: {
-    fontSize: 18,
-    color: '#8B4513',
-    fontWeight: '600',
-    marginBottom: 10,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: '#8B4513',
-    textAlign: 'center',
-  },
-  goBackButton: {
-    backgroundColor: '#8B4513',
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 25,
-    alignItems: 'center',
-  },
-  goBackButtonText: {
-    color: '#F5E6D3',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  selectedAvatar: {
-    backgroundColor: '#FFF8DC',
-    borderWidth: 2,
-    borderColor: '#8B4513',
-  },
-  selectedInitial: {
-    color: '#8B4513',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  selectedContactName: {
-    color: '#8B4513',
-    fontWeight: '600',
-  },
-  plusSign: {
-    color: '#8B4513',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: colors.coffeeWhite,
   },
 }); 
