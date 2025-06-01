@@ -9,6 +9,7 @@ certifi==2025.4.26
 charset-normalizer==3.4.2
 click==8.2.1
 deprecation==2.1.0
+distro==1.9.0
 dnspython==2.7.0
 ecdsa==0.19.1
 email_validator==2.2.0
@@ -34,11 +35,13 @@ icalendar==6.3.1
 idna==3.10
 iniconfig==2.1.0
 Jinja2==3.1.6
+jiter==0.10.0
 markdown-it-py==3.0.0
 MarkupSafe==3.0.2
 mdurl==0.1.2
 multidict==6.4.4
 oauthlib==3.2.2
+openai==1.82.1
 packaging==25.0
 pluggy==1.6.0
 postgrest==1.0.2
@@ -76,6 +79,7 @@ storage3==0.11.3
 StrEnum==0.4.15
 supabase==2.15.2
 supafunc==0.9.4
+tqdm==4.67.1
 typer==0.16.0
 typing-inspection==0.4.1
 typing_extensions==4.13.2
