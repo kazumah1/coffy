@@ -120,7 +120,7 @@ class DatabaseService:
         response = self.client.table("users").select("*").eq("phone_number", phone_number).execute()
         if not response.data:
             return None
-        return self.from_iso_strings(response.data[0])
+        return response.data[0]
     
     async def get_availiability(self, event_id: str, start_date: str, end_date: str) -> dict:
         # Get availability for an event within date range
@@ -319,7 +319,7 @@ class DatabaseService:
             
         # Convert to dictionary of participant_id -> busy_slots
         return {
-            record["participant_id"]: self.from_iso_strings(record).get("busy_slots", [])
+            record["participant_id"]: record.get("busy_slots", [])
             for record in response.data
         }
 
@@ -570,53 +570,72 @@ class DatabaseService:
         now = datetime.now()
         contact = {
             "id": str(uuid4()),
-            "user_id": contact_data["user_id"],
+            "owner_id": contact_data["owner_id"],
             "device_contact_id": contact_data["device_contact_id"],
             "name": contact_data["name"],
-            "phone_numbers": json.dumps(contact_data.get("phone_numbers", [])),
-            "emails": json.dumps(contact_data.get("emails", [])),
+            "phone_numbers": json.dumps(contact_data["phone_numbers"]),
+            "emails": json.dumps(contact_data["emails"]),
             "created_at": now.isoformat(),
             "updated_at": now.isoformat()
         }
+        
+        # Check if any phone number belongs to a registered user
+        for phone in contact_data["phone_numbers"]:
+            check_registered = await self.get_user_by_phone(phone)
+            if check_registered:
+                contact["recipient_id"] = check_registered["id"]
+                break
+        else:
+            contact["recipient_id"] = None
         
         response = self.client.table("contacts").insert(contact).execute()
         
         if not response.data:
             raise RuntimeError(f"Failed to create contact: {response.error.message}")
             
-        return self.from_iso_strings(response.data[0])
+        return contact
 
     async def update_contact(self, contact_id: str, contact_data: dict) -> dict:
         """Update an existing contact"""
         import json
         update_data = {
             "name": contact_data["name"],
-            "phone_numbers": json.dumps(contact_data.get("phone_numbers", [])),
-            "emails": json.dumps(contact_data.get("emails", [])),
+            "phone_numbers": json.dumps(contact_data["phone_numbers"]),
+            "emails": json.dumps(contact_data["emails"]),
             "updated_at": datetime.now().isoformat()
         }
+        
+        # Check if any phone number belongs to a registered user
+        for phone in contact_data["phone_numbers"]:
+            check_registered = await self.get_user_by_phone(phone)
+            if check_registered:
+                update_data["recipient_id"] = check_registered["id"]
+                break
+        else:
+            update_data["recipient_id"] = None
         
         response = self.client.table("contacts").update(update_data).eq("id", contact_id).execute()
         
         if not response.data:
             raise RuntimeError(f"Failed to update contact: {contact_id}")
             
-        return self.from_iso_strings(response.data[0])
+        return update_data
 
-    async def get_contact_by_device_id(self, user_id: str, device_contact_id: str) -> dict:
+    async def get_contact_by_device_id(self, owner_id: str, device_contact_id: str) -> dict:
         """Get contact by device contact ID"""
-        response = self.client.table("contacts").select("*").eq("user_id", user_id).eq("device_contact_id", device_contact_id).execute()
+        response = self.client.table("contacts").select("*").eq("owner_id", owner_id).eq("device_contact_id", device_contact_id).execute()
         
         if not response.data:
             return None
             
-        return self.from_iso_strings(response.data[0])
+        return response.data[0]
 
-    async def get_user_contacts(self, user_id: str) -> list[dict]:
+    async def get_user_contacts(self, owner_id: str) -> list[dict]:
         """Get all contacts for a user"""
-        response = self.client.table("contacts").select("*").eq("user_id", user_id).execute()
-        return [self.from_iso_strings(contact) for contact in response.data]
+        response = self.client.table("contacts").select("*").eq("owner_id", owner_id).execute()
+        return response.data
 
+    # TODO: not for MVP
     async def add_best_friend(self, user_id: str, contact_id: str) -> dict:
         """Add a contact as a best friend"""
         now = datetime.now()
@@ -635,16 +654,19 @@ class DatabaseService:
             
         return self.from_iso_strings(response.data[0])
 
+    # TODO: not for MVP
     async def clear_best_friends(self, user_id: str) -> bool:
         """Clear all best friends for a user"""
         response = self.client.table("best_friends").delete().eq("user_id", user_id).execute()
         return True
 
+    # TODO: not for MVP
     async def get_best_friends(self, user_id: str) -> list[dict]:
         """Get all best friends for a user"""
         response = self.client.table("best_friends").select("*").eq("user_id", user_id).execute()
         return [self.from_iso_strings(bf) for bf in response.data]
 
+    # TODO: not for MVP
     async def get_best_friends_with_details(self, user_id: str) -> list[dict]:
         """Get all best friends with contact details"""
         response = self.client.table("best_friends").select(

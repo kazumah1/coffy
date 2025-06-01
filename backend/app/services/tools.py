@@ -279,7 +279,7 @@ SCHEDULE_EVENT_TOOL = {
     "type": "function",
     "function": {
         "name": "schedule_event",
-        "description": "Finalize event details and notify the creator. This tool is used when all availability has been collected and a final time has been chosen.",
+        "description": "Finalize event details and notify the participants, including the creator. This tool is used when all availability has been collected and a final time has been chosen.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -406,7 +406,7 @@ SEND_CONFIRMATION_TEXT_TOOL = {
                 },
                 "message": {
                     "type": "string",
-                    "description": "The confirmation message to send. Should ask if the user is interested in the event."
+                    "description": "The confirmation message to send. Should ask if the user is interested in the event. Example: 'Are you down?'"
                 }
             },
             "required": ["phone_number", "message"]
@@ -418,7 +418,7 @@ SEND_AVAILABILITY_TEXT_TOOL = {
     "type": "function",
     "function": {
         "name": "send_availability_text",
-        "description": "Send a text message specifically for collecting availability information. This is used after a user has confirmed interest in an event. The message should ask for times when the user is available.",
+        "description": "Send a text message specifically for collecting availability information. This is used after a user has confirmed interest in an event. The message should ask for days and times when the user is available.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -428,7 +428,7 @@ SEND_AVAILABILITY_TEXT_TOOL = {
                 },
                 "message": {
                     "type": "string",
-                    "description": "The availability request message to send. Should ask for times when the user is available."
+                    "description": "The availability request message to send. Should ask for days and times when the user is available. Example: 'What days and times work for you?"
                 }
             },
             "required": ["phone_number", "message"]

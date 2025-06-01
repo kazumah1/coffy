@@ -18,9 +18,11 @@ class TextingService:
         self.db_service = db_service
         self.openrouter_service = openrouter_service
 
-    async def send_text(self, to_number: str, message: str, type: str):
+    async def send_text(self, to_number: str, message: str, final: bool = False):
         """Send a text message to a phone number"""
         reply_webhook_url = "https://952d-47-229-38-79.ngrok-free.app/text/reply"
+        if final:
+            reply_webhook_url = ""
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{self.base_url}/text",

@@ -33,24 +33,26 @@ async def sync_contacts(
     request: ContactsSyncRequest,
     db_service: DatabaseService = Depends(get_database_service),
 ):
-    """Sync user's contacts with the backend"""
+    """Sync user's device contacts with the backend"""
     try:
-        # Store contacts in the database
+        # Get existing contacts for the user
+        existing_contacts = await db_service.get_user_contacts(request.user_id)
+        existing_contact_map = {c["device_contact_id"]: c for c in existing_contacts}
+        
+        # Process each contact from the device
         for contact in request.contacts:
             contact_data = {
+                "owner_id": request.user_id,
                 "device_contact_id": contact.id,
                 "name": contact.name,
-                "phone_numbers": [phone.number for phone in contact.phoneNumbers] if contact.phoneNumbers else [],
-                "emails": [email.email for email in contact.emails] if contact.emails else [],
-                "user_id": request.user_id
+                "phone_numbers": [p.number for p in contact.phoneNumbers] if contact.phoneNumbers else [],
+                "emails": [e.email for e in contact.emails] if contact.emails else []
             }
             
             # Check if contact already exists
-            existing_contact = await db_service.get_contact_by_device_id(request.user_id, contact.id)
-            
-            if existing_contact:
+            if contact.id in existing_contact_map:
                 # Update existing contact
-                await db_service.update_contact(existing_contact["id"], contact_data)
+                await db_service.update_contact(existing_contact_map[contact.id]["id"], contact_data)
             else:
                 # Create new contact
                 await db_service.create_contact(contact_data)
@@ -60,6 +62,7 @@ async def sync_contacts(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error syncing contacts: {str(e)}")
 
+# TODO: not for MVP
 @router.get("/best-friends/{user_id}")
 async def get_contacts_and_best_friends(
     user_id: str,
@@ -109,6 +112,7 @@ async def get_contacts_and_best_friends(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting contacts: {str(e)}")
 
+# TODO: not for MVP
 @router.post("/best-friends/save")
 async def save_best_friends(
     request: BestFriendsSaveRequest,
@@ -132,6 +136,7 @@ async def save_best_friends(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error saving best friends: {str(e)}")
 
+# TODO: not for MVP
 @router.get("/best-friends/list/{user_id}")
 async def get_best_friends_list(
     user_id: str,

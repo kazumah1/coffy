@@ -459,7 +459,7 @@ class OpenRouterService:
         self,
         phone_number: str,
         message: str,
-        type: str
+        final: bool = False
     ) -> dict:
         """Send a text message to a user."""
         try:
@@ -471,8 +471,8 @@ class OpenRouterService:
             )
             
             # Send the message
-            await self.texting_service.send_text(phone_number, message, type)
-            
+            await self.texting_service.send_text(phone_number, message, final=final)
+
             # Update last message in conversation
             if active_conversation:
                 await self.db_service.update_conversation(
@@ -486,11 +486,12 @@ class OpenRouterService:
             return {
                 "success": True,
                 "message": message,
-                "type": type
+                "final": final
             }
         except Exception as e:
             raise RuntimeError(f"Failed to send message: {str(e)}")
     
+    # TODO: remove this
     async def send_confirmation_text(
         self,
         phone_number: str,
@@ -506,7 +507,7 @@ class OpenRouterService:
             )
             
             # Send the message
-            await self.texting_service.send_text(phone_number, message, "confirmation")
+            await self.texting_service.send_text(phone_number, message, final=False)
             
             # Update last message in conversation
             if active_conversation:
@@ -521,7 +522,7 @@ class OpenRouterService:
             return {
                 "success": True,
                 "message": message,
-                "type": "confirmation"
+                "final": False
             }
         except Exception as e:
             raise RuntimeError(f"Failed to send message: {str(e)}")
@@ -541,7 +542,7 @@ class OpenRouterService:
             )
             
             # Send the message
-            await self.texting_service.send_text(phone_number, message, "availability")
+            await self.texting_service.send_text(phone_number, message, final=False)
             
             # Update last message in conversation
             if active_conversation:
@@ -556,7 +557,7 @@ class OpenRouterService:
             return {
                 "success": True,
                 "message": message,
-                "type": "availability"
+                "final": False
             }
         except Exception as e:
             raise RuntimeError(f"Failed to send message: {str(e)}")
@@ -576,7 +577,7 @@ class OpenRouterService:
             )
             
             # Send the message
-            await self.texting_service.send_text(phone_number, message, "final")
+            await self.texting_service.send_text(phone_number, message, final=True)
             
             # Update last message in conversation
             if active_conversation:
@@ -591,7 +592,7 @@ class OpenRouterService:
             return {
                 "success": True,
                 "message": message,
-                "type": "final"
+                "final": True
             }
         except Exception as e:
             raise RuntimeError(f"Failed to send message: {str(e)}")
@@ -761,6 +762,14 @@ class OpenRouterService:
             }
             
             updated_event = await self.db_service.update_event(event_id, update_data)
+
+            for participant in participants:
+                if participant["status"] == "confirmed": # only confirmed participants
+                    self.send_final_text(
+                        participant["phone_number"],
+                        f"Scheduled {event['title']} with {creator['name']} for {final_start['dateTime']} - {final_end['dateTime']} at {location}.",
+                        "final"
+                    )
 
                     # TODO: not for MVP
                     # # Create a new conversation for the event invitation
@@ -1337,6 +1346,9 @@ class OpenRouterService:
         creator = await self.db_service.get_user_by_id(creator_id)
         creator_name = creator["name"] if creator else "Someone"
 
+        # Get current datetime in ISO format with timezone
+        current_datetime = datetime.now().astimezone().isoformat()
+
         while stage_idx < stage_limit and step < 3:
             try:
                 stage = self.STAGES[stage_idx]
@@ -1344,14 +1356,14 @@ class OpenRouterService:
                 # For outbound messages, we don't wait for responses
                 if step == 0:
                     messages = [
-                        {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[stage_idx]]},
+                        {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[stage_idx]].format(current_datetime=current_datetime)},
                         {"role": "user", "content": user_input + " (creator_name: " + creator_name + ", owner_id: " + self._current_owner_id + ")"},
                         {"role": "assistant", "content": "Okay, I've planned a coffee chat with Kazuma Hakushi.\nKazuma's contact ID is 76ddf919-11f4-4f9c-94bd-b90831649799 and their phone number is 6265905589.\nKazuma is not a registered user.\nThe event ID is 8b1cb9db-9f6d-488b-afc4-707223210988.\nEvent Title: Coffee with Kazuma\nDescription: Plan a coffee chat with Kazuma this weekend\n"}
                     ]
                 else:
                     messages = [
-                        {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[stage_idx]]},
-                        {"role": "user", "content": user_input + " (creator_name: " + creator_name + ", owner_id: " + self._current_owner_id + ")"}
+                        {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[stage_idx]].format(current_datetime=current_datetime)},
+                        {"role": "user", "content": user_input + " (owner_id: " + self._current_owner_id + ")"}
                     ]
 
                 # Add previous response if exists
@@ -1410,7 +1422,7 @@ class OpenRouterService:
                         stage_idx += 1
                         stage = self.STAGES[stage_idx]
                         messages = [
-                            {"role": "system", "content": AVAILABLE_PROMPTS[stage]},
+                            {"role": "system", "content": AVAILABLE_PROMPTS[stage].format(current_datetime=current_datetime)},
                             {"role": "user", "content": user_input + " (owner_id: " + self._current_owner_id + ")"},
                             content
                         ]
@@ -1451,6 +1463,7 @@ class OpenRouterService:
         """Handle an incoming text message from a participant"""
         try:
             # Get active conversation for this number
+            current_datetime = datetime.now().astimezone().isoformat()
             conversations = await self.db_service.get_conversations(self.current_event_id, phone_number)
             active_conversation = next(
                 (c for c in conversations if c["status"] == "active"),
@@ -1480,7 +1493,7 @@ class OpenRouterService:
                 messages = [
                     {
                         "role": "system",
-                        "content": "You are an agent helping to coordinate events. The user's message was in response to a confirmation request. This is not a user-facing chat. Interpret the user's reply and determine the appropriate action."
+                        "content": AVAILABLE_PROMPTS["confirmation"].format(current_datetime=current_datetime)
                     },
                     {
                         "role": "user",
@@ -1511,7 +1524,7 @@ class OpenRouterService:
                         messages = [
                             {
                                 "role": "system",
-                                "content": "You are an agent helping to coordinate events. The user's message was in response to a confirmation request. This is not a user-facing chat. Interpret the user's reply and determine the appropriate action."
+                                "content": AVAILABLE_PROMPTS["availability"].format(current_datetime=current_datetime)
                             },
                             {
                                 "role": "assistant",
@@ -1553,7 +1566,7 @@ class OpenRouterService:
                     messages = [
                         {
                             "role": "system",
-                            "content": "You are an agent helping to coordinate events. The user's message was in response to a confirmation request. This is not a user-facing chat. Interpret the user's reply and determine the appropriate action."
+                            "content": AVAILABLE_PROMPTS["unregistered_availability"].format(current_datetime=current_datetime)
                         },
                         {
                             "role": "assistant",
@@ -1584,7 +1597,7 @@ class OpenRouterService:
                 messages = [
                     {
                         "role": "system",
-                        "content": "You are an agent helping to coordinate events. The user's message was in response to a confirmation request. This is not a user-facing chat. Interpret the user's reply and determine the appropriate action."
+                        "content": AVAILABLE_PROMPTS["availability_response"].format(current_datetime=current_datetime)
                     },
                     {
                         "role": "assistant",
@@ -1635,17 +1648,19 @@ class OpenRouterService:
                     else:
                         participant_times[p["name"]] = await self.db_service.get_unregistered_time_slots(self.current_event_id, p["phone_number"])
 
+                context += f"\nParticipant times: {participant_times}"
+
                 messages = [
                     {
                         "role": "system",
-                        "content": "You are an agent helping to coordinate events. The user's message was in response to a confirmation request. This is not a user-facing chat. Interpret the user's reply and determine the appropriate action. You have been given a list of participants and their availability. Find a time that works for everyone and schedule the event."
+                        "content": AVAILABLE_PROMPTS["scheduling"].format(current_datetime=current_datetime)
                     },  
                     {
                         "role": "assistant",
                         "content": context
                     }
                 ]
-                tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["schedule_event"]]]
+                tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["schedule_event"]]] # TODO: have a way for the LLM to send a final text to all participants (for uniqueness)
                 print(f"Messages: {messages}")
                 response = await self.prompt_agent(messages, tools)
                 print("--------------------------------")
