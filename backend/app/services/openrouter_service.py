@@ -1520,7 +1520,7 @@ class OpenRouterService:
                             print(f"Tool call output: {out}")
                 
                 if participant["status"] == "pending_availability":
-                    if participant["registered"]:
+                    if participant["registered"]: # TODO: test this
                         print("registered user")
                         messages = [
                             {
