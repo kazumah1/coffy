@@ -1,13 +1,13 @@
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import auth
-from api.routes.events import router as events_router
-from api.routes.participants import router as participants_router
-from api.routes.availability import router as availability_router
-from api.routes.texting import router as texting_router
-from api.routes.llm import router as llm_router
-from services.texting_service import TextingService
-from dependencies import (
+from app.api.routes import auth
+from app.api.routes.events import router as events_router
+from app.api.routes.participants import router as participants_router
+from app.api.routes.availability import router as availability_router
+from app.api.routes.texting import router as texting_router
+from app.api.routes.llm import router as llm_router
+from app.services.texting_service import TextingService
+from app.dependencies import (
     initialize_services,
     get_texting_service_dependency
 )

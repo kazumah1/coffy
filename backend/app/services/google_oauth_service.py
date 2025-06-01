@@ -4,7 +4,7 @@ import google.oauth2.credentials
 import google_auth_oauthlib.flow
 from typing import Optional
 from urllib.parse import urlencode
-from core.config import settings
+from app.core.config import settings
 import aiohttp
 import google.auth.transport.requests
 

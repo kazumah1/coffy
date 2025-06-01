@@ -1,7 +1,7 @@
 """Database service for Supabase operations."""
 #TODO: ADD A WAY TO UPDATE CONTACTS ON USER SIGN UP (TO BE REGISTERED)
 from supabase import create_client, Client
-from core.config import settings
+from app.core.config import settings
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from uuid import uuid4

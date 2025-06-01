@@ -3,10 +3,10 @@ import requests
 from typing import Optional, Dict, Any
 import aiohttp
 import logging
-from core.config import settings
-from services.database_service import DatabaseService
+from app.core.config import settings
+from app.services.database_service import DatabaseService
 import json
-from services.tools import AVAILABLE_TOOLS, TOOL_NAME_TO_INDEX
+from app.services.tools import AVAILABLE_TOOLS, TOOL_NAME_TO_INDEX
 
 
 logger = logging.getLogger(__name__)

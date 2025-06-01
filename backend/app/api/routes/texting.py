@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
-from services.texting_service import TextingService
-from dependencies import get_texting_service
-from models.conversation import Message
+from app.services.texting_service import TextingService
+from app.dependencies import get_texting_service
+from app.models.conversation import Message
 
 router = APIRouter()
 

@@ -3,18 +3,18 @@ import requests
 import json
 from typing import Optional, Dict, List, Any
 from .tools import AVAILABLE_TOOLS, TOOL_NAME_TO_INDEX
-from services.database_service import DatabaseService
-from core.config import settings
-from services.google_calendar_service import GoogleCalendarService
-from services.token_manager import TokenManager
-from services.texting_service import TextingService
+from app.services.database_service import DatabaseService
+from app.core.config import settings
+from app.services.google_calendar_service import GoogleCalendarService
+from app.services.token_manager import TokenManager
+from app.services.texting_service import TextingService
 from uuid import uuid4, UUID
-from models.time_slot import TimeSlot
+from app.models.time_slot import TimeSlot
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 import logging
 from pydantic import BaseModel, Field, validator
-from services.prompts import AVAILABLE_PROMPTS
+from app.services.prompts import AVAILABLE_PROMPTS
 import asyncio
 from openai import OpenAI
 

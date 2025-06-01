@@ -1,10 +1,10 @@
 from fastapi import Depends
-from services.database_service import DatabaseService
-from services.google_oauth_service import GoogleOAuthHandler
-from services.token_manager import TokenManager
-from services.google_calendar_service import GoogleCalendarService
-from services.texting_service import TextingService
-from services.openrouter_service import OpenRouterService
+from app.services.database_service import DatabaseService
+from app.services.google_oauth_service import GoogleOAuthHandler
+from app.services.token_manager import TokenManager
+from app.services.google_calendar_service import GoogleCalendarService
+from app.services.texting_service import TextingService
+from app.services.openrouter_service import OpenRouterService
 
 # Global instances to handle circular dependency
 _db_service = None

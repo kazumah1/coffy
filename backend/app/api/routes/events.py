@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
-from models.event import Event
-from services.database_service import DatabaseService
-from dependencies import get_database_service
+from app.models.event import Event
+from app.services.database_service import DatabaseService
+from app.dependencies import get_database_service
 from datetime import datetime
 
 router = APIRouter()
