@@ -46,6 +46,7 @@ backend/venv/
 backend/__pycache__/
 backend/*.pyc
 backend/*.pyo
+backend/*.egg-info/ .DS_Store
 backend/*.egg-info/ __pycache__/
 __pycache__/
 .DS_Store

@@ -18,7 +18,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.coffychat.app"
     },
     "web": {
       "bundler": "metro",
@@ -37,7 +38,13 @@
         }
       ],
       "expo-web-browser",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Allow CoffyChat to access your contacts to help you plan coffee chats with friends."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

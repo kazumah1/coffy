@@ -1,16 +1,19 @@
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.api.routes import auth
 from app.api.routes.events import router as events_router
 from app.api.routes.participants import router as participants_router
 from app.api.routes.availability import router as availability_router
 from app.api.routes.texting import router as texting_router
 from app.api.routes.llm import router as llm_router
+from app.api.routes.contacts import router as contacts_router
 from app.services.texting_service import TextingService
 from app.dependencies import (
     initialize_services,
     get_texting_service_dependency
 )
+
 
 app = FastAPI(
     title="CoffyChat",
@@ -35,6 +38,7 @@ app.include_router(availability_router, prefix="/availability", tags=["availabil
 app.include_router(participants_router, prefix="/participants", tags=["participants"])
 app.include_router(texting_router, prefix="/text", tags=["texting"])
 app.include_router(llm_router, prefix="/llm", tags=["llm"])
+app.include_router(contacts_router, prefix="/api/contacts", tags=["contacts"])
 
 @app.get("/")
 def read_root():
