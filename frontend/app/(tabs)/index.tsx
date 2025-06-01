@@ -103,7 +103,7 @@ export default function HomeScreen() {
         <View style={styles.logoContainer}>
           <View style={styles.coffeeLogo}>
             <Image 
-              source={require('@/assets/images/coffee-character.png')} 
+              source={require('@/assets/images/Coffy.png')} 
               style={styles.logoImage}
               contentFit="cover"
             />
