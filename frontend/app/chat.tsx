@@ -64,6 +64,11 @@ export default function ChatScreen() {
   const inputFocusAnim = useRef(new Animated.Value(0)).current;
   const welcomeAnim = useRef(new Animated.Value(0)).current;
 
+  // Typing indicator animations - oscillating bubbles
+  const typingDot1 = useRef(new Animated.Value(0)).current;
+  const typingDot2 = useRef(new Animated.Value(0)).current;
+  const typingDot3 = useRef(new Animated.Value(0)).current;
+
   // Welcome screen animation
   useEffect(() => {
     if (messages.length === 0 && !autoPrompt) {
@@ -212,6 +217,56 @@ export default function ChatScreen() {
     outputRange: [0.1, 0.25],
   });
 
+  // Start typing indicator animations when loading
+  useEffect(() => {
+    if (isLoading) {
+      startTypingAnimation();
+    } else {
+      stopTypingAnimation();
+    }
+  }, [isLoading]);
+
+  const startTypingAnimation = () => {
+    // Create a wave-like oscillating effect from left to right
+    const createOscillation = (dotAnim: Animated.Value, delay: number) => {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dotAnim, {
+            toValue: 1,
+            duration: 500,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(dotAnim, {
+            toValue: 0,
+            duration: 500,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      );
+    };
+
+    // Stagger the animations for wave effect
+    createOscillation(typingDot1, 0).start();
+    createOscillation(typingDot2, 200).start(); // 200ms delay
+    createOscillation(typingDot3, 400).start(); // 400ms delay
+  };
+
+  const stopTypingAnimation = () => {
+    typingDot1.stopAnimation();
+    typingDot2.stopAnimation();
+    typingDot3.stopAnimation();
+    
+    // Reset to neutral state
+    Animated.parallel([
+      Animated.timing(typingDot1, { toValue: 0, duration: 200, useNativeDriver: true }),
+      Animated.timing(typingDot2, { toValue: 0, duration: 200, useNativeDriver: true }),
+      Animated.timing(typingDot3, { toValue: 0, duration: 200, useNativeDriver: true }),
+    ]).start();
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
@@ -350,9 +405,81 @@ export default function ChatScreen() {
               <View style={styles.typingIndicator}>
                 <View style={styles.typingBubble}>
                   <View style={styles.typingDots}>
-                    <Animated.View style={[styles.dot, styles.dot1]} />
-                    <Animated.View style={[styles.dot, styles.dot2]} />
-                    <Animated.View style={[styles.dot, styles.dot3]} />
+                    <Animated.View 
+                      style={[
+                        styles.dot, 
+                        {
+                          transform: [
+                            {
+                              scale: typingDot1.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0.6, 1.2],
+                              }),
+                            },
+                            {
+                              translateY: typingDot1.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0, -4],
+                              }),
+                            },
+                          ],
+                          opacity: typingDot1.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.4, 1],
+                          }),
+                        }
+                      ]} 
+                    />
+                    <Animated.View 
+                      style={[
+                        styles.dot, 
+                        {
+                          transform: [
+                            {
+                              scale: typingDot2.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0.6, 1.2],
+                              }),
+                            },
+                            {
+                              translateY: typingDot2.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0, -4],
+                              }),
+                            },
+                          ],
+                          opacity: typingDot2.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.5, 1],
+                          }),
+                        }
+                      ]} 
+                    />
+                    <Animated.View 
+                      style={[
+                        styles.dot, 
+                        {
+                          transform: [
+                            {
+                              scale: typingDot3.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0.6, 1.2],
+                              }),
+                            },
+                            {
+                              translateY: typingDot3.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0, -4],
+                              }),
+                            },
+                          ],
+                          opacity: typingDot3.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.6, 1],
+                          }),
+                        }
+                      ]} 
+                    />
                   </View>
                   <Text style={styles.typingText}>Joe is thinking...</Text>
                 </View>
@@ -622,15 +749,6 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: colors.coffeeMedium,
-  },
-  dot1: {
-    opacity: 0.4,
-  },
-  dot2: {
-    opacity: 0.6,
-  },
-  dot3: {
-    opacity: 0.8,
   },
   typingText: {
     fontSize: 14,

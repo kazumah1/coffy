@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,75 +6,88 @@ import {
   StyleSheet,
   Dimensions,
   Platform,
+  Animated,
+  Easing,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  withSequence,
-} from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
 
-// Coffee Character Component with Animation
-const CoffeeCharacter = () => {
-  const coffeeScale = useSharedValue(1);
-  const rotation = useSharedValue(0);
+// Steve Jobs-inspired Coffee color palette
+const colors = {
+  coffeeDark: '#4A3728',
+  coffeeMedium: '#8B4513',
+  coffeeLight: '#D2B48C',
+  coffeeCream: '#F5F5DC',
+  coffeeWhite: '#FFFEF7',
+  coffeeAccent: '#CD853F',
+  textPrimary: '#2D1B12',
+  textSecondary: '#6B4E3D',
+  textLight: '#8B7355',
+  background: '#FFFEF7',
+  gradientStart: '#FFFEF7',
+  gradientEnd: '#F5F5DC',
+  buttonPrimary: '#4A3728',
+  buttonSecondary: '#FFFFFF',
+  success: '#8FBC8F',
+  shadow: 'rgba(74, 55, 40, 0.15)',
+};
+
+// Elegant Coffee Character with Steve Jobs-level simplicity
+const ElegantCoffeeCharacter = () => {
+  const scaleAnim = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
-    // Gentle bounce animation
-    coffeeScale.value = withRepeat(
-      withSequence(
-        withTiming(1.05, { duration: 2000 }),
-        withTiming(1, { duration: 2000 })
-      ),
-      -1,
-      true
-    );
-
-    // Subtle rotation animation
-    rotation.value = withRepeat(
-      withSequence(
-        withTiming(2, { duration: 3000 }),
-        withTiming(-2, { duration: 3000 }),
-        withTiming(0, { duration: 3000 })
-      ),
-      -1,
-      true
-    );
+    // Simple, elegant entrance
+    Animated.timing(scaleAnim, {
+      toValue: 1,
+      duration: 800,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start();
   }, []);
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { scale: coffeeScale.value },
-        { rotate: `${rotation.value}deg` }
-      ],
-    };
-  });
-
   return (
-    <View style={styles.coffeeContainer}>
-      <Animated.View style={[styles.coffeeImageContainer, animatedStyle]}>
+    <View style={styles.heroContainer}>
+      <Animated.View 
+        style={[
+          styles.characterContainer,
+          {
+            transform: [{ scale: scaleAnim }],
+          }
+        ]}
+      >
         <Image
-          source={require('../assets/images/coffee-character.png')}
-          style={styles.coffeeImage}
+          source={require('../assets/images/Coffy.png')}
+          style={styles.characterImage}
           contentFit="contain"
-          placeholder="☕"
-          transition={200}
+          transition={300}
         />
       </Animated.View>
     </View>
   );
 };
 
-export default function LoginScreen() {
+export default function CreateAccountScreen() {
   const { handleGoogleLogin, loading } = useAuth();
+  const [contentAnim] = useState(new Animated.Value(0));
+
+  useEffect(() => {
+    // Simple, staggered entrance
+    Animated.sequence([
+      Animated.delay(400),
+      Animated.timing(contentAnim, {
+        toValue: 1,
+        duration: 600,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const handleLogin = async () => {
     try {
@@ -86,42 +99,94 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar style="dark" backgroundColor={colors.background} />
       
+      {/* Gradient Background */}
+      <LinearGradient
+        colors={[colors.gradientStart, colors.gradientEnd]}
+        style={styles.gradientBackground}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
+
       <View style={styles.content}>
-        {/* Coffee Character Illustration */}
-        <CoffeeCharacter />
+        {/* Hero Section */}
+        <ElegantCoffeeCharacter />
 
-        {/* Title and Subtitle */}
-        <View style={styles.textContainer}>
-          <Text style={styles.title}>Create an account</Text>
-          <Text style={styles.subtitle}>Enter your email to sign up for this app</Text>
-        </View>
-
-        {/* Google Login Button */}
-        <TouchableOpacity
-          style={styles.googleButton}
-          onPress={handleLogin}
-          disabled={loading}
+        {/* Content Section */}
+        <Animated.View 
+          style={[
+            styles.textSection,
+            {
+              opacity: contentAnim,
+              transform: [
+                {
+                  translateY: contentAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
+            }
+          ]}
         >
-          <Ionicons name="logo-google" size={20} color="#4285F4" />
-          <Text style={styles.googleButtonText}>
-            {loading ? 'Signing in...' : 'Continue with Google'}
+          <Text style={styles.brandTitle}>Welcome to Coffy</Text>
+          <Text style={styles.subtitle}>
+            Where every Coffy moment becomes a beautiful connection with friends
           </Text>
-        </TouchableOpacity>
+        </Animated.View>
 
-        {/* Terms and Privacy */}
-        <View style={styles.legalContainer}>
+        {/* Action Section */}
+        <Animated.View 
+          style={[
+            styles.actionSection,
+            {
+              opacity: contentAnim,
+              transform: [
+                {
+                  translateY: contentAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
+            }
+          ]}
+        >
+          {/* Primary CTA */}
+          <TouchableOpacity
+            style={[styles.primaryButton, loading && styles.primaryButtonLoading]}
+            onPress={handleLogin}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            <View style={styles.buttonContent}>
+              <Ionicons 
+                name="logo-google" 
+                size={20} 
+                color={colors.coffeeWhite} 
+                style={styles.buttonIcon}
+              />
+              <Text style={styles.primaryButtonText}>
+                {loading ? 'Creating your account...' : 'Continue with Google'}
+              </Text>
+            </View>
+            {loading && (
+              <Animated.View style={styles.loadingIndicator} />
+            )}
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Legal Section */}
+        <View style={styles.legalSection}>
           <Text style={styles.legalText}>
-            By clicking continue, you agree to our{' '}
+            By continuing, you agree to our{' '}
             <Text style={styles.legalLink}>Terms of Service</Text>
-            {'\n'}and <Text style={styles.legalLink}>Privacy Policy</Text>
+            {' '}and{' '}
+            <Text style={styles.legalLink}>Privacy Policy</Text>
           </Text>
         </View>
       </View>
-
-      {/* Bottom indicator */}
-      <View style={styles.bottomIndicator} />
     </View>
   );
 }
@@ -129,98 +194,139 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5E6D3',
+    backgroundColor: colors.background,
+  },
+  gradientBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   content: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
+    paddingTop: 60,
+    paddingBottom: 40,
   },
-  coffeeContainer: {
-    width: 280,
-    height: 280,
-    marginBottom: 40,
+  heroContainer: {
+    width: 220,
+    height: 220,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 50,
+    position: 'relative',
   },
-  coffeeImageContainer: {
-    width: '100%',
-    height: '100%',
+  characterContainer: {
+    width: 180,
+    height: 180,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 90,
+    backgroundColor: colors.coffeeWhite,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 12,
+    overflow: 'hidden',
   },
-  coffeeImage: {
-    width: '100%',
-    height: '100%',
+  characterImage: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
   },
-  textContainer: {
+  textSection: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 50,
+    paddingHorizontal: 20,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#3D2914',
-    marginBottom: 8,
+  brandTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: colors.coffeeDark,
     textAlign: 'center',
+    marginBottom: 16,
+    letterSpacing: -0.8,
+    lineHeight: 38,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6B4423',
+    color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
-    opacity: 0.9,
+    lineHeight: 24,
+    fontWeight: '400',
+    maxWidth: 280,
   },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+  actionSection: {
     width: '100%',
-    maxWidth: 300,
-    shadowColor: '#8B4513',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-    marginBottom: 32,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 69, 19, 0.1)',
-  },
-  googleButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#3D2914',
-    marginLeft: 12,
-  },
-  legalContainer: {
     alignItems: 'center',
     paddingHorizontal: 20,
   },
+  primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.buttonPrimary,
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 320,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    marginBottom: 36,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  primaryButtonLoading: {
+    backgroundColor: colors.coffeeMedium,
+    opacity: 0.8,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonIcon: {
+    marginRight: 12,
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.coffeeWhite,
+    letterSpacing: 0.3,
+  },
+  loadingIndicator: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(74, 55, 40, 0.3)',
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  legalSection: {
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    marginTop: 20,
+  },
   legalText: {
     fontSize: 12,
-    color: '#8B6F47',
+    color: colors.textLight,
     textAlign: 'center',
     lineHeight: 18,
-    opacity: 0.8,
+    fontWeight: '400',
   },
   legalLink: {
     fontWeight: '600',
-    color: '#6B4423',
-  },
-  bottomIndicator: {
-    position: 'absolute',
-    bottom: 8,
-    left: '50%',
-    marginLeft: -67.5,
-    width: 135,
-    height: 5,
-    backgroundColor: '#8B4513',
-    borderRadius: 3,
-    opacity: 0.4,
+    color: colors.coffeeMedium,
   },
 }); 

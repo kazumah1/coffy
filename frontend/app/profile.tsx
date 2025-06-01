@@ -32,6 +32,38 @@ const colors = {
 };
 
 const BACKEND_URL = "http://localhost:8000";
+const REQUEST_TIMEOUT = 3000; // 3 seconds timeout
+
+// Helper function to add timeout to fetch requests
+const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = REQUEST_TIMEOUT): Promise<Response> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+    }
+};
+
+// Helper function to check if backend server is available
+const checkBackendAvailability = async (): Promise<boolean> => {
+    try {
+        const response = await fetchWithTimeout(`${BACKEND_URL}/health`, {
+            method: 'GET',
+        });
+        return response.ok;
+    } catch (error) {
+        console.log('Backend server not reachable');
+        return false;
+    }
+};
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
@@ -41,6 +73,7 @@ export default function ProfileScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [userStatus, setUserStatus] = useState<'available' | 'maybe' | 'busy'>('available');
+  const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
 
   // Load existing profile data when component mounts
   useEffect(() => {
@@ -49,47 +82,56 @@ export default function ProfileScreen() {
   }, []);
 
   const loadProfileData = async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setLoadingProfile(false);
+      return;
+    }
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/users/profile/${user.id}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // First check if backend is available
+      const isBackendUp = await checkBackendAvailability();
+      setBackendAvailable(isBackendUp);
 
-      if (response.status === 404) {
-        // Backend endpoint doesn't exist yet - try to load from local storage
-        console.log('Backend endpoint not available, loading from local storage');
-        const localProfile = await SecureStore.getItemAsync('userProfile');
-        if (localProfile) {
-          const profileData = JSON.parse(localProfile);
-          if (profileData.name) setName(profileData.name);
-          if (profileData.phone_number) setPhoneNumber(profileData.phone_number);
+      if (isBackendUp) {
+        console.log('Backend server detected - loading profile from server');
+        try {
+          const response = await fetchWithTimeout(`${BACKEND_URL}/api/users/profile/${user.id}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (response.ok) {
+            const profileData = await response.json();
+            console.log('Profile loaded successfully from backend');
+            if (profileData.name) setName(profileData.name);
+            if (profileData.phone_number) setPhoneNumber(profileData.phone_number);
+            if (profileData.profile_image_url) setProfileImage(profileData.profile_image_url);
+            setLoadingProfile(false);
+            return;
+          } else if (response.status === 404) {
+            console.log('Profile not found on backend - will create new profile when saved');
+          }
+        } catch (error) {
+          console.error('Error fetching from backend:', error);
         }
-        return;
       }
 
-      if (response.ok) {
-        const profileData = await response.json();
+      // Fallback to local storage (either backend is down or profile doesn't exist)
+      console.log('Loading profile from local storage');
+      const localProfile = await SecureStore.getItemAsync('userProfile');
+      if (localProfile) {
+        const profileData = JSON.parse(localProfile);
+        console.log('Profile loaded from local storage');
         if (profileData.name) setName(profileData.name);
         if (profileData.phone_number) setPhoneNumber(profileData.phone_number);
         if (profileData.profile_image_url) setProfileImage(profileData.profile_image_url);
+      } else {
+        console.log('No profile found in local storage');
       }
     } catch (error) {
       console.error('Error loading profile:', error);
-      // Fallback to local storage
-      try {
-        const localProfile = await SecureStore.getItemAsync('userProfile');
-        if (localProfile) {
-          const profileData = JSON.parse(localProfile);
-          if (profileData.name) setName(profileData.name);
-          if (profileData.phone_number) setPhoneNumber(profileData.phone_number);
-        }
-      } catch (localError) {
-        console.error('Error loading local profile:', localError);
-      }
     } finally {
       setLoadingProfile(false);
     }
@@ -189,61 +231,67 @@ export default function ProfileScreen() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/users/update-profile`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: user?.id,
-          name: name.trim(),
-          phone_number: phoneNumber.trim(),
-          profile_image_url: profileImage,
-        }),
-      });
+      // Check if backend is available
+      const isBackendUp = await checkBackendAvailability();
+      setBackendAvailable(isBackendUp);
 
-      if (response.status === 404) {
-        // Backend endpoint doesn't exist yet - save locally
-        console.log('Backend endpoint not available, saving locally');
-        await SecureStore.setItemAsync('userProfile', JSON.stringify({
-          name: name.trim(),
-          phone_number: phoneNumber.trim(),
-          user_id: user?.id,
-          profile_image_url: profileImage
-        }));
-        
-        Alert.alert('Profile Saved!', 'Your profile has been saved locally. Will sync when backend is available.', [
-          { text: 'OK', onPress: () => router.back() }
-        ]);
-        return;
-      }
+      if (isBackendUp) {
+        console.log('Backend server available - saving profile to server');
+        try {
+          const response = await fetchWithTimeout(`${BACKEND_URL}/api/users/update-profile`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: user?.id,
+              name: name.trim(),
+              phone_number: phoneNumber.trim(),
+              profile_image_url: profileImage,
+            }),
+          });
 
-      if (response.ok) {
-        Alert.alert('Success', 'Profile updated successfully!', [
-          { text: 'OK', onPress: () => router.back() }
-        ]);
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to update profile');
+          if (response.ok) {
+            console.log('Profile saved successfully to backend');
+            // Also save locally for offline access
+            await SecureStore.setItemAsync('userProfile', JSON.stringify({
+              name: name.trim(),
+              phone_number: phoneNumber.trim(),
+              user_id: user?.id,
+              profile_image_url: profileImage
+            }));
+            
+            Alert.alert('Success!', 'Profile updated and synced to server.', [
+              { text: 'OK', onPress: () => router.back() }
+            ]);
+            return;
+          } else {
+            console.log('Backend save failed, falling back to local storage');
+          }
+        } catch (error) {
+          console.error('Error saving to backend:', error);
+        }
       }
-    } catch (error) {
-      console.error('Error updating profile:', error);
       
       // Fallback: save locally
-      try {
-        await SecureStore.setItemAsync('userProfile', JSON.stringify({
-          name: name.trim(),
-          phone_number: phoneNumber.trim(),
-          user_id: user?.id,
-          profile_image_url: profileImage
-        }));
-        
-        Alert.alert('Saved Locally', 'Profile saved on device. Will sync when connection is available.', [
-          { text: 'OK', onPress: () => router.back() }
-        ]);
-      } catch (localError) {
-        Alert.alert('Error', 'Failed to save profile. Please try again.');
-      }
+      console.log('Saving profile to local storage');
+      await SecureStore.setItemAsync('userProfile', JSON.stringify({
+        name: name.trim(),
+        phone_number: phoneNumber.trim(),
+        user_id: user?.id,
+        profile_image_url: profileImage
+      }));
+      
+      const message = isBackendUp 
+        ? 'Profile saved locally. Server sync failed but will retry later.'
+        : 'Profile saved locally. Will sync to server when connection is available.';
+      
+      Alert.alert('Profile Saved', message, [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      Alert.alert('Error', 'Failed to save profile. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -269,7 +317,20 @@ export default function ProfileScreen() {
         <TouchableOpacity style={styles.backButton} onPress={goBack}>
           <Text style={styles.backButtonText}>✕</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profile Settings</Text>
+        
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Profile Settings</Text>
+          {backendAvailable !== null && (
+            <View style={[styles.serverStatus, backendAvailable ? styles.serverOnline : styles.serverOffline]}>
+              <View style={[styles.serverDot, { backgroundColor: backendAvailable ? '#4CAF50' : '#FF9800' }]} />
+              <Text style={[styles.serverText, { color: backendAvailable ? '#4CAF50' : '#FF9800' }]}>
+                {backendAvailable ? 'Server Sync' : 'Local Only'}
+              </Text>
+            </View>
+          )}
+        </View>
+        
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -405,16 +466,13 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: `${colors.coffeeMedium}10`,
-    position: 'relative',
   },
   backButton: {
-    position: 'absolute',
-    left: 20,
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -432,11 +490,18 @@ const styles = StyleSheet.create({
     color: colors.coffeeDark,
     fontWeight: '500',
   },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 16,
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: colors.coffeeDark,
     letterSpacing: -0.4,
+    marginBottom: 4,
   },
   content: {
     flex: 1,
@@ -651,5 +716,34 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: colors.coffeeDark,
+  },
+  headerSpacer: {
+    width: 32,
+  },
+  serverStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  serverOnline: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#4CAF5010',
+  },
+  serverOffline: {
+    borderColor: '#FF9800',
+    backgroundColor: '#FF980010',
+  },
+  serverDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  serverText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 }); 
