@@ -53,13 +53,14 @@ class GoogleCalendarService:
         self,
         access_token: str,
         title: str,
-        start_time: str,
-        end_time: str,
+        start: dict,
+        end: dict,
+        attendees: Optional[list[str]] = None,
         location: Optional[str] = None,
         description: Optional[str] = None
     ) -> dict:
         """Add an event to the user's primary calendar"""
-        url = f"{self.base_url}/calendars/primary/events"
+        url = f"https://www.googleapis.com/calendar/v3/calendars/primary/events"
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
@@ -67,8 +68,9 @@ class GoogleCalendarService:
         
         event_data = {
             "summary": title,
-            "start": {"dateTime": start_time},
-            "end": {"dateTime": end_time}
+            "start": start,
+            "end": end,
+            "attendees": attendees
         }
         
         if location:

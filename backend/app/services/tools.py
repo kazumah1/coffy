@@ -279,7 +279,7 @@ SCHEDULE_EVENT_TOOL = {
     "type": "function",
     "function": {
         "name": "schedule_event",
-        "description": "Finalize event details and notify participants. This tool is used when all availability has been collected and a final time has been chosen.",
+        "description": "Finalize event details and notify the creator. This tool is used when all availability has been collected and a final time has been chosen.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -298,9 +298,13 @@ SCHEDULE_EVENT_TOOL = {
                 "duration_minutes": {
                     "type": "integer",
                     "description": "Duration of the event in minutes (default: 60)"
+                },
+                "creator_message": {
+                    "type": "string",
+                    "description": "Message to send to the creator after the event has been scheduled"
                 }
             },
-            "required": ["event_id", "final_time"]
+            "required": ["event_id", "final_time", "creator_message"]
         }
     }
 }

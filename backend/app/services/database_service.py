@@ -202,8 +202,8 @@ class DatabaseService:
             "description": description,
             "status": "pending",
             "proposed_times": [],
-            "final_time": None,
-            "end_time": None,
+            "final_start": None,
+            "final_end": None,
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
             "stage": 0,
@@ -273,11 +273,12 @@ class DatabaseService:
                 - end_time: datetime
                 - source: str (e.g. "calendar")
         """
+        now = datetime.now()
         data = {
             "event_id": event_id,
             "participant_id": participant_id,
             "busy_slots": busy_slots,
-            "updated_at": datetime.now()
+            "updated_at": now.isoformat()
         }
         data = self.to_iso_strings(data)
         
@@ -287,7 +288,7 @@ class DatabaseService:
         if response.error:
             raise RuntimeError(f"Failed to store busy times: {response.error.message}")
             
-        return self.from_iso_strings(response.data[0])
+        return data
 
     async def get_participant_busy_times(
         self,
@@ -300,7 +301,7 @@ class DatabaseService:
         if not response.data:
             return []
             
-        return self.from_iso_strings(response.data[0]).get("busy_slots", [])
+        return response.data[0].get("busy_slots", [])
 
     async def get_all_participants_busy_times(
         self,

@@ -706,9 +706,9 @@ class OpenRouterService:
     async def schedule_event(
         self,
         event_id: str,
-        final_time: str,
+        final_start: dict,
+        final_end: dict,
         location: str = None,
-        duration_minutes: int = 60
     ) -> dict:
         """Schedule event with final details and notify participants. Returns updated event info and notification status."""
         try:
@@ -717,58 +717,51 @@ class OpenRouterService:
             if not event:
                 raise RuntimeError(f"Event {event_id} not found")
                 
-            # Calculate end time based on duration
-            start_time = datetime.fromisoformat(final_time)
-            end_time = start_time + timedelta(minutes=duration_minutes)
-            
-            # Update event with final details
-            update_data = {
-                "status": "scheduled",
-                "final_time": final_time,
-                "end_time": end_time.isoformat(),
-                "location": location
-            }
-            
-            updated_event = await self.db_service.update_event(event_id, update_data)
             
             # Get all participants
             participants = await self.db_service.get_event_participants(event_id)
             
             # Send notifications to all participants
-            notification_results = []
+            attendees = []
             for participant in participants:
-                try:
-                    # Format message based on participant type
-                    if participant["registered"]:
-                        message = (
-                            f"Hi {participant['name']}! Your event '{event['title']}' has been scheduled "
-                            f"for {start_time.strftime('%A, %B %d at %I:%M %p')}"
-                        )
-                        if location:
-                            message += f" at {location}"
-                        message += "."
-                    else:
-                        message = (
-                            f"Hi {participant['name']}! Your event '{event['title']}' has been scheduled "
-                            f"for {start_time.strftime('%A, %B %d at %I:%M %p')}"
-                        )
-                        if location:
-                            message += f" at {location}"
-                        message += ". Please let me know if you can make it!"
-                    
-                    # Send the message
-                    await self.send_final_text(
-                        participant["phone_number"],
-                        message
-                    )
-
+                if participant["status"] == "confirmed": # only include confirmed participants
                     await self.db_service.update_conversation(
                         event_id,
                         participant["phone_number"],
-                        "completed",
-                        last_message=message
+                        "completed"
                     )
-                    
+
+                    # create a google calendar event for registered users
+                    if participant["registered"]: # only registered users have a calendarId
+                        
+                        user = await self.db_service.get_user_by_phone(participant["phone_number"])
+
+                        attendees.append(user["email"])
+            creator = await self.db_service.get_user_by_id(event["creator_id"])
+
+            final_start["dateTime"] = datetime.fromisoformat(final_start["dateTime"].replace("Z", "+00:00"))
+            final_end["dateTime"] = datetime.fromisoformat(final_end["dateTime"].replace("Z", "+00:00"))
+
+            self.google_calendar_service.add_event(
+                creator["google_access_token"],
+                event["title"],
+                final_start,
+                final_end,
+                attendees=attendees,
+                location=location,
+                description=event["description"]
+            )
+
+            # Update event with final details
+            update_data = {
+                "status": "scheduled",
+                "final_start": final_start,
+                "final_end": final_end,
+                "location": location
+            }
+            
+            updated_event = await self.db_service.update_event(event_id, update_data)
+
                     # TODO: not for MVP
                     # # Create a new conversation for the event invitation
                     # conversation = await self.db_service.create_conversation(
@@ -786,18 +779,11 @@ class OpenRouterService:
                     #     "conversation_id": conversation["id"]
                     # })
                     
-                except Exception as e:
-                    notification_results.append({
-                        "participant_id": participant["id"],
-                        "phone_number": participant["phone_number"],
-                        "status": "failed",
-                        "error": str(e)
-                    })
+
             
             return {
                 "success": True,
                 "event": updated_event,
-                "notifications": notification_results
             }
             
         except Exception as e:
@@ -1482,12 +1468,12 @@ class OpenRouterService:
             print("got participant")
 
             context = f"""Event: {event["title"] if event else "Unknown Event"}
-                Owner ID: {self._current_owner_id}
-                Stage: {event["stage"]}
-                Phone number: {phone_number}
-                Last message sent to user: {active_conversation.get("last_message", "No previous message")}
-                Participant status: {participant["status"] if participant else "unknown"}
-                User replied: {message}
+                \nOwner ID: {self._current_owner_id}
+                \nStage: {event["stage"]}
+                \nPhone number: {phone_number}
+                \nLast message sent to user: {active_conversation.get("last_message", "No previous message")}
+                \nParticipant status: {participant["status"] if participant else "unknown"}
+                \nUser replied: {message}
                 """
             
             if participant["status"] == "pending_confirmation":
@@ -1636,11 +1622,23 @@ class OpenRouterService:
                 )
                 self._current_participants[phone_number].update(update_data)
                 return {"message": message, "from_number": phone_number}
-            elif participant["status"] == "pending_scheduling":
+            elif participant["status"] == "pending_scheduling": # triggered, but only prompts the LLM if everyone has provided times
+                participants = await self.db_service.get_event_participants(self.current_event_id)
+                for p in participants:
+                    if p["status"] != "pending_scheduling":
+                        return {"message": message, "from_number": phone_number}
+                    
+                participant_times = dict(str, list[dict])
+                for p in participants:
+                    if p["registered"]:
+                        participant_times[p["name"]] = await self.db_service.get_participant_busy_times(self.current_event_id, p["phone_number"])
+                    else:
+                        participant_times[p["name"]] = await self.db_service.get_unregistered_time_slots(self.current_event_id, p["phone_number"])
+
                 messages = [
                     {
                         "role": "system",
-                        "content": "You are an agent helping to coordinate events. The user's message was in response to a confirmation request. This is not a user-facing chat. Interpret the user's reply and determine the appropriate action."
+                        "content": "You are an agent helping to coordinate events. The user's message was in response to a confirmation request. This is not a user-facing chat. Interpret the user's reply and determine the appropriate action. You have been given a list of participants and their availability. Find a time that works for everyone and schedule the event."
                     },  
                     {
                         "role": "assistant",
@@ -1677,6 +1675,9 @@ class OpenRouterService:
                 )
                 self._current_participants[phone_number].update(update_data)
                 
+                return {"message": message, "from_number": phone_number}
+            
+            elif participant["status"] == "confirmed" or participant["status"] == "declined":
                 return {"message": message, "from_number": phone_number}
             
         except Exception as e:

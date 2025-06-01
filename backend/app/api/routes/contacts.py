@@ -3,8 +3,8 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 import json
-from services.database_service import DatabaseService
-from dependencies import get_database_service
+from app.services.database_service import DatabaseService
+from app.dependencies import get_database_service
 
 router = APIRouter()
 

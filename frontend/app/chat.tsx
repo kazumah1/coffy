@@ -131,7 +131,7 @@ export default function ChatScreen() {
         },
         body: JSON.stringify({
           request: textToSend,
-          creator_id: user.id || user.email
+          creator_id: user.id
         }),
       });
 
