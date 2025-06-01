@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
@@ -14,6 +14,13 @@ export default function IndexScreen() {
     setShowSplash(false);
   };
 
+  // Handle navigation when user is authenticated and splash is complete
+  useEffect(() => {
+    if (user && !showSplash && !loading) {
+      router.replace('/(tabs)');
+    }
+  }, [user, showSplash, loading, router]);
+
   // Show loading spinner while auth is initializing
   if (loading) {
     return (
@@ -23,10 +30,13 @@ export default function IndexScreen() {
     );
   }
 
-  // If user is authenticated, navigate to main app
+  // If user is authenticated, show loading while navigating
   if (user && !showSplash) {
-    router.replace('/(tabs)');
-    return null;
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5E6D3' }}>
+        <ActivityIndicator size="large" color="#8B4513" />
+      </View>
+    );
   }
 
   // Show splash screen first
