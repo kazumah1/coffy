@@ -46,4 +46,5 @@ backend/venv/
 backend/__pycache__/
 backend/*.pyc
 backend/*.pyo
-backend/*.egg-info/ 
+backend/*.egg-info/ __pycache__/
+__pycache__/
