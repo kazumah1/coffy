@@ -3,18 +3,18 @@ import requests
 import json
 from typing import Optional, Dict, List, Any
 from .tools import AVAILABLE_TOOLS, TOOL_NAME_TO_INDEX
-from services.database_service import DatabaseService
-from core.config import settings
-from services.google_calendar_service import GoogleCalendarService
-from services.token_manager import TokenManager
-from services.texting_service import TextingService
+from app.services.database_service import DatabaseService
+from app.core.config import settings
+from app.services.google_calendar_service import GoogleCalendarService
+from app.services.token_manager import TokenManager
+from app.services.texting_service import TextingService
 from uuid import uuid4, UUID
-from models.time_slot import TimeSlot
+from app.models.time_slot import TimeSlot
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 import logging
 from pydantic import BaseModel, Field, validator
-from services.prompts import AVAILABLE_PROMPTS
+from app.services.prompts import AVAILABLE_PROMPTS
 import asyncio
 from openai import OpenAI
 
@@ -68,21 +68,31 @@ class OpenRouterService:
         db_service: DatabaseService,
         google_calendar_service: GoogleCalendarService,
         token_manager: TokenManager,
-        texting_service: TextingService
+        texting_service: TextingService = None
     ):
         self.api_url = API_URL
         self.model = MODEL
-        self.api_key = "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"
+        self.api_key = settings.OPENROUTER_API_KEY
         if not self.api_key:
             raise RuntimeError("OPENROUTER_API_KEY not set in environment")
-        self._current_event_id: Optional[str] = "8b1cb9db-9f6d-488b-afc4-707223210988" # TODO: remove this
-        self._current_owner_id: Optional[str] = "a2777a98-c0bc-4ecd-b3c2-bcb5c8e0e3eb" # TODO: remove this # ID of the registered user making the request
-        self._current_participants: Optional[dict[str, dict]] = None  # Dict of phone_number -> participant for current event
+        self._current_event_id: Optional[str] = "8b1cb9db-9f6d-488b-afc4-707223210988"
+        self._current_owner_id: Optional[str] = "a2777a98-c0bc-4ecd-b3c2-bcb5c8e0e3eb"
+        self._current_participants: Optional[dict[str, dict]] = {
+            "+16265905589": {
+                "status": "pending_confirmation",
+                "registered": False,
+                "name": "Kazuma Hakushi",
+                "phone_number": "+16265905589",
+                "updated_at": datetime.now().isoformat(),
+                "created_at": datetime.now().isoformat()
+            }
+        }  # Dict of phone_number -> participant for current event
         self.db_service = db_service
         self.google_calendar_service = google_calendar_service
         self.token_manager = token_manager
         self.texting_service = texting_service
         self.available_tools = AVAILABLE_TOOLS
+        self.stage_number = 0
 
         self.TOOL_MAPPINGS = {
             "create_draft_event": self.create_draft_event,
@@ -90,13 +100,16 @@ class OpenRouterService:
             "check_user_registration": self.check_user_registration,
             "create_event_participant": self.create_event_participant,
             "create_availability_conversation": self.create_availability_conversation,
-            "parse_confirmation": self.parse_confirmation,
-            "send_text": self.send_text,
+            "handle_confirmation": self.handle_confirmation,
+            "send_confirmation_text": self.send_confirmation_text,
+            "send_availability_text": self.send_availability_text,
+            "send_final_text": self.send_final_text,
             "get_google_calendar_busy_times": self.get_google_calendar_busy_times,
             "create_unregistered_time_slots": self.create_unregistered_time_slots,
             "create_final_time_slots": self.create_final_time_slots,
             "schedule_event": self.schedule_event,
-            "send_event_invitation": self.send_event_invitation
+            "send_event_invitation": self.send_event_invitation,
+            "handle_scheduling_conflict": self.handle_scheduling_conflict
         }
 
     @property
@@ -152,38 +165,7 @@ class OpenRouterService:
                 messages=messages,
                 tools=tools
             ).choices[0].message
-            # response = await asyncio.to_thread(requests.post,
-            #     url="https://openrouter.ai/api/v1/chat/completions",
-            #     headers={
-            #         "Authorization": f"Bearer {self.api_key}",
-            #         "Content-Type": "application/json",
-            #     },
-            #     data=json.dumps({
-            #         "model": "meta-llama/llama-3.2-3b-instruct",
-            #         "messages": messages,
-            #     })
-            # )
             return response
-            response.raise_for_status()  # This will raise an exception for 4XX/5XX responses
-            
-            json_response = response.json()
-            if not json_response.get("choices"):
-                raise RuntimeError("No choices in response from OpenRouter")
-                
-            message = json_response["choices"][0].get("message", {})
-            if not message:
-                raise RuntimeError("No message in response from OpenRouter")
-                
-            # Parse the content as JSON if it's a string
-            content = message.get("content", "")
-            if isinstance(content, str):
-                try:
-                    content = json.loads(content)
-                except json.JSONDecodeError:
-                    # If it's not valid JSON, keep it as a string
-                    pass
-                    
-            return response.json()
             
         except requests.exceptions.RequestException as e:
             logger.error(f"OpenRouter API request failed: {str(e)}")
@@ -349,13 +331,14 @@ class OpenRouterService:
                 f"Hey {user_name}, {creator_name} wants to plan a {event['title']} with you {date_range}. "
                 "Would you be down?"
             )
-            
+        
+        message = "Hi! I'm Coffy." + message
         try:
             # Send the initial message
-            await self.texting_service.send_message(phone_number, message)
+            await self.send_confirmation_text(phone_number, message)
             
             # Update conversation status to active (not message_sent)
-            await self.db_service.update_conversation_status(
+            await self.db_service.update_conversation(
                 self.current_event_id,
                 phone_number,
                 "active",
@@ -371,7 +354,7 @@ class OpenRouterService:
             
         except Exception as e:
             # Update conversation status to failed
-            await self.db_service.update_conversation_status(
+            await self.db_service.update_conversation(
                 self.current_event_id,
                 phone_number,
                 "failed",
@@ -379,7 +362,7 @@ class OpenRouterService:
             )
             raise RuntimeError(f"Failed to send availability request: {str(e)}")
 
-    async def parse_confirmation(
+    async def handle_confirmation(
         self,
         phone_number: str,
         confirmation: bool,
@@ -412,10 +395,11 @@ class OpenRouterService:
             )
             
         # Update participant status
+        now = datetime.now()
         update_data = {
-            "status": "confirmed" if confirmation else "declined",
+            "status": "pending_availability" if confirmation else "declined", 
             "response_text": message,
-            "updated_at": datetime.now()
+            "updated_at": now.isoformat(),
         }
         
         await self.db_service.update_event_participant(
@@ -430,18 +414,41 @@ class OpenRouterService:
             
         # Update conversation status
         if confirmation:
-            await self.db_service.update_conversation_status(
+            await self.db_service.update_conversation(
                 self.current_event_id,
                 phone_number,
-                "waiting_for_availability"
+                "active"
             )
+            now = datetime.now()
+            update_data = {
+                "status": "pending_availability", 
+                "response_text": message,
+                "updated_at": now.isoformat(),
+            }
+            await self.db_service.update_event_participant(
+                self.current_event_id,
+                phone_number,
+                update_data
+            )
+            self._current_participants[phone_number].update(update_data)
         else:
-            await self.db_service.update_conversation_status(
+            await self.db_service.update_conversation(
                 self.current_event_id,
                 phone_number,
                 "completed"
             )
-            
+            now = datetime.now()
+            update_data = {
+                "status": "declined", 
+                "response_text": message,
+                "updated_at": now.isoformat(),
+            }
+            await self.db_service.update_event_participant(
+                self.current_event_id,
+                phone_number,
+                update_data
+            )
+            self._current_participants[phone_number].update(update_data)
         return {
             "success": True,
             "confirmation": confirmation,
@@ -451,14 +458,140 @@ class OpenRouterService:
     async def send_text(
         self,
         phone_number: str,
+        message: str,
+        type: str
+    ) -> dict:
+        """Send a text message to a user."""
+        try:
+            # Get active conversation
+            conversations = await self.db_service.get_conversations(self.current_event_id, phone_number)
+            active_conversation = next(
+                (c for c in conversations if c["status"] == "active"),
+                None
+            )
+            
+            # Send the message
+            await self.texting_service.send_text(phone_number, message, type)
+            
+            # Update last message in conversation
+            if active_conversation:
+                await self.db_service.update_conversation(
+                    self.current_event_id,
+                    phone_number,
+                    "active",
+                    active_conversation["user_name"],
+                    last_message=message
+                )
+            
+            return {
+                "success": True,
+                "message": message,
+                "type": type
+            }
+        except Exception as e:
+            raise RuntimeError(f"Failed to send message: {str(e)}")
+    
+    async def send_confirmation_text(
+        self,
+        phone_number: str,
         message: str
     ) -> dict:
         """Send a text message to a user."""
         try:
-            await self.texting_service.send_message(phone_number, message)
+            # Get active conversation
+            conversations = await self.db_service.get_conversations(self.current_event_id, phone_number)
+            active_conversation = next(
+                (c for c in conversations if c["status"] == "active"),
+                None
+            )
+            
+            # Send the message
+            await self.texting_service.send_text(phone_number, message, "confirmation")
+            
+            # Update last message in conversation
+            if active_conversation:
+                await self.db_service.update_conversation(
+                    self.current_event_id,
+                    phone_number,
+                    "active",
+                    active_conversation["user_name"],
+                    last_message=message
+                )
+            
             return {
                 "success": True,
-                "message": message
+                "message": message,
+                "type": "confirmation"
+            }
+        except Exception as e:
+            raise RuntimeError(f"Failed to send message: {str(e)}")
+    
+    async def send_availability_text(
+        self,
+        phone_number: str,
+        message: str
+    ) -> dict:
+        """Send a text message to a user."""
+        try:
+            # Get active conversation
+            conversations = await self.db_service.get_conversations(self.current_event_id, phone_number)
+            active_conversation = next(
+                (c for c in conversations if c["status"] == "active"),
+                None
+            )
+            
+            # Send the message
+            await self.texting_service.send_text(phone_number, message, "availability")
+            
+            # Update last message in conversation
+            if active_conversation:
+                await self.db_service.update_conversation(
+                    self.current_event_id,
+                    phone_number,
+                    "active",
+                    active_conversation["user_name"],
+                    last_message=message
+                )
+            
+            return {
+                "success": True,
+                "message": message,
+                "type": "availability"
+            }
+        except Exception as e:
+            raise RuntimeError(f"Failed to send message: {str(e)}")
+        
+    async def send_final_text(
+        self,
+        phone_number: str,
+        message: str
+    ) -> dict:
+        """Send a text message to a user."""
+        try:
+            # Get active conversation
+            conversations = await self.db_service.get_conversations(self.current_event_id, phone_number)
+            active_conversation = next(
+                (c for c in conversations if c["status"] == "active"),
+                None
+            )
+            
+            # Send the message
+            await self.texting_service.send_text(phone_number, message, "final")
+            
+            # Update last message in conversation
+            if active_conversation:
+                await self.db_service.update_conversation(
+                    self.current_event_id,
+                    phone_number,
+                    "active",
+                    active_conversation["user_name"],
+                    last_message=message
+                )
+            
+            return {
+                "success": True,
+                "message": message,
+                "type": "final"
             }
         except Exception as e:
             raise RuntimeError(f"Failed to send message: {str(e)}")
@@ -546,8 +679,8 @@ class OpenRouterService:
             time_slot = TimeSlot(
                 id=str(uuid4()),
                 phone_number=phone_number,
-                start_time=datetime.fromisoformat(slot["start_time"]),
-                end_time=datetime.fromisoformat(slot["end_time"]),
+                start_time=slot["start_time"],
+                end_time=slot["end_time"],
                 slot_type=slot["slot_type"],
                 source="text"
             )
@@ -562,10 +695,10 @@ class OpenRouterService:
         
         # Update conversation status if we got valid slots
         if formatted_slots:
-            await self.db_service.update_conversation_status(
+            await self.db_service.update_conversation(
                 self.current_event_id,
                 phone_number,
-                "completed"
+                "active"
             )
         
         return formatted_slots
@@ -624,26 +757,34 @@ class OpenRouterService:
                         message += ". Please let me know if you can make it!"
                     
                     # Send the message
-                    await self.texting_service.send_message(
+                    await self.send_final_text(
                         participant["phone_number"],
                         message
                     )
-                    
-                    # Create a new conversation for the event invitation
-                    conversation = await self.db_service.create_conversation(
+
+                    await self.db_service.update_conversation(
                         event_id,
                         participant["phone_number"],
-                        participant["name"],
-                        "event_invitation",
-                        participant.get("id")  # user_id for registered users
+                        "completed",
+                        last_message=message
                     )
                     
-                    notification_results.append({
-                        "participant_id": participant["id"],
-                        "phone_number": participant["phone_number"],
-                        "status": "sent",
-                        "conversation_id": conversation["id"]
-                    })
+                    # TODO: not for MVP
+                    # # Create a new conversation for the event invitation
+                    # conversation = await self.db_service.create_conversation(
+                    #     event_id,
+                    #     participant["phone_number"],
+                    #     participant["name"],
+                    #     "event_invitation",
+                    #     participant.get("id")  # user_id for registered users
+                    # )
+                    
+                    # notification_results.append({
+                    #     "participant_id": participant["id"],
+                    #     "phone_number": participant["phone_number"],
+                    #     "status": "sent",
+                    #     "conversation_id": conversation["id"]
+                    # })
                     
                 except Exception as e:
                     notification_results.append({
@@ -726,7 +867,7 @@ class OpenRouterService:
                 message += "\nSee you soon!"
                 
             # Send the reminder
-            await self.texting_service.send_message(phone_number, message)
+            await self.send_final_text(phone_number, message)
             
             # Create a new conversation for the reminder
             reminder_conversation = await self.db_service.create_conversation(
@@ -738,11 +879,12 @@ class OpenRouterService:
             )
             
             # Update conversation status
-            await self.db_service.update_conversation_status(
+            await self.db_service.update_conversation(
                 event_id,
                 phone_number,
-                "reminder_sent",
-                participant["name"]
+                "completed",
+                participant["name"],
+                last_message=message
             )
             
             return {
@@ -755,7 +897,7 @@ class OpenRouterService:
         except Exception as e:
             # Update conversation status to failed
             if conversation:
-                await self.db_service.update_conversation_status(
+                await self.db_service.update_conversation(
                     event_id,
                     phone_number,
                     "failed",
@@ -841,7 +983,7 @@ class OpenRouterService:
                     )
                     
                     # Update conversation status
-                    await self.db_service.update_conversation_status(
+                    await self.db_service.update_conversation(
                         event_id,
                         participant["phone_number"],
                         participant["name"],
@@ -891,6 +1033,7 @@ class OpenRouterService:
     # - Updates participant status based on response
     # - Updates conversation status accordingly
 
+    # TODO: NOT FOR MVP
     async def send_event_invitation(
         self,
         event_id: str,
@@ -965,7 +1108,7 @@ class OpenRouterService:
                     )
                 else:
                     # Send text-only invitation
-                    await self.texting_service.send_message(phone_number, message)
+                    await self.send_final_text(phone_number, message)
                     
             else:
                 # For unregistered users, keep it simple
@@ -982,10 +1125,10 @@ class OpenRouterService:
                 message += "\nPlease reply with 'yes' to accept or 'no' to decline."
                 
                 # Send text-only invitation
-                await self.texting_service.send_message(phone_number, message)
+                await self.send_final_text(phone_number, message)
                 
             # Update conversation status
-            await self.db_service.update_conversation_status(
+            await self.db_service.update_conversation(
                 event_id,
                 phone_number,
                 "invitation_sent",
@@ -1002,7 +1145,7 @@ class OpenRouterService:
         except Exception as e:
             # Update conversation status to failed if we have a conversation
             if conversation and participant:
-                await self.db_service.update_conversation_status(
+                await self.db_service.update_conversation(
                     event_id,
                     phone_number,
                     "failed",
@@ -1010,6 +1153,7 @@ class OpenRouterService:
                 )
             self._handle_error(e, "Failed to send event invitation")
 
+    # TODO: NOT FOR MVP
     async def create_final_time_slots(
         self,
         phone_number: str,
@@ -1058,10 +1202,10 @@ class OpenRouterService:
             )
             
         # Update conversation status to completed
-        await self.db_service.update_conversation_status(
+        await self.db_service.update_conversation(
             self.current_event_id,
             phone_number,
-            "completed"
+            "active"
         )
             
         return {
@@ -1184,47 +1328,48 @@ class OpenRouterService:
             "create_event_participant", "create_availability_conversation"
         ],
         "confirmation": [
-            "parse_confirmation", "send_text"
+            "send_confirmation_text", "handle_confirmation"
         ],
         "availability": [
             "get_google_calendar_busy_times", "create_unregistered_time_slots",
-            "create_final_time_slots", "send_text"
+            "create_final_time_slots", "send_availability_text"
         ],
         "scheduling": [
-            "schedule_event", "send_event_invitation", "send_text"
+            "schedule_event", "send_final_text"
         ]
     }
 
-    async def run_agent_loop(self, user_input: str, creator_id: str):
-        stage_idx = 1
-        messages = []
+    async def run_agent_loop(self, user_input: str, creator_id: str, stage_limit=2, stage_idx=0):
+        messages = [] # the messages to be sent to the agent. includes the system prompt, user input, previous assistant response, and all tool calls
         phone_numbers = set()  # Using set to avoid duplicates
-        response = None
-        hard_stop = 3
-        tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["participant_setup"] if tool_name in self.TOOL_MAPPINGS]]
+        response = None # to save the last response from the agent
+        step = 0 # to limit the total calls to the agent (for credits and development)
+        tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE[self.STAGES[stage_idx]] if tool_name in self.TOOL_MAPPINGS]]
         self._current_owner_id = creator_id
         tool_call_history = []
 
         creator = await self.db_service.get_user_by_id(creator_id)
         creator_name = creator["name"] if creator else "Someone"
 
-        while stage_idx < len(self.STAGES) and hard_stop > 0:
+        while stage_idx < stage_limit and step < 3:
             try:
                 stage = self.STAGES[stage_idx]
-                if hard_stop == 3:
+                
+                # For outbound messages, we don't wait for responses
+                if step == 0:
                     messages = [
-                        {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[1]]},
+                        {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[stage_idx]]},
                         {"role": "user", "content": user_input + " (creator_name: " + creator_name + ", owner_id: " + self._current_owner_id + ")"},
                         {"role": "assistant", "content": "Okay, I've planned a coffee chat with Kazuma Hakushi.\nKazuma's contact ID is 76ddf919-11f4-4f9c-94bd-b90831649799 and their phone number is 6265905589.\nKazuma is not a registered user.\nThe event ID is 8b1cb9db-9f6d-488b-afc4-707223210988.\nEvent Title: Coffee with Kazuma\nDescription: Plan a coffee chat with Kazuma this weekend\n"}
                     ]
                 else:
                     messages = [
-                        {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[1]]},
+                        {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[stage_idx]]},
                         {"role": "user", "content": user_input + " (creator_name: " + creator_name + ", owner_id: " + self._current_owner_id + ")"}
                     ]
+
                 # Add previous response if exists
                 if response:
-                    # Handle the response based on its type
                     content = str(response)
                     tool_calls = response.tool_calls
                     
@@ -1283,12 +1428,13 @@ class OpenRouterService:
                             {"role": "user", "content": user_input + " (owner_id: " + self._current_owner_id + ")"},
                             content
                         ]
+                        self.db_service.update_event(self.current_event_id, {"stage": self.stage_number})
                         tools = []
                         tool_call_history = []
                         for tool_name in self.TOOLS_FOR_STAGE[stage]:
                             if tool_name in self.TOOL_MAPPINGS:
                                 tools.append(AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]])
-                        hard_stop -= 1
+                        step += 1
                         break
                 
                 # Get next response from agent
@@ -1298,37 +1444,249 @@ class OpenRouterService:
                 print(f"Stage {stage} response: {response}")
                 print("================================")
                 
-                # Check conversation state and advance if needed
-                # conversation_state = await self.check_conversation_state(
-                #     self.current_event_id,
-                #     list(phone_numbers),  # Convert set to list
-                #     stage
-                # )
-                
-                # if conversation_state["should_advance"]:
-                #     logger.info(f"Advancing to next stage: {conversation_state['reason']}")
-                #     stage_idx += 1
-                #     messages = [
-                #         {"role": "system", "content": AVAILABLE_PROMPTS[stage]},
-                #         {"role": "user", "content": user_input + " (owner_id: " + self._current_owner_id + ")"}
-                #     ]
-                #     tools = []
-                #     for tool_name in self.TOOLS_FOR_STAGE[stage]:
-                #         if tool_name in self.TOOL_MAPPINGS:
-                #             tools.append(AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]])
-                # else:
-                #     logger.info(f"Remaining in stage {stage}: {conversation_state['reason']}")
-                hard_stop -= 1
+                step += 1
                     
             except Exception as e:
                 logger.error(f"Error in agent loop at stage {stage}: {str(e)}")
                 raise RuntimeError(f"Agent loop failed: {str(e)}")
                 
+        if stage_idx == stage_limit:
+            self.stage_number = stage_idx - 1
         return {
             "success": True,
-            "stage_idx": stage_idx,
-            "final_stage": self.STAGES[stage_idx - 1],
+            "stage_idx": self.stage_number,
+            "final_stage": self.STAGES[self.stage_number],
             "phone_numbers": list(phone_numbers),
             "event_id": self.current_event_id,
             "response": response
         }
+
+    async def handle_inbound_message(self, phone_number: str, message: str) -> dict:
+        """Handle an incoming text message from a participant"""
+        try:
+            # Get active conversation for this number
+            conversations = await self.db_service.get_conversations(self.current_event_id, phone_number)
+            active_conversation = next(
+                (c for c in conversations if c["status"] == "active"),
+                None
+            )
+            print("got conversation")
+            if not active_conversation:
+                logger.warning(f"No active conversation found for {phone_number}")
+                return {"message": message, "from_number": phone_number}
+            
+            # Get event and participant details
+            event = await self.db_service.get_event_by_id(self.current_event_id)
+            print("got event")
+            participant = await self.db_service.get_event_participant_by_phone(self.current_event_id, phone_number)
+            print("got participant")
+
+            context = f"""Event: {event["title"] if event else "Unknown Event"}
+                Owner ID: {self._current_owner_id}
+                Stage: {event["stage"]}
+                Phone number: {phone_number}
+                Last message sent to user: {active_conversation.get("last_message", "No previous message")}
+                Participant status: {participant["status"] if participant else "unknown"}
+                User replied: {message}
+                """
+            
+            if participant["status"] == "pending_confirmation":
+                messages = [
+                    {
+                        "role": "system",
+                        "content": "You are an agent helping to coordinate events. The user's message was in response to a confirmation request. This is not a user-facing chat. Interpret the user's reply and determine the appropriate action."
+                    },
+                    {
+                        "role": "user",
+                        "content": context
+                    }
+                ]
+                tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["handle_confirmation"]]]
+                print(f"Messages: {messages}")
+                response = await self.prompt_agent(messages, tools)
+                print("--------------------------------")
+                print(f"Response: {response}")
+                print("================================")
+                if hasattr(response, 'tool_calls') and response.tool_calls:
+                    for tool_call in response.tool_calls:
+                        print("<<<<<<<<<<<<<<<<<")
+                        print(f"Tool call: {tool_call}")
+                        print(">>>>>>>>>>>>>>>>>")
+                        tool_name = tool_call.function.name
+                        tool_args = json.loads(tool_call.function.arguments)
+                        
+                        if tool_name in self.TOOL_MAPPINGS:
+                            out = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                            print(f"Tool call output: {out}")
+                
+                if participant["status"] == "pending_availability":
+                    if participant["registered"]: # TODO: test this
+                        print("registered user")
+                        messages = [
+                            {
+                                "role": "system",
+                                "content": "You are an agent helping to coordinate events. The user's message was in response to a confirmation request. This is not a user-facing chat. Interpret the user's reply and determine the appropriate action."
+                            },
+                            {
+                                "role": "assistant",
+                                "content": context
+                            }
+                        ]
+                        tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["get_google_calendar_busy_times"]]]
+                        print(f"Messages: {messages}")
+                        response = await self.prompt_agent(messages, tools)
+                        print("--------------------------------")
+                        print(f"Response: {response}")
+                        print("================================")
+                        if hasattr(response, 'tool_calls') and response.tool_calls:
+                            for tool_call in response.tool_calls:
+                                print("<<<<<<<<<<<<<<<<<")
+                                print(f"Tool call: {tool_call}")
+                                print(">>>>>>>>>>>>>>>>>")
+                                tool_name = tool_call.function.name
+                                tool_args = json.loads(tool_call.function.arguments)
+                                
+                                if tool_name in self.TOOL_MAPPINGS:
+                                    out = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                                    print(f"Tool call output: {out}")
+                        update_data = {
+                            "status": "pending_scheduling", 
+                            "response_text": message,
+                            "updated_at": datetime.now(),
+                        }
+                        
+                        await self.db_service.update_event_participant(
+                            self.current_event_id,
+                            phone_number,
+                            update_data
+                        )
+                        self._current_participants[phone_number].update(update_data)
+                        return {"message": message, "from_number": phone_number}
+                else:
+                    print("unregistered user")
+                    messages = [
+                        {
+                            "role": "system",
+                            "content": "You are an agent helping to coordinate events. The user's message was in response to a confirmation request. This is not a user-facing chat. Interpret the user's reply and determine the appropriate action."
+                        },
+                        {
+                            "role": "assistant",
+                            "content": context
+                        }
+                    ]
+                    tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["send_availability_text"]]]
+                    print(f"Messages: {messages}")
+                    response = await self.prompt_agent(messages, tools)
+                    print("--------------------------------")
+                    print(f"Response: {response}")
+                    print("================================")
+                    if hasattr(response, 'tool_calls') and response.tool_calls:
+                        for tool_call in response.tool_calls:
+                            print("<<<<<<<<<<<<<<<<<")
+                            print(f"Tool call: {tool_call}")
+                            print(">>>>>>>>>>>>>>>>>")
+                            tool_name = tool_call.function.name
+                            tool_args = json.loads(tool_call.function.arguments)
+                            
+                        if tool_name in self.TOOL_MAPPINGS:
+                            out = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                            print(f"Tool call output: {out}")
+                        
+                return {"message": message, "from_number": phone_number}
+            
+            elif participant["status"] == "pending_availability": # gets triggered for unregistered users, skipped by registered users
+                messages = [
+                    {
+                        "role": "system",
+                        "content": "You are an agent helping to coordinate events. The user's message was in response to a confirmation request. This is not a user-facing chat. Interpret the user's reply and determine the appropriate action."
+                    },
+                    {
+                        "role": "assistant",
+                        "content": context
+                    }
+                ]
+                tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["create_unregistered_time_slots"]]]
+                print(f"Messages: {messages}")
+                response = await self.prompt_agent(messages, tools)
+                print("--------------------------------")
+                print(f"Response: {response}")
+                print("================================")
+                if hasattr(response, 'tool_calls') and response.tool_calls:
+                    for tool_call in response.tool_calls:
+                        print("<<<<<<<<<<<<<<<<<")
+                        print(f"Tool call: {tool_call}")
+                        print(">>>>>>>>>>>>>>>>>")
+                        tool_name = tool_call.function.name
+                        tool_args = json.loads(tool_call.function.arguments)
+
+                    if tool_name in self.TOOL_MAPPINGS:
+                        out = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                        print(f"Tool call output: {out}")
+
+                update_data = {
+                    "status": "pending_scheduling", 
+                    "response_text": message,
+                    "updated_at": datetime.now(),
+                }
+                
+                await self.db_service.update_event_participant(
+                    self.current_event_id,
+                    phone_number,
+                    update_data
+                )
+                self._current_participants[phone_number].update(update_data)
+                return {"message": message, "from_number": phone_number}
+            elif participant["status"] == "pending_scheduling":
+                messages = [
+                    {
+                        "role": "system",
+                        "content": "You are an agent helping to coordinate events. The user's message was in response to a confirmation request. This is not a user-facing chat. Interpret the user's reply and determine the appropriate action."
+                    },  
+                    {
+                        "role": "assistant",
+                        "content": context
+                    }
+                ]
+                tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["schedule_event"]]]
+                print(f"Messages: {messages}")
+                response = await self.prompt_agent(messages, tools)
+                print("--------------------------------")
+                print(f"Response: {response}")
+                print("================================")
+                if hasattr(response, 'tool_calls') and response.tool_calls:
+                    for tool_call in response.tool_calls:
+                        print("<<<<<<<<<<<<<<<<<")
+                        print(f"Tool call: {tool_call}")
+                        print(">>>>>>>>>>>>>>>>>")
+                        tool_name = tool_call.function.name
+                        tool_args = json.loads(tool_call.function.arguments)
+                        
+                        if tool_name in self.TOOL_MAPPINGS:
+                            out = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                            print(f"Tool call output: {out}")
+                update_data = {
+                    "status": "confirmed", 
+                    "response_text": message,
+                    "updated_at": datetime.now(),
+                }
+                
+                await self.db_service.update_event_participant(
+                    self.current_event_id,
+                    phone_number,
+                    update_data
+                )
+                self._current_participants[phone_number].update(update_data)
+                
+                return {"message": message, "from_number": phone_number}
+            
+        except Exception as e:
+            logger.error(f"Error processing inbound message: {str(e)}")
+            # Keep conversation active if there's an error
+            if active_conversation:
+                await self.db_service.update_conversation(
+                    active_conversation["event_id"],
+                    phone_number,
+                    "active",
+                    active_conversation["user_name"]
+                )
+            return {"message": message, "from_number": phone_number}

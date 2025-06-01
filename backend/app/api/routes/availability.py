@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends
-from services.database_service import DatabaseService
-from services.google_calendar_service import GoogleCalendarService
-from services.token_manager import TokenManager
-from dependencies import get_database_service, get_google_calendar_service, get_token_manager
+from app.services.database_service import DatabaseService
+from app.services.google_calendar_service import GoogleCalendarService
+from app.services.token_manager import TokenManager
+from app.dependencies import get_database_service, get_google_calendar_service, get_token_manager
 
 router = APIRouter()
 

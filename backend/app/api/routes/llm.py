@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends
-from services.openrouter_service import OpenRouterService
-from services.database_service import DatabaseService
-from services.google_calendar_service import GoogleCalendarService
-from services.token_manager import TokenManager
-from services.texting_service import TextingService
-from dependencies import get_database_service, get_google_calendar_service, get_token_manager, get_texting_service
+from app.services.openrouter_service import OpenRouterService
+from app.services.database_service import DatabaseService
+from app.services.google_calendar_service import GoogleCalendarService
+from app.services.token_manager import TokenManager
+from app.services.texting_service import TextingService
+from app.dependencies import get_database_service, get_google_calendar_service, get_token_manager, get_texting_service
 
 router = APIRouter()
 

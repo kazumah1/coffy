@@ -1,8 +1,8 @@
-from services.database_service import DatabaseService
-from services.google_oauth_service import GoogleOAuthHandler
+from app.services.database_service import DatabaseService
+from app.services.google_oauth_service import GoogleOAuthHandler
 from datetime import datetime, timedelta
 from fastapi import HTTPException
-from core.config import settings
+from app.core.config import settings
 
 class TokenManager:
     def __init__(self, database_service: DatabaseService, oauth_handler: GoogleOAuthHandler):

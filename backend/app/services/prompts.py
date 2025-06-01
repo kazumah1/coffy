@@ -1,3 +1,4 @@
+# TODO: update prompts to include details like in claude about the current date and other info
 DRAFT_PROMPT = """
 <system_prompt>
   <role>

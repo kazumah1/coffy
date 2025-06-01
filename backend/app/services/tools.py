@@ -117,7 +117,7 @@ CREATE_AVAILABILITY_CONVERSATION_TOOL = {
             "properties": {
                 "phone_number": {
                     "type": "string",
-                    "description": "Phone number of the user"
+                    "description": "Phone number of the user. Format: '5551234567'"
                 },
                 "user_name": {
                     "type": "string",
@@ -155,7 +155,7 @@ CREATE_UNREGISTERED_TIME_SLOTS_TOOL = {
             "properties": {
                 "phone_number": {
                     "type": "string",
-                    "description": "Phone number of the unregistered user. Format: '5551234567'"
+                    "description": "Phone number of the unregistered user. Format: '+15551234567'"
                 },
                 "time_slots": {
                     "type": "array",
@@ -204,17 +204,17 @@ CHECK_USER_REGISTRATION_TOOL = {
     }
 }
 
-PARSE_CONFIRMATION_TOOL = {
+HANDLE_CONFIRMATION_TOOL = {
     "type": "function",
     "function": {
-        "name": "parse_confirmation",
-        "description": "Update conversation and participant status based on user's confirmation response. The LLM should have already determined if the user confirmed or declined.",
+        "name": "handle_confirmation",
+        "description": "Update conversation and participant status based on user's confirmation response. The LLM should have already determined if the user confirmed or declined. This is used in the confirmation stage of the conversation flow.",
         "parameters": {
             "type": "object",
             "properties": {
                 "phone_number": {
                     "type": "string",
-                    "description": "Phone number of the user"
+                    "description": "Phone number of the user. Format: '+15551234567'"
                 },
                 "confirmation": {
                     "type": "boolean",
@@ -230,28 +230,6 @@ PARSE_CONFIRMATION_TOOL = {
     }
 }
 
-SEND_TEXT_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "send_text",
-        "description": "Send a text message to a user. This is used for sending follow-up questions or responses.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "phone_number": {
-                    "type": "string",
-                    "description": "Phone number of the user to send the message to"
-                },
-                "message": {
-                    "type": "string",
-                    "description": "The message to send"
-                }
-            },
-            "required": ["phone_number", "message"]
-        }
-    }
-}
-
 CREATE_FINAL_TIME_SLOTS_TOOL = {
     "type": "function",
     "function": {
@@ -262,7 +240,7 @@ CREATE_FINAL_TIME_SLOTS_TOOL = {
             "properties": {
                 "phone_number": {
                     "type": "string",
-                    "description": "Phone number of the user"
+                    "description": "Phone number of the user. Format: '+15551234567'"
                 },
                 "user_id": {
                     "type": "string",
@@ -341,7 +319,7 @@ SEND_EVENT_INVITATION_TOOL = {
                 },
                 "phone_number": {
                     "type": "string",
-                    "description": "Phone number of the participant to invite"
+                    "description": "Phone number of the participant to invite. Format: '+15551234567'"
                 },
                 "include_ics": {
                     "type": "boolean",
@@ -367,7 +345,7 @@ SEND_REMINDER_TOOL = {
                 },
                 "phone_number": {
                     "type": "string",
-                    "description": "Phone number of the participant to remind"
+                    "description": "Phone number of the participant to remind. Format: '+15551234567'"
                 },
                 "reminder_type": {
                     "type": "string",
@@ -410,28 +388,68 @@ HANDLE_SCHEDULING_CONFLICT_TOOL = {
     }
 }
 
-CHECK_CONVERSATION_STATE_TOOL = {
+SEND_CONFIRMATION_TEXT_TOOL = {
     "type": "function",
     "function": {
-        "name": "check_conversation_state",
-        "description": "Check the current state of the conversation and determine if the loop should continue or stop. This tool helps manage the flow of the conversation and ensures all necessary steps are completed.",
+        "name": "send_confirmation_text",
+        "description": "Send a text message specifically for confirming interest in an event. This is used in the initial confirmation stage of event planning. The message should ask if the user is interested in the event.",
         "parameters": {
             "type": "object",
             "properties": {
-                "event_id": {
-                    "type": "string",
-                    "description": "UUID of the current event"
-                },
                 "phone_number": {
                     "type": "string",
-                    "description": "Phone number of the current participant"
+                    "description": "Phone number of the user to send the message to. Format: '+15551234567'"
                 },
-                "current_stage": {
+                "message": {
                     "type": "string",
-                    "description": "Current stage of the conversation (e.g., 'initial_contact', 'availability_collection', 'scheduling', 'confirmation')"
+                    "description": "The confirmation message to send. Should ask if the user is interested in the event."
                 }
             },
-            "required": ["event_id", "phone_number", "current_stage"]
+            "required": ["phone_number", "message"]
+        }
+    }
+}
+
+SEND_AVAILABILITY_TEXT_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "send_availability_text",
+        "description": "Send a text message specifically for collecting availability information. This is used after a user has confirmed interest in an event. The message should ask for times when the user is available.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "phone_number": {
+                    "type": "string",
+                    "description": "Phone number of the user to send the message to. Format: '+15551234567'"
+                },
+                "message": {
+                    "type": "string",
+                    "description": "The availability request message to send. Should ask for times when the user is available."
+                }
+            },
+            "required": ["phone_number", "message"]
+        }
+    }
+}
+
+SEND_FINAL_TEXT_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "send_final_text",
+        "description": "Send a text message for final event details or notifications that don't require a response. This is used in the scheduling stage for sending scheduled event details, reminders, or other one-way communications.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "phone_number": {
+                    "type": "string",
+                    "description": "Phone number of the user to send the message to. Format: '+15551234567'"
+                },
+                "message": {
+                    "type": "string",
+                    "description": "The final message to send. Should contain complete event details or notification information."
+                }
+            },
+            "required": ["phone_number", "message"]
         }
     }
 }
@@ -444,15 +462,16 @@ AVAILABLE_TOOLS = [
     GET_GOOGLE_CALENDAR_BUSY_TIMES_TOOL,
     CREATE_AVAILABILITY_CONVERSATION_TOOL,
     CHECK_USER_REGISTRATION_TOOL,
-    PARSE_CONFIRMATION_TOOL,
-    SEND_TEXT_TOOL,
+    HANDLE_CONFIRMATION_TOOL,
     CREATE_UNREGISTERED_TIME_SLOTS_TOOL,
     CREATE_FINAL_TIME_SLOTS_TOOL,
     SCHEDULE_EVENT_TOOL,
     SEND_EVENT_INVITATION_TOOL,
     SEND_REMINDER_TOOL,
     HANDLE_SCHEDULING_CONFLICT_TOOL,
-    CHECK_CONVERSATION_STATE_TOOL,
+    SEND_CONFIRMATION_TEXT_TOOL,
+    SEND_AVAILABILITY_TEXT_TOOL,
+    SEND_FINAL_TEXT_TOOL,
 ]
 
 # Dictionary mapping tool names to their indices in AVAILABLE_TOOLS
@@ -463,13 +482,14 @@ TOOL_NAME_TO_INDEX = {
     "get_google_calendar_busy_times": 3,
     "create_availability_conversation": 4,
     "check_user_registration": 5,
-    "parse_confirmation": 6,
-    "send_text": 7,
-    "create_unregistered_time_slots": 8,
-    "create_final_time_slots": 9,
-    "schedule_event": 10,
-    "send_event_invitation": 11,
-    "send_reminder": 12,
-    "handle_scheduling_conflict": 13,
-    "check_conversation_state": 14
+    "handle_confirmation": 6,
+    "create_unregistered_time_slots": 7,
+    "create_final_time_slots": 8,
+    "schedule_event": 9,
+    "send_event_invitation": 10,
+    "send_reminder": 11,
+    "handle_scheduling_conflict": 12,
+    "send_confirmation_text": 13,
+    "send_availability_text": 14,
+    "send_final_text": 15
 } 

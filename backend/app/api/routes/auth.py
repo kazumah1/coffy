@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import RedirectResponse, HTMLResponse
-from services.google_oauth_service import GoogleOAuthHandler
-from services.token_manager import TokenManager
-from services.database_service import DatabaseService
-from dependencies import get_oauth_handler, get_token_manager, get_database_service
+from app.services.google_oauth_service import GoogleOAuthHandler
+from app.services.token_manager import TokenManager
+from app.services.database_service import DatabaseService
+from app.dependencies import get_oauth_handler, get_token_manager, get_database_service
 from jose import jwt
 
 router = APIRouter()
