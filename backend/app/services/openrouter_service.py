@@ -101,7 +101,8 @@ class OpenRouterService:
             "create_final_time_slots": self.create_final_time_slots,
             "schedule_event": self.schedule_event,
             "send_event_invitation": self.send_event_invitation,
-            "handle_scheduling_conflict": self.handle_scheduling_conflict
+            "handle_scheduling_conflict": self.handle_scheduling_conflict,
+            "send_chat_message_to_user": self.send_chat_message_to_user,
         }
 
     @property
@@ -1189,6 +1190,11 @@ class OpenRouterService:
             "success": True,
             "time_slots": time_slots
         }
+    
+    async def send_chat_message_to_user(self, user_id: str, message: str) -> dict:
+        """Send a chat message to the user via WebSocket if more information is needed."""
+        await send_chat_message(user_id, message)
+        return {"success": True, "message": message}
 
     async def check_conversation_state(
         self,
@@ -1299,7 +1305,7 @@ class OpenRouterService:
 
     TOOLS_FOR_STAGE = {
         "agent loop": [
-            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_availability_conversation"
+            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_availability_conversation", "send_chat_message_to_user"
         ],
         "participant_setup": [
             "create_event_participant", "create_availability_conversation"
@@ -1447,16 +1453,31 @@ class OpenRouterService:
                 logger.warning(f"No active conversation found for {phone_number}")
                 return {"message": message, "from_number": phone_number}
             
+            # Save the user message to conversation history
+            user_message_obj = {
+                "role": "user",
+                "content": message,
+                "timestamp": datetime.now().isoformat()
+            }
+            await self.db_service.append_conversation_message(active_conversation["id"], user_message_obj)
+            
             # Set the current event from the conversation
             self.set_current_event(active_conversation["event_id"])
             
             # Get event and participant details
             now = datetime.now()
             current_datetime = now.astimezone().isoformat()
-            event = await self.db_service.get_event_by_id(self.current_event_id)
+            event = await self.db_service.get_event_by_id(self._current_event_id)
             print("got event")
-            participant = await self.db_service.get_event_participant_by_phone(self.current_event_id, phone_number)
+            participant = await self.db_service.get_event_participant_by_phone(self._current_event_id, phone_number)
             print("got participant")
+
+            # Fetch last 10 messages for LLM context
+            conversation_history = await self.db_service.get_last_k_conversation_messages(active_conversation["id"], k=10)
+            # Build LLM context from conversation history
+            history_messages = [
+                {"role": m["role"], "content": m["content"]} for m in conversation_history
+            ]
 
             context = f"""Event: {event["title"] if event else "Unknown Event"}
                 \nOwner ID: {self._current_owner_id}
@@ -1533,7 +1554,7 @@ class OpenRouterService:
                         }
                         
                         await self.db_service.update_event_participant(
-                            self.current_event_id,
+                            self._current_event_id,
                             phone_number,
                             update_data
                         )
@@ -1607,18 +1628,18 @@ class OpenRouterService:
                 }
                 
                 await self.db_service.update_event_participant(
-                    self.current_event_id,
+                    self._current_event_id,
                     phone_number,
                     update_data
                 )
                 self._current_participants[phone_number].update(update_data)
                 schedule_event = True
-                participants = await self.db_service.get_event_participants(self.current_event_id)
+                participants = await self.db_service.get_event_participants(self._current_event_id)
                 for p in participants:
                     if p["status"] != "pending_scheduling":
                         schedule_event = False
                 if schedule_event:
-                    participants = await self.db_service.get_event_participants(self.current_event_id)
+                    participants = await self.db_service.get_event_participants(self._current_event_id)
                     for p in participants:
                         if p["status"] != "pending_scheduling":
                             return {"message": message, "from_number": phone_number}
@@ -1626,9 +1647,9 @@ class OpenRouterService:
                     participant_times = {}
                     for p in participants:
                         if p["registered"]:
-                            participant_times[p["name"]] = await self.db_service.get_participant_busy_times(self.current_event_id, p["phone_number"])
+                            participant_times[p["name"]] = await self.db_service.get_participant_busy_times(self._current_event_id, p["phone_number"])
                         else:
-                            participant_times[p["name"]] = await self.db_service.get_unregistered_time_slots(self.current_event_id, p["phone_number"])
+                            participant_times[p["name"]] = await self.db_service.get_unregistered_time_slots(self._current_event_id, p["phone_number"])
 
                     context += f"\nParticipant times: {participant_times}"
 
@@ -1668,7 +1689,7 @@ class OpenRouterService:
                     }
                     
                     await self.db_service.update_event_participant(
-                        self.current_event_id,
+                        self._current_event_id,
                         phone_number,
                         update_data
                     )

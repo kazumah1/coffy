@@ -48,8 +48,7 @@ async def websocket_endpoint(
 
 @router.post("/prompt")
 async def run_llm(
-    request: str,
-    creator_id: str,
+    request: dict,
     db_service: DatabaseService = Depends(get_database_service),
     google_calendar_service: GoogleCalendarService = Depends(get_google_calendar_service),
     token_manager: TokenManager = Depends(get_token_manager),
@@ -64,7 +63,7 @@ async def run_llm(
     )
     
     # Start the agent loop in the background
-    print("starting agent loop")
+    print("starting agent loop with message:", request)
     # asyncio.create_task(openrouter_service.run_agent_loop(request, creator_id))
     
     # Return immediately with a hardcoded response

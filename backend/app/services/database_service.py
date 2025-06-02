@@ -739,3 +739,19 @@ class DatabaseService:
         """Get all conversations for a phone number."""
         response = self.client.table("conversations").select("*").eq("phone_number", phone_number).execute()
         return [c for c in response.data]
+
+    K = 10  # Number of messages to keep per conversation
+
+    async def append_conversation_message(self, conversation_id: str, message: dict, k: int = K) -> dict:
+        """Append a message to the conversation's messages array, keeping only the last k messages."""
+        response = self.client.table("conversations").select("messages").eq("id", conversation_id).execute()
+        messages = response.data[0]["messages"] if response.data and response.data[0].get("messages") else []
+        messages.append(message)
+        messages = messages[-k:]
+        update_resp = self.client.table("conversations").update({"messages": messages}).eq("id", conversation_id).execute()
+        return update_resp.data[0] if update_resp.data else None
+
+    async def get_last_k_conversation_messages(self, conversation_id: str, k: int = K) -> list:
+        response = self.client.table("conversations").select("messages").eq("id", conversation_id).execute()
+        messages = response.data[0]["messages"] if response.data and response.data[0].get("messages") else []
+        return messages[-k:]

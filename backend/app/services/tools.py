@@ -458,6 +458,22 @@ SEND_FINAL_TEXT_TOOL = {
     }
 }
 
+SEND_CHAT_MESSAGE_TO_USER_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "send_chat_message_to_user",
+        "description": "Send a chat message to the user via the app if more information is needed.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_id": {"type": "string", "description": "The user's ID"},
+                "message": {"type": "string", "description": "The message to send"}
+            },
+            "required": ["user_id", "message"]
+        }
+    }
+}
+
 # List of all available tools
 AVAILABLE_TOOLS = [
     CREATE_DRAFT_EVENT_TOOL,
@@ -476,6 +492,7 @@ AVAILABLE_TOOLS = [
     SEND_CONFIRMATION_TEXT_TOOL,
     SEND_AVAILABILITY_TEXT_TOOL,
     SEND_FINAL_TEXT_TOOL,
+    SEND_CHAT_MESSAGE_TO_USER_TOOL,
 ]
 
 # Dictionary mapping tool names to their indices in AVAILABLE_TOOLS
@@ -495,5 +512,6 @@ TOOL_NAME_TO_INDEX = {
     "handle_scheduling_conflict": 12,
     "send_confirmation_text": 13,
     "send_availability_text": 14,
-    "send_final_text": 15
+    "send_final_text": 15,
+    "send_chat_message_to_user": 16
 } 

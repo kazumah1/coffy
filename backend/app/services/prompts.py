@@ -130,6 +130,11 @@ DRAFT_PROMPT = """
       - Keep your first message short and concise - you're just getting the ball rolling
       - The creator name will always be provided - make sure to include it in your message
     </phase_two_specific>
+
+    <fallback>
+      If you are missing information or are having trouble understanding how best to proceed, you can use the send_chat_message_to_user tool to ask the user for more information.
+      Since you promised the user that you would handle everything, this is only for when you are completely stuck.
+    </fallback>
   </important_notes>
 
   <success_criteria>
