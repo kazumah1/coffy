@@ -7,10 +7,12 @@ router = APIRouter()
 
 @router.post("/")
 async def send_text(message: Message, texting_service: TextingService = Depends(get_texting_service)):
-    m = "can you confirm? - Coffee with Kaz by Coffy"
-    n = "6265905589"
-    return await texting_service.send_text(n, m, "confirmation")
+    return await texting_service.send_text(message.from_number, message.message, False)
 
 @router.post("/reply")
 async def handle_text_reply(request: dict, texting_service: TextingService = Depends(get_texting_service)):
     return await texting_service.handle_text_reply(request)
+
+@router.post("/test")
+async def send_text(texting_service: TextingService = Depends(get_texting_service)):
+    return await texting_service.send_test_text("+1234567890", "Hello, how are you?", True)

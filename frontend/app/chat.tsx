@@ -48,6 +48,7 @@ const WELCOME_SUGGESTIONS = [
 ];
 
 const BACKEND_URL = "http://localhost:8000";
+const WS_URL = "ws://localhost:8000";
 
 export default function ChatScreen() {
   const { user } = useAuth();
@@ -58,11 +59,101 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   
   // Animation values
   const messageAnimations = useRef<{[key: string]: Animated.Value}>({});
   const inputFocusAnim = useRef(new Animated.Value(0)).current;
   const welcomeAnim = useRef(new Animated.Value(0)).current;
+
+  // WebSocket connection
+  useEffect(() => {
+    if (!user?.id) {
+      console.log('No user ID available, skipping WebSocket connection');
+      return;
+    }
+
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+    const reconnectDelay = 3000;
+
+    const connectWebSocket = () => {
+      if (reconnectAttempts >= maxReconnectAttempts) {
+        console.log('Max reconnection attempts reached');
+        return;
+      }
+
+      console.log('Attempting WebSocket connection...');
+      console.log('Connecting to WebSocket:', `${WS_URL}/llm/ws/${user.id}`);
+      wsRef.current = new WebSocket(`${WS_URL}/llm/ws/${user.id}`);
+      
+      wsRef.current.onopen = () => {
+        console.log('WebSocket connected successfully');
+        reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+      };
+      
+      wsRef.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'chat_message') {
+            const botMessage: Message = {
+              id: (Date.now() + 1).toString(),
+              text: data.message,
+              isUser: false,
+              timestamp: new Date()
+            };
+            setMessages(prev => [...prev, botMessage]);
+            animateNewMessage(botMessage.id);
+          }
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
+
+      wsRef.current.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        const errorMessage: Message = {
+          id: Date.now().toString(),
+          text: 'Connection error. Attempting to reconnect...',
+          isUser: false,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      };
+
+      wsRef.current.onclose = (event) => {
+        console.log('WebSocket closed:', event.code, event.reason);
+        
+        // Don't reconnect if it was a normal closure
+        if (event.code === 1000) {
+          return;
+        }
+
+        // Attempt to reconnect
+        reconnectAttempts++;
+        if (reconnectAttempts < maxReconnectAttempts) {
+          console.log(`Reconnecting... Attempt ${reconnectAttempts} of ${maxReconnectAttempts}`);
+          setTimeout(connectWebSocket, reconnectDelay);
+        } else {
+          const errorMessage: Message = {
+            id: Date.now().toString(),
+            text: 'Unable to establish connection. Please refresh the page.',
+            isUser: false,
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, errorMessage]);
+        }
+      };
+    };
+
+    connectWebSocket();
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close(1000, 'Component unmounting');
+      }
+    };
+  }, [user?.id]);
 
   // Welcome screen animation
   useEffect(() => {
@@ -124,7 +215,7 @@ export default function ChatScreen() {
     }).start();
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/llm/prompt`, {
+      const response = await fetch(`${BACKEND_URL}/llm/prompt`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

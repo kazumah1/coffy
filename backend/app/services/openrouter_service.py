@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.services.google_calendar_service import GoogleCalendarService
 from app.services.token_manager import TokenManager
 from app.services.texting_service import TextingService
+from app.services.websocket_service import send_chat_message
 from uuid import uuid4, UUID
 from app.models.time_slot import TimeSlot
 from datetime import datetime, timedelta
@@ -75,18 +76,9 @@ class OpenRouterService:
         self.api_key = settings.OPENROUTER_API_KEY
         if not self.api_key:
             raise RuntimeError("OPENROUTER_API_KEY not set in environment")
-        self._current_event_id: Optional[str] = "8b1cb9db-9f6d-488b-afc4-707223210988"
-        self._current_owner_id: Optional[str] = "a2777a98-c0bc-4ecd-b3c2-bcb5c8e0e3eb"
-        self._current_participants: Optional[dict[str, dict]] = {
-            "+16265905589": {
-                "status": "pending_confirmation",
-                "registered": False,
-                "name": "Kazuma Hakushi",
-                "phone_number": "+16265905589",
-                "updated_at": datetime.now().isoformat(),
-                "created_at": datetime.now().isoformat()
-            }
-        }  # Dict of phone_number -> participant for current event
+        self._current_event_id: Optional[str] = None
+        self._current_owner_id: Optional[str] = None
+        self._current_participants: Optional[dict[str, dict]] = None  # Dict of phone_number -> participant for current event
         self.db_service = db_service
         self.google_calendar_service = google_calendar_service
         self.token_manager = token_manager
@@ -153,7 +145,7 @@ class OpenRouterService:
             logger.error(f"{context}: Unexpected error: {str(error)}")
             raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
-    async def prompt_agent(self, messages: list[dict[str, str]], tools: list[dict[str, Any]]) -> Dict[str, Any]:
+    async def prompt_agent(self, messages: list[dict[str, str]], tools: list[dict[str, Any]]) -> tuple[Dict[str, Any], Dict[str, int]]:
         """Send a prompt to the OpenRouter agent and get a response"""
         try:
             client = OpenAI(
@@ -164,8 +156,8 @@ class OpenRouterService:
                 model=self.model,
                 messages=messages,
                 tools=tools
-            ).choices[0].message
-            return response
+            )
+            return response.choices[0].message, response.usage
             
         except requests.exceptions.RequestException as e:
             logger.error(f"OpenRouter API request failed: {str(e)}")
@@ -332,7 +324,7 @@ class OpenRouterService:
                 "Would you be down?"
             )
         
-        message = "Hi! I'm Coffy." + message
+        message = "Hi! I'm Coffy. " + message
         try:
             # Send the initial message
             await self.send_confirmation_text(phone_number, message)
@@ -710,6 +702,7 @@ class OpenRouterService:
         final_start: dict,
         final_end: dict,
         location: str = None,
+        creator_message: str = None
     ) -> dict:
         """Schedule event with final details and notify participants. Returns updated event info and notification status."""
         try:
@@ -718,7 +711,6 @@ class OpenRouterService:
             if not event:
                 raise RuntimeError(f"Event {event_id} not found")
                 
-            
             # Get all participants
             participants = await self.db_service.get_event_participants(event_id)
             
@@ -734,14 +726,13 @@ class OpenRouterService:
 
                     # create a google calendar event for registered users
                     if participant["registered"]: # only registered users have a calendarId
-                        
                         user = await self.db_service.get_user_by_phone(participant["phone_number"])
-
                         attendees.append(user["email"])
+                        
             creator = await self.db_service.get_user_by_id(event["creator_id"])
 
-            final_start["dateTime"] = datetime.fromisoformat(final_start["dateTime"].replace("Z", "+00:00"))
-            final_end["dateTime"] = datetime.fromisoformat(final_end["dateTime"].replace("Z", "+00:00"))
+            final_start["dateTime"] = datetime.fromisoformat(final_start["dateTime"].replace("Z", "+00:00")).isoformat()
+            final_end["dateTime"] = datetime.fromisoformat(final_end["dateTime"].replace("Z", "+00:00")).isoformat()
 
             self.google_calendar_service.add_event(
                 creator["google_access_token"],
@@ -763,36 +754,27 @@ class OpenRouterService:
             
             updated_event = await self.db_service.update_event(event_id, update_data)
 
+            # Send final message to creator via chat
+            final_message = f"Great! Your event '{event['title']}' has been scheduled for {final_start['dateTime']} - {final_end['dateTime']}"
+            if location:
+                final_message += f" at {location}"
+            final_message += "."
+            
+            await send_chat_message(creator["id"], final_message)
+
+            # Send text messages to participants
             for participant in participants:
                 if participant["status"] == "confirmed": # only confirmed participants
-                    self.send_final_text(
+                    await self.send_final_text(
                         participant["phone_number"],
                         f"Scheduled {event['title']} with {creator['name']} for {final_start['dateTime']} - {final_end['dateTime']} at {location}.",
                         "final"
                     )
-
-                    # TODO: not for MVP
-                    # # Create a new conversation for the event invitation
-                    # conversation = await self.db_service.create_conversation(
-                    #     event_id,
-                    #     participant["phone_number"],
-                    #     participant["name"],
-                    #     "event_invitation",
-                    #     participant.get("id")  # user_id for registered users
-                    # )
-                    
-                    # notification_results.append({
-                    #     "participant_id": participant["id"],
-                    #     "phone_number": participant["phone_number"],
-                    #     "status": "sent",
-                    #     "conversation_id": conversation["id"]
-                    # })
-                    
-
             
             return {
                 "success": True,
                 "event": updated_event,
+                "creator_message": creator_message
             }
             
         except Exception as e:
@@ -1316,8 +1298,8 @@ class OpenRouterService:
     ]
 
     TOOLS_FOR_STAGE = {
-        "draft": [
-            "create_draft_event", "search_contacts", "check_user_registration"
+        "agent loop": [
+            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_availability_conversation"
         ],
         "participant_setup": [
             "create_event_participant", "create_availability_conversation"
@@ -1339,9 +1321,11 @@ class OpenRouterService:
         phone_numbers = set()  # Using set to avoid duplicates
         response = None # to save the last response from the agent
         step = 0 # to limit the total calls to the agent (for credits and development)
-        tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE[self.STAGES[stage_idx]] if tool_name in self.TOOL_MAPPINGS]]
+        tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["agent loop"] if tool_name in self.TOOL_MAPPINGS]]
         self._current_owner_id = creator_id
         tool_call_history = []
+        total_prompt_tokens = 0
+        total_completion_tokens = 0
 
         creator = await self.db_service.get_user_by_id(creator_id)
         creator_name = creator["name"] if creator else "Someone"
@@ -1349,20 +1333,19 @@ class OpenRouterService:
         # Get current datetime in ISO format with timezone
         current_datetime = datetime.now().astimezone().isoformat()
 
-        while stage_idx < stage_limit and step < 3:
+        while stage_idx < stage_limit and step < 10:
             try:
                 stage = self.STAGES[stage_idx]
                 
                 # For outbound messages, we don't wait for responses
                 if step == 0:
                     messages = [
-                        {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[stage_idx]].format(current_datetime=current_datetime)},
+                        {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[stage]].format(current_datetime=current_datetime)},
                         {"role": "user", "content": user_input + " (creator_name: " + creator_name + ", owner_id: " + self._current_owner_id + ")"},
-                        {"role": "assistant", "content": "Okay, I've planned a coffee chat with Kazuma Hakushi.\nKazuma's contact ID is 76ddf919-11f4-4f9c-94bd-b90831649799 and their phone number is 6265905589.\nKazuma is not a registered user.\nThe event ID is 8b1cb9db-9f6d-488b-afc4-707223210988.\nEvent Title: Coffee with Kazuma\nDescription: Plan a coffee chat with Kazuma this weekend\n"}
                     ]
                 else:
                     messages = [
-                        {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[stage_idx]].format(current_datetime=current_datetime)},
+                        {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[stage]].format(current_datetime=current_datetime)},
                         {"role": "user", "content": user_input + " (owner_id: " + self._current_owner_id + ")"}
                     ]
 
@@ -1418,30 +1401,18 @@ class OpenRouterService:
                                     "name": tool_name,
                                     "content": json.dumps({"error": str(e)})
                                 })
-                    else: # logic for when to go to next stage
-                        stage_idx += 1
-                        stage = self.STAGES[stage_idx]
-                        messages = [
-                            {"role": "system", "content": AVAILABLE_PROMPTS[stage].format(current_datetime=current_datetime)},
-                            {"role": "user", "content": user_input + " (owner_id: " + self._current_owner_id + ")"},
-                            content
-                        ]
-                        self.db_service.update_event(self.current_event_id, {"stage": self.stage_number})
-                        tools = []
-                        tool_call_history = []
-                        for tool_name in self.TOOLS_FOR_STAGE[stage]:
-                            if tool_name in self.TOOL_MAPPINGS:
-                                tools.append(AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]])
-                        step += 1
+                    else: # logic for when to stop the agent loop (hopefully conversations are created)
                         break
                 
                 # Get next response from agent
                 print(f"Stage {stage} messages: {messages}")
-                response = await self.prompt_agent(messages, tools)
+                response, usage = await self.prompt_agent(messages, tools)
                 print("--------------------------------")
                 print(f"Stage {stage} response: {response}")
                 print("================================")
                 
+                total_prompt_tokens += usage.prompt_tokens
+                total_completion_tokens += usage.completion_tokens
                 step += 1
                     
             except Exception as e:
@@ -1456,25 +1427,32 @@ class OpenRouterService:
             "final_stage": self.STAGES[self.stage_number],
             "phone_numbers": list(phone_numbers),
             "event_id": self.current_event_id,
-            "response": response
+            "response": response,
+            "step": step,
+            "total_prompt_tokens": total_prompt_tokens,
+            "total_completion_tokens": total_completion_tokens
         }
 
     async def handle_inbound_message(self, phone_number: str, message: str) -> dict:
         """Handle an incoming text message from a participant"""
         try:
-            # Get active conversation for this number
-            current_datetime = datetime.now().astimezone().isoformat()
-            conversations = await self.db_service.get_conversations(self.current_event_id, phone_number)
+            # Find active conversation for this phone number
+            conversations = await self.db_service.get_conversations_by_phone(phone_number)
             active_conversation = next(
                 (c for c in conversations if c["status"] == "active"),
                 None
             )
-            print("got conversation")
+            
             if not active_conversation:
                 logger.warning(f"No active conversation found for {phone_number}")
                 return {"message": message, "from_number": phone_number}
             
+            # Set the current event from the conversation
+            self.set_current_event(active_conversation["event_id"])
+            
             # Get event and participant details
+            now = datetime.now()
+            current_datetime = now.astimezone().isoformat()
             event = await self.db_service.get_event_by_id(self.current_event_id)
             print("got event")
             participant = await self.db_service.get_event_participant_by_phone(self.current_event_id, phone_number)
@@ -1502,7 +1480,7 @@ class OpenRouterService:
                 ]
                 tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["handle_confirmation"]]]
                 print(f"Messages: {messages}")
-                response = await self.prompt_agent(messages, tools)
+                response, usage = await self.prompt_agent(messages, tools)
                 print("--------------------------------")
                 print(f"Response: {response}")
                 print("================================")
@@ -1533,7 +1511,7 @@ class OpenRouterService:
                         ]
                         tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["get_google_calendar_busy_times"]]]
                         print(f"Messages: {messages}")
-                        response = await self.prompt_agent(messages, tools)
+                        response, usage = await self.prompt_agent(messages, tools)
                         print("--------------------------------")
                         print(f"Response: {response}")
                         print("================================")
@@ -1551,7 +1529,7 @@ class OpenRouterService:
                         update_data = {
                             "status": "pending_scheduling", 
                             "response_text": message,
-                            "updated_at": datetime.now(),
+                            "updated_at": now.isoformat(),
                         }
                         
                         await self.db_service.update_event_participant(
@@ -1575,7 +1553,7 @@ class OpenRouterService:
                     ]
                     tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["send_availability_text"]]]
                     print(f"Messages: {messages}")
-                    response = await self.prompt_agent(messages, tools)
+                    response, usage = await self.prompt_agent(messages, tools)
                     print("--------------------------------")
                     print(f"Response: {response}")
                     print("================================")
@@ -1606,7 +1584,7 @@ class OpenRouterService:
                 ]
                 tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["create_unregistered_time_slots"]]]
                 print(f"Messages: {messages}")
-                response = await self.prompt_agent(messages, tools)
+                response, usage = await self.prompt_agent(messages, tools)
                 print("--------------------------------")
                 print(f"Response: {response}")
                 print("================================")
@@ -1625,7 +1603,7 @@ class OpenRouterService:
                 update_data = {
                     "status": "pending_scheduling", 
                     "response_text": message,
-                    "updated_at": datetime.now(),
+                    "updated_at": now.isoformat(),
                 }
                 
                 await self.db_service.update_event_participant(
@@ -1634,63 +1612,69 @@ class OpenRouterService:
                     update_data
                 )
                 self._current_participants[phone_number].update(update_data)
-                return {"message": message, "from_number": phone_number}
-            elif participant["status"] == "pending_scheduling": # triggered, but only prompts the LLM if everyone has provided times
+                schedule_event = True
                 participants = await self.db_service.get_event_participants(self.current_event_id)
                 for p in participants:
                     if p["status"] != "pending_scheduling":
-                        return {"message": message, "from_number": phone_number}
-                    
-                participant_times = dict(str, list[dict])
-                for p in participants:
-                    if p["registered"]:
-                        participant_times[p["name"]] = await self.db_service.get_participant_busy_times(self.current_event_id, p["phone_number"])
-                    else:
-                        participant_times[p["name"]] = await self.db_service.get_unregistered_time_slots(self.current_event_id, p["phone_number"])
-
-                context += f"\nParticipant times: {participant_times}"
-
-                messages = [
-                    {
-                        "role": "system",
-                        "content": AVAILABLE_PROMPTS["scheduling"].format(current_datetime=current_datetime)
-                    },  
-                    {
-                        "role": "assistant",
-                        "content": context
-                    }
-                ]
-                tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["schedule_event"]]] # TODO: have a way for the LLM to send a final text to all participants (for uniqueness)
-                print(f"Messages: {messages}")
-                response = await self.prompt_agent(messages, tools)
-                print("--------------------------------")
-                print(f"Response: {response}")
-                print("================================")
-                if hasattr(response, 'tool_calls') and response.tool_calls:
-                    for tool_call in response.tool_calls:
-                        print("<<<<<<<<<<<<<<<<<")
-                        print(f"Tool call: {tool_call}")
-                        print(">>>>>>>>>>>>>>>>>")
-                        tool_name = tool_call.function.name
-                        tool_args = json.loads(tool_call.function.arguments)
+                        schedule_event = False
+                if schedule_event:
+                    participants = await self.db_service.get_event_participants(self.current_event_id)
+                    for p in participants:
+                        if p["status"] != "pending_scheduling":
+                            return {"message": message, "from_number": phone_number}
                         
-                        if tool_name in self.TOOL_MAPPINGS:
-                            out = await self.TOOL_MAPPINGS[tool_name](**tool_args)
-                            print(f"Tool call output: {out}")
-                update_data = {
-                    "status": "confirmed", 
-                    "response_text": message,
-                    "updated_at": datetime.now(),
-                }
-                
-                await self.db_service.update_event_participant(
-                    self.current_event_id,
-                    phone_number,
-                    update_data
-                )
-                self._current_participants[phone_number].update(update_data)
-                
-                return {"message": message, "from_number": phone_number}
+                    participant_times = {}
+                    for p in participants:
+                        if p["registered"]:
+                            participant_times[p["name"]] = await self.db_service.get_participant_busy_times(self.current_event_id, p["phone_number"])
+                        else:
+                            participant_times[p["name"]] = await self.db_service.get_unregistered_time_slots(self.current_event_id, p["phone_number"])
+
+                    context += f"\nParticipant times: {participant_times}"
+
+                    messages = [
+                        {
+                            "role": "system",
+                            "content": AVAILABLE_PROMPTS["scheduling"].format(current_datetime=current_datetime)
+                        },  
+                        {
+                            "role": "assistant",
+                            "content": context
+                        }
+                    ]
+                    tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["schedule_event"]]] # TODO: have a way for the LLM to send a final text to all participants (for uniqueness)
+                    print(f"Messages: {messages}")
+                    response, usage = await self.prompt_agent(messages, tools)
+                    print("--------------------------------")
+                    print(f"Response: {response}")
+                    print("================================")
+                    if hasattr(response, 'tool_calls') and response.tool_calls:
+                        for tool_call in response.tool_calls:
+                            print("<<<<<<<<<<<<<<<<<")
+                            print(f"Tool call: {tool_call}")
+                            print(">>>>>>>>>>>>>>>>>")
+                            tool_name = tool_call.function.name
+                            tool_args = json.loads(tool_call.function.arguments)
+                            
+                            if tool_name in self.TOOL_MAPPINGS:
+                                out = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                                print(f"Tool call output: {out}")
+                                creator_message = out["creator_message"]
+                    now = datetime.now()
+                    update_data = {
+                        "status": "confirmed", 
+                        "response_text": message,
+                        "updated_at": now.isoformat(),
+                    }
+                    
+                    await self.db_service.update_event_participant(
+                        self.current_event_id,
+                        phone_number,
+                        update_data
+                    )
+                    self._current_participants[phone_number].update(update_data)
+                    
+                    return {"message": message, "from_number": phone_number, "creator_message": creator_message}
             
             elif participant["status"] == "confirmed" or participant["status"] == "declined":
                 return {"message": message, "from_number": phone_number}

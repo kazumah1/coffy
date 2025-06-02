@@ -85,10 +85,9 @@ class DatabaseService:
         data = {
             "name": name,
             "email": email,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now()
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat()
         }
-        data = self.to_iso_strings(data)
         response = self.client.table("users").insert(data).execute()
         return self.from_iso_strings(response.data[0])
     
@@ -166,14 +165,12 @@ class DatabaseService:
 
     async def update_event(self, event_id: str, update_data: Dict[str, Any]) -> dict:
         # Update event with new data and refresh timestamp
-        update_data["updated_at"] = datetime.now()
+        now = datetime.now()
+        update_data["updated_at"] = now.isoformat()
         update_data = self.to_iso_strings(update_data)
         
         response = self.client.table("events").update(update_data).eq("id", event_id).execute()
         
-        if response.error:
-            raise RuntimeError(f"Failed to update event: {response.error.message}")
-            
         if not response.data:
             raise RuntimeError(f"Event not found: {event_id}")
             
@@ -437,14 +434,14 @@ class DatabaseService:
         time_slots: list[dict]
     ) -> dict:
         """Store time slots (busy/available) for an unregistered user, including slot metadata like times, type, source, and confidence."""
+        now = datetime.now()
         data = {
             "id": str(uuid4()),
             "event_id": event_id,
             "phone_number": phone_number,
             "time_slots": time_slots,
-            "updated_at": datetime.now().isoformat()
+            "updated_at": now.isoformat()
         }
-        data = self.to_iso_strings(data)
         
         # Upsert to handle both new and existing records
         # When a duplicate is found, update the time_slots and updated_at fields
@@ -519,7 +516,7 @@ class DatabaseService:
                 
                 # Check if the slot overlaps with our time range
                 if (slot_start <= end_time and slot_end >= start_time):
-                    overlapping_slots.append(slot)
+                    overlapping_slots.append(slot.isoformat())
                     
             if overlapping_slots:
                 result[phone_number] = overlapping_slots
@@ -589,7 +586,7 @@ class DatabaseService:
         if not response.data:
             raise RuntimeError(f"Event participant not found for phone {phone_number}")
             
-        return self.from_iso_strings(response.data[0])
+        return response.data[0]
 
     # Contacts management methods
     async def create_contact(self, contact_data: dict) -> dict:
@@ -718,3 +715,27 @@ class DatabaseService:
                 best_friends.append(self.from_iso_strings(best_friend))
         
         return best_friends
+
+    async def get_events_by_participant_phone(self, phone_number: str) -> list[dict]:
+        """Get all events where a phone number is a participant."""
+        # First get all event participants with this phone number
+        response = self.client.table("event_participants").select(
+            "event_id"
+        ).eq("phone_number", phone_number).execute()
+        
+        if not response.data:
+            return []
+            
+        # Get the events for these participants
+        event_ids = [p["event_id"] for p in response.data]
+        events_response = self.client.table("events").select("*").in_("id", event_ids).execute()
+        
+        if not events_response.data:
+            return []
+            
+        return [event for event in events_response.data]
+
+    async def get_conversations_by_phone(self, phone_number: str) -> list[dict]:
+        """Get all conversations for a phone number."""
+        response = self.client.table("conversations").select("*").eq("phone_number", phone_number).execute()
+        return [c for c in response.data]

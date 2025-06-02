@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class TextingService:
     def __init__(self, db_service: DatabaseService = None, openrouter_service: 'OpenRouterService' = None):
         self.base_url = "https://textbelt.com"
-        self.api_key = settings.TEXTING_API_KEY
+        self.api_key = "01c1dc541121a6fb2e598557a71ad6425a2e2647ncs2hTldCM8WgY8uHoBnrNd8j" #settings.TEXTING_API_KEY
         self.db_service = db_service
         self.openrouter_service = openrouter_service
 
@@ -62,6 +62,19 @@ class TextingService:
                     "message": message,
                     "attachment_content": attachment_content,
                     "attachment_filename": attachment_filename
+                }
+            ) as response:
+                return await response.json()
+            
+    async def send_test_text(self, to_number: str, message: str, final: bool = False):
+        """Send a test text message to a phone number"""
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{self.base_url}/text",
+                data={
+                    "phone": to_number,
+                    "message": message,
+                    "key": self.api_key + "_test"
                 }
             ) as response:
                 return await response.json()

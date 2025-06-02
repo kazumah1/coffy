@@ -117,7 +117,7 @@ CREATE_AVAILABILITY_CONVERSATION_TOOL = {
             "properties": {
                 "phone_number": {
                     "type": "string",
-                    "description": "Phone number of the user. Format: '5551234567'"
+                    "description": "Phone number of the user. Format: '+15551234567'"
                 },
                 "user_name": {
                     "type": "string",
@@ -125,7 +125,7 @@ CREATE_AVAILABILITY_CONVERSATION_TOOL = {
                 },
                 "user_id": {
                     "type": "string",
-                    "description": "Optional UUID for registered users. Must be provided if the user is registered."
+                    "description": "Optional UUID of recipient. Must be provided if the user is registered. Must not be provided if the user is unregistered. Not the same as the creator/owner_id."
                 },
                 "start_date": {
                     "type": "string",
@@ -137,7 +137,7 @@ CREATE_AVAILABILITY_CONVERSATION_TOOL = {
                 },
                 "message": {
                     "type": "string",
-                    "description": "Initial SMS text message to send to the user. Should be short and concise."
+                    "description": "Initial SMS text message to send to the user. Should be short and concise. Do not include the user's id in the message."
                 }
             },
             "required": ["phone_number", "user_name", "start_date", "end_date", "message"]
