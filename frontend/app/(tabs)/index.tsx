@@ -355,7 +355,7 @@ export default function ChatScreen() {
             ]}
           >
             <Image 
-              source={require('@/assets/images/coffee-character.png')} 
+              source={require('@/assets/images/coffee-hello.png')} 
               style={styles.welcomeCharacter}
               contentFit="contain"
             />

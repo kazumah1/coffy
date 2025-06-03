@@ -9,6 +9,7 @@ from app.api.routes.texting import router as texting_router
 from app.api.routes.llm import router as llm_router
 from app.api.routes.contacts import router as contacts_router
 from app.api.routes.testing import router as testing_router
+from app.api.routes.legal import router as legal_router
 from app.services.texting_service import TextingService
 from app.dependencies import (
     initialize_services,
@@ -41,6 +42,7 @@ app.include_router(texting_router, prefix="/text", tags=["texting"])
 app.include_router(llm_router, prefix="/llm", tags=["llm"])
 app.include_router(contacts_router, prefix="/contacts", tags=["contacts"])
 app.include_router(testing_router, prefix="/testing", tags=["testing"])
+app.include_router(legal_router, tags=["legal"])
 
 @app.get("/")
 def read_root():
