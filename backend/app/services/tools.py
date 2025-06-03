@@ -320,7 +320,7 @@ SCHEDULE_EVENT_TOOL = {
                     "description": "Message to send to the creator after the event has been scheduled"
                 }
             },
-            "required": ["event_id", "final_start", "final_end", "creator_message"]
+            "required": ["event_id", "start", "end", "creator_message"]
         }
     }
 }
