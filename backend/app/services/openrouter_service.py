@@ -97,6 +97,7 @@ class OpenRouterService:
             "send_availability_text": self.send_availability_text,
             "send_final_text": self.send_final_text,
             "get_google_calendar_busy_times": self.get_google_calendar_busy_times,
+            "get_creator_google_calendar_busy_times": self.get_google_calendar_busy_times,
             "create_unregistered_time_slots": self.create_unregistered_time_slots,
             "create_final_time_slots": self.create_final_time_slots,
             "schedule_event": self.schedule_event,
@@ -684,13 +685,12 @@ class OpenRouterService:
             # Send notifications to all participants
             attendees = []
             for participant in participants:
-                if participant["status"] == "confirmed": # only include confirmed participants
-                    await self.db_service.update_conversation(
+                await self.db_service.update_conversation(
                         event_id,
                         participant["phone_number"],
                         "completed"
                     )
-
+                if participant["status"] == "confirmed": # only include confirmed participants
                     # create a google calendar event for registered users
                     if participant["registered"]: # only registered users have a calendarId
                         user = await self.db_service.get_user_by_phone(participant["phone_number"])
@@ -1273,7 +1273,7 @@ class OpenRouterService:
 
     TOOLS_FOR_STAGE = {
         "agent loop": [
-            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_chat_message_to_user", "send_confirmation_text", "get_google_calendar_busy_times"
+            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_chat_message_to_user", "send_confirmation_text", "get_creator_google_calendar_busy_times"
         ],
         "participant_setup": [
             "create_event_participant", "create_or_get_conversation"

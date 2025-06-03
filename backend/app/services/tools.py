@@ -107,6 +107,32 @@ GET_GOOGLE_CALENDAR_BUSY_TIMES_TOOL = {
     }
 }
 
+GET_CREATOR_GOOGLE_CALENDAR_BUSY_TIMES_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "get_creator_google_calendar_busy_times",
+        "description": "Get busy times from the creator's Google Calendar within a date range. This tool must always be used once per event to find a time that works best for the creator.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_id": {
+                    "type": "string",
+                    "description": "UUID of the creator of the event. Sometimes referred to as 'owner_id' or 'creator_id' in the database."
+                },
+                "start_date": {
+                    "type": "string",
+                    "description": "Start date in ISO format (YYYY-MM-DD)"
+                },
+                "end_date": {
+                    "type": "string",
+                    "description": "End date in ISO format (YYYY-MM-DD)"
+                }
+            },
+            "required": ["user_id", "start_date", "end_date"]
+        }
+    }
+}
+
 CREATE_OR_GET_CONVERSATION_TOOL = {
     "type": "function",
     "function": {
@@ -490,12 +516,15 @@ SEND_CHAT_MESSAGE_TO_USER_TOOL = {
     }
 }
 
+
+
 # List of all available tools
 AVAILABLE_TOOLS = [
     CREATE_DRAFT_EVENT_TOOL,
     CREATE_EVENT_PARTICIPANT_TOOL,
     SEARCH_CONTACTS_TOOL,
     GET_GOOGLE_CALENDAR_BUSY_TIMES_TOOL,
+    GET_CREATOR_GOOGLE_CALENDAR_BUSY_TIMES_TOOL,
     CREATE_OR_GET_CONVERSATION_TOOL,
     CHECK_USER_REGISTRATION_TOOL,
     HANDLE_CONFIRMATION_TOOL,
@@ -517,17 +546,18 @@ TOOL_NAME_TO_INDEX = {
     "create_event_participant": 1,
     "search_contacts": 2,
     "get_google_calendar_busy_times": 3,
-    "create_or_get_conversation": 4,
-    "check_user_registration": 5,
-    "handle_confirmation": 6,
-    "create_unregistered_time_slots": 7,
-    "create_final_time_slots": 8,
-    "schedule_event": 9,
-    "send_event_invitation": 10,
-    "send_reminder": 11,
-    "handle_scheduling_conflict": 12,
-    "send_confirmation_text": 13,
-    "send_availability_text": 14,
-    "send_final_text": 15,
-    "send_chat_message_to_user": 16
+    "get_creator_google_calendar_busy_times": 4,
+    "create_or_get_conversation": 5,
+    "check_user_registration": 6,
+    "handle_confirmation": 7,
+    "create_unregistered_time_slots": 8,
+    "create_final_time_slots": 9,
+    "schedule_event": 10,
+    "send_event_invitation": 11,
+    "send_reminder": 12,
+    "handle_scheduling_conflict": 13,
+    "send_confirmation_text": 14,
+    "send_availability_text": 15,
+    "send_final_text": 16,
+    "send_chat_message_to_user": 17
 } 
