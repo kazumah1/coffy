@@ -127,20 +127,8 @@ CREATE_OR_GET_CONVERSATION_TOOL = {
                     "type": "string",
                     "description": "Optional UUID of recipient. Must be provided if the user is registered. Must not be provided if the user is unregistered. Not the same as the creator/owner_id."
                 },
-                "start_date": {
-                    "type": "string",
-                    "description": "Start date in ISO format (YYYY-MM-DD) for availability window"
-                },
-                "end_date": {
-                    "type": "string",
-                    "description": "End date in ISO format (YYYY-MM-DD) for availability window"
-                },
-                "message": {
-                    "type": "string",
-                    "description": "Initial SMS text message to send to the user. Should be short and concise. Include the owner_name/creator_name but not the owner_id/creator_id in the message."
-                }
             },
-            "required": ["phone_number", "user_name", "start_date", "end_date", "message"]
+            "required": ["phone_number", "user_name"]
         }
     }
 }

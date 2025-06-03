@@ -269,9 +269,6 @@ class OpenRouterService:
         phone_number: str,
         user_name: str,
         user_id: str = None,
-        start_date: str = None,
-        end_date: str = None,
-        message: str = None
     ) -> dict:
         """Each person (identified by phone number) will only ever have one conversation."""
         if not self.current_event_id:
