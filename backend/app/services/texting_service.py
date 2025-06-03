@@ -1,80 +1,87 @@
-import os
-import requests
-from typing import Optional, Dict, Any
 import aiohttp
 import logging
+from typing import Optional
+
 from app.core.config import settings
 from app.services.database_service import DatabaseService
-import json
-from app.services.tools import AVAILABLE_TOOLS, TOOL_NAME_TO_INDEX
-
 
 logger = logging.getLogger(__name__)
 
 class TextingService:
-    def __init__(self, db_service: DatabaseService = None, openrouter_service: 'OpenRouterService' = None):
-        self.base_url = "https://textbelt.com"
-        self.api_key = "01c1dc541121a6fb2e598557a71ad6425a2e2647ncs2hTldCM8WgY8uHoBnrNd8j" #settings.TEXTING_API_KEY
+    def __init__(
+        self,
+        db_service: DatabaseService = None,
+        openrouter_service: "OpenRouterService" = None
+    ):
+        # SignalWire configuration
+        self.space_url = "coffy.signalwire.com"
+        self.project_id = "a31d9015-86f4-4545-a078-f2a1a357e683"
+        self.api_token = "PSK_ahnxKGbQggU1AovvoeHMJ3Ai"
+        self.from_number = "INSERT LATER"  # e.g. "+1XXXYYYZZZZ"
+
         self.db_service = db_service
         self.openrouter_service = openrouter_service
 
-    async def send_text(self, to_number: str, message: str, final: bool = False):
-        """Send a text message to a phone number"""
-        reply_webhook_url = "https://952d-47-229-38-79.ngrok-free.app/text/reply"
-        if final:
-            reply_webhook_url = ""
+    async def send_text( self, to_number: str, message: str, final: bool = False ) -> dict:
+        url = (
+            f"https://{self.space_url}"
+            f"/api/laml/2010-04-01/Accounts/{self.project_id}/Messages.json"
+        )
+
+        # Basic auth with Project ID and API token
+        auth = aiohttp.BasicAuth(self.project_id, self.api_token)
+
+        payload = {
+            "From": self.from_number,
+            "To": to_number,
+            "Body": message
+        }
+
         async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.base_url}/text",
-                data={
-                    "phone": to_number,
-                    "message": message,
-                    "replyWebhookUrl": reply_webhook_url,
-                    "key": self.api_key
-                }
-            ) as response:
-                return await response.json()
-            
-            
-    async def handle_text_reply(self, request: dict):
-        """Handle a text reply"""
-        print("Received text reply:", request)
-        reply = request["text"]
-        from_number = request["fromNumber"]
-        
+            async with session.post(url, data=payload, auth=auth) as resp:
+                return await resp.json()
+
+
+    async def send_mms(
+        self,
+        to_number: str,
+        message: str,
+        media_url: str,
+    ) -> dict:
+        url = (
+            f"https://{self.space_url}"
+            f"/api/laml/2010-04-01/Accounts/{self.project_id}/Messages.json"
+        )
+        auth = aiohttp.BasicAuth(self.project_id, self.api_token)
+
+        payload = {
+            "From": self.from_number,
+            "To": to_number,
+            "Body": message,
+            "MediaUrl": media_url
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, data=payload, auth=auth) as resp:
+                return await resp.json()
+
+
+    async def handle_text_reply(self, request: dict) -> dict:
+        logger.info("Received SignalWire inbound SMS: %s", request)
+
+        reply = request.get("Body", "")
+        from_number = request.get("From", "")
+
         if self.db_service and self.openrouter_service:
             try:
-                # Use the stored OpenRouterService instance
                 return await self.openrouter_service.handle_inbound_message(from_number, reply)
             except Exception as e:
-                logger.error(f"Error handling text reply: {str(e)}")
+                logger.error(f"Error in handle_text_reply → {e}")
                 return {"message": reply, "from_number": from_number}
-        
+
+        # Fallback: just echo back
         return {"message": reply, "from_number": from_number}
 
-    async def send_mms(self, to_number: str, message: str, attachment_content: str, attachment_filename: str):
-        """Send a multimedia message with an attachment"""
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.base_url}/mms",
-                data={
-                    "number": to_number,
-                    "message": message,
-                    "attachment_content": attachment_content,
-                    "attachment_filename": attachment_filename
-                }
-            ) as response:
-                return await response.json()
-            
-    async def send_test_text(self, to_number: str, message: str, final: bool = False):
-        """Send a test text message to a phone number"""
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.base_url}/text",
-                data={
-                    "phone": to_number,
-                    "message": message,
-                    "key": self.api_key + "_test"
-                }
-            ) as response:
-                return await response.json()
+
+    async def send_test_text(self, to_number: str, message: str) -> dict:
+        pass
