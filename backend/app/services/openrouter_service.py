@@ -664,8 +664,8 @@ class OpenRouterService:
     async def schedule_event(
         self,
         event_id: str,
-        final_start: dict,
-        final_end: dict,
+        start: dict,
+        end: dict,
         location: str = None,
         creator_message: str = None
     ) -> dict:
@@ -701,11 +701,12 @@ class OpenRouterService:
 
             access_token = await self.token_manager.get_token(creator["id"])
 
+
             await self.google_calendar_service.add_event(
                 access_token["google_access_token"],
                 event["title"],
-                final_start,
-                final_end,
+                start,
+                end,
                 attendees=attendees,
                 location=location,
                 description=event["description"]
@@ -714,8 +715,8 @@ class OpenRouterService:
             # Update event with final details
             update_data = {
                 "status": "scheduled",
-                "final_start": final_start,
-                "final_end": final_end,
+                "start": start,
+                "end": end,
                 "location": location
             }
             print(f"Updating event: {update_data}")

@@ -275,13 +275,41 @@ SCHEDULE_EVENT_TOOL = {
                     "type": "string",
                     "description": "UUID of the event to schedule"
                 },
-                "final_start": {
-                    "type": "string",
-                    "description": "Final event start time in ISO format (YYYY-MM-DDTHH:MM:SS)"
+                "start": {
+                    "type": "object",
+                    "description": "Final event start time in ISO format (YYYY-MM-DDTHH:MM:SS)",
+                    "properties": {
+                        "date": {
+                            "type": "string",
+                            "description": "Date of the event in ISO format (YYYY-MM-DD)"
+                        },
+                        "timeZone": {
+                            "type": "string",
+                            "description": "Timezone of the event"
+                        },
+                        "dateTime": {
+                            "type": "string",
+                            "description": "Final event start time in ISO format (YYYY-MM-DDTHH:MM:SS)"
+                        },
+                    }
                 },
-                "final_end": {
-                    "type": "string",
-                    "description": "Final event end time in ISO format (YYYY-MM-DDTHH:MM:SS)"
+                "end": {
+                    "type": "object",
+                    "description": "Final event end time in ISO format (YYYY-MM-DDTHH:MM:SS)",
+                    "properties": {
+                        "date": {
+                            "type": "string",
+                            "description": "Date of the event in ISO format (YYYY-MM-DD)"
+                        },
+                        "timeZone": {
+                            "type": "string",
+                            "description": "Timezone of the event"
+                        },
+                        "dateTime": {
+                            "type": "string",
+                            "description": "Final event end time in ISO format (YYYY-MM-DDTHH:MM:SS)"
+                        },
+                    }
                 },
                 "location": {
                     "type": "string",
