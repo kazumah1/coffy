@@ -111,7 +111,7 @@ CREATE_OR_GET_CONVERSATION_TOOL = {
     "type": "function",
     "function": {
         "name": "create_or_get_conversation",
-        "description": "Create a new SMS conversation to check if a user is interested in an event. This is the first step in the availability collection process. After creating the conversation, the user will be asked if they are interested in the event through an SMS message. If the conversation already exists, return the conversation.",
+        "description": "Create a new SMS conversation to check if a user is interested in an event. This is the first step in the availability collection process. If the conversation already exists, returns the existing conversation.",
         "parameters": {
             "type": "object",
             "properties": {

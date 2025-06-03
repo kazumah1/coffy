@@ -77,8 +77,12 @@ DRAFT_PROMPT = """
       </event_participant_creation>
       
       <conversation_setup>
-        Set up a conversation object that enables you to send the first message to all participants. This requires the event participants to be created first for all participants (except the creator). Once you create the conversation, it automatically sends the first message to get everyone talking.
+        Set up a conversation object. This requires the event participants to be created first for all participants (except the creator).
       </conversation_setup>
+
+      <confirmation_message>
+        Send the first confirmation message to the participants. This requires the conversation object to be created first.
+      </confirmation_message>
     </key_responsibilities>
     
     <task_approach>
@@ -86,7 +90,8 @@ DRAFT_PROMPT = """
       
       **Tool execution order (super important!):**
       1. Create event participant model first
-      2. Set up conversation object with initial message second
+      2. Set up conversation object second
+      3. Send the first confirmation message to the participants third
       
       **Phone number handling:**
       The phone numbers will be provided in various formats like "555-123-4567" or "5551234567" or "+15551234567" - put it in the format of "+15551234567".
