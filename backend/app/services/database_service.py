@@ -421,7 +421,8 @@ class DatabaseService:
             "status": "active",
             "last_message": None,
             "created_at": now.isoformat(),
-            "updated_at": now.isoformat()
+            "updated_at": now.isoformat(),
+            # "messages": []
         }
         response = self.client.table("conversations").insert(conversation).execute()
         

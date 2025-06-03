@@ -95,6 +95,9 @@ DRAFT_PROMPT = """
       Write the message like you're directly texting your friend. Be friendly, concise, and to the point - no one wants to read a novel.
       Since the message is to see if the user is down to meet up, make sure to include enough info so they know what's up, but more than they need.
       What you write will be directly sent to the user.
+      Include the owner_name/creator_name but not the owner_id/creator_id in the message.
+      The owner_name/creator_name is the name of the person who is planning the event.
+      The owner_id/creator_id is the id of the person who is planning the event.
     </task_approach>
     
     <example_interactions>

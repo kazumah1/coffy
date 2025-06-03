@@ -1347,12 +1347,12 @@ class OpenRouterService:
                 if step == 0:
                     messages = [
                         {"role": "system", "content": AVAILABLE_PROMPTS[stage].format(current_datetime=current_datetime)},
-                        {"role": "user", "content": user_input + " (creator_name: " + creator_name + ", owner_id: " + self._current_owner_id + ")"},
+                        {"role": "user", "content": user_input + " (owner_name/creator_name: " + creator_name + ", owner_id/creator_id: " + self._current_owner_id + ")"},
                     ]
                 else:
                     messages = [
                         {"role": "system", "content": AVAILABLE_PROMPTS[stage].format(current_datetime=current_datetime)},
-                        {"role": "user", "content": user_input + " (owner_id: " + self._current_owner_id + ")"}
+                        {"role": "user", "content": user_input + " (owner_id/creator_id: " + self._current_owner_id + ")"}
                     ]
 
                 # Add previous response if exists
@@ -1473,11 +1473,11 @@ class OpenRouterService:
             print("got participant")
 
             # Fetch last 10 messages for LLM context
-            conversation_history = await self.db_service.get_last_k_conversation_messages(active_conversation["id"], k=10)
-            # Build LLM context from conversation history
-            history_messages = [
-                {"role": m["role"], "content": m["content"]} for m in conversation_history
-            ]
+            # conversation_history = await self.db_service.get_last_k_conversation_messages(active_conversation["id"], k=10)
+            # # Build LLM context from conversation history
+            # history_messages = [
+            #     {"role": m["role"], "content": m["content"]} for m in conversation_history
+            # ]
 
             context = f"""Event: {event["title"] if event else "Unknown Event"}
                 \nOwner ID: {self._current_owner_id}

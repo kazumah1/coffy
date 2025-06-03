@@ -137,7 +137,7 @@ CREATE_AVAILABILITY_CONVERSATION_TOOL = {
                 },
                 "message": {
                     "type": "string",
-                    "description": "Initial SMS text message to send to the user. Should be short and concise. Do not include the user's id in the message."
+                    "description": "Initial SMS text message to send to the user. Should be short and concise. Include the owner_name/creator_name but not the owner_id/creator_id in the message."
                 }
             },
             "required": ["phone_number", "user_name", "start_date", "end_date", "message"]
