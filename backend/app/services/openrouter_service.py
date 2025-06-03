@@ -677,9 +677,9 @@ class OpenRouterService:
             # Validate the event exists and get its details
             print(f"Final start: {final_start}")
             print(f"Final end: {final_end}")
-            event = await self.db_service.get_event_by_id(self.current_event_id)
+            event = await self.db_service.get_event_by_id(event_id)
             if not event:
-                raise RuntimeError(f"Event {self.current_event_id} not found")
+                raise RuntimeError(f"Event {event_id} not found")
                 
             # Get all participants
             participants = await self.db_service.get_event_participants(event_id)
@@ -704,8 +704,10 @@ class OpenRouterService:
             final_start["dateTime"] = datetime.fromisoformat(final_start["dateTime"].replace("Z", "+00:00")).isoformat()
             final_end["dateTime"] = datetime.fromisoformat(final_end["dateTime"].replace("Z", "+00:00")).isoformat()
 
+            access_token = await self.token_manager.get_token(creator["id"])
+
             await self.google_calendar_service.add_event(
-                creator["google_access_token"],
+                access_token["google_access_token"],
                 event["title"],
                 final_start,
                 final_end,
