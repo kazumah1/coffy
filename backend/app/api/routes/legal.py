@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from pathlib import Path
 
 router = APIRouter()
@@ -13,7 +13,7 @@ async def privacy_policy(request: Request):
             url=f"https://www.coffy.app/privacy-policy",
             status_code=301
         )
-    return FileResponse("app/static/privacy-policy.html")
+    return HTMLResponse(content=open("app/static/privacy-policy.html").read())
 
 @router.get("/terms")
 async def terms(request: Request):
@@ -24,4 +24,4 @@ async def terms(request: Request):
             url=f"https://www.coffy.app/terms",
             status_code=301
         )
-    return FileResponse("app/static/terms.html") 
+    return HTMLResponse(content=open("app/static/terms.html").read()) 

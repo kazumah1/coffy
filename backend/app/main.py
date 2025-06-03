@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from app.api.routes import auth
 from app.api.routes.events import router as events_router
@@ -22,6 +24,10 @@ app = FastAPI(
     description="Smart Event Scheduling API",
     version="0.1.0"
 )
+
+# Mount static files
+static_dir = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 app.add_middleware(
     CORSMiddleware,
