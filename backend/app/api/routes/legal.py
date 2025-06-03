@@ -4,6 +4,9 @@ from pathlib import Path
 
 router = APIRouter()
 
+# Get the path to the static directory relative to where the server is running
+STATIC_DIR = Path("static")
+
 @router.get("/privacy-policy")
 async def privacy_policy(request: Request):
     """Serve the privacy policy page."""
@@ -13,7 +16,7 @@ async def privacy_policy(request: Request):
             url=f"https://www.coffy.app/privacy-policy",
             status_code=301
         )
-    return HTMLResponse(content=open("app/static/privacy-policy.html").read())
+    return RedirectResponse(url="/static/privacy-policy.html")
 
 @router.get("/terms")
 async def terms(request: Request):
@@ -24,4 +27,4 @@ async def terms(request: Request):
             url=f"https://www.coffy.app/terms",
             status_code=301
         )
-    return HTMLResponse(content=open("app/static/terms.html").read()) 
+    return RedirectResponse(url="/static/terms.html") 
