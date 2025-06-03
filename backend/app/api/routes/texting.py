@@ -15,4 +15,4 @@ async def handle_text_reply(request: dict, texting_service: TextingService = Dep
 
 @router.post("/test")
 async def send_test_text(texting_service: TextingService = Depends(get_texting_service)):
-    return await texting_service.send_test_text("+16265905589", "BINK", True)
+    return await texting_service.send_test_text("+16265905589", "BINK")

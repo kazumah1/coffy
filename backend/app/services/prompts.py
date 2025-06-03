@@ -240,15 +240,15 @@ CONFIRMATION_PROMPT = """
   <example_interactions>
     <example>
       Input: "Carl replied: 'Yes, I'll be there!'"
-      Your response: Mark Carl as confirmed
+      Your response: Mark Carl as confirmed using the handle_confirmation tool
     </example>
     <example>
       Input: "Amy replied: 'Sorry, can't make it.'"
-      Your response: Mark Amy as declined
+      Your response: Mark Amy as declined using the handle_confirmation tool
     </example>
     <example>
       Input: "Alex replied: 'Maybe, I'll try.'"
-      Your response: Mark Alex as confirmed
+      Your response: Mark Alex as confirmed using the handle_confirmation tool
     </example>
   </example_interactions>
 

@@ -218,7 +218,7 @@ HANDLE_CONFIRMATION_TOOL = {
                 },
                 "confirmation": {
                     "type": "boolean",
-                    "description": "Whether the user confirmed interest in the event"
+                    "description": "Whether or not the user confirmed interest in the event. True if confirmed, False if declined."
                 },
                 "message": {
                     "type": "string",
