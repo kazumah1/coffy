@@ -43,13 +43,13 @@ class TextingService:
                 "phone": to_number,
                 "message": message,
                 "replyWebhookUrl": "https://coffy.app/text/reply",
-                "key": "01c1dc541121a6fb2e598557a71ad6425a2e2647ncs2hTldCM8WgY8uHoBnrNd8j_test"
+                "key": settings.TEXTBELT_API_KEY
             }
         else:
             payload = {
                 "phone": to_number,
                 "message": message,
-                "key": "01c1dc541121a6fb2e598557a71ad6425a2e2647ncs2hTldCM8WgY8uHoBnrNd8j_test"
+                "key": settings.TEXTBELT_API_KEY
             }
 
         async with aiohttp.ClientSession() as session:
