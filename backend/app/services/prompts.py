@@ -98,7 +98,7 @@ DRAFT_PROMPT = """
       2. Set up conversation object second
       3. Check the creator's availability using the Google Calendar tool third.
       4. Send the first confirmation message to the participants last.
-      
+
       **Phone number handling:**
       The phone numbers will be provided in various formats like "555-123-4567" or "5551234567" or "+15551234567" - put it in the format of "+15551234567".
       
@@ -451,6 +451,7 @@ SCHEDULING_PROMPT = """
     - "Great news! Your [event type] is scheduled for [day/date] at [time]. [Participant names] will be joining you. Looking forward to it!"
     - "You're all set! [Event details] - see you there!"
     - Include the essential info: what, when, who, and where (if applicable)
+    The message will be sent directly to the creator, so make sure it's like how you would text a friend.
   </messaging_style>
 
   <example_interactions>

@@ -317,7 +317,7 @@ SCHEDULE_EVENT_TOOL = {
                 },
                 "creator_message": {
                     "type": "string",
-                    "description": "Message to send to the creator after the event has been scheduled"
+                    "description": "Message to send to the creator after the event has been scheduled. Will be sent directly to the creator."
                 }
             },
             "required": ["event_id", "start", "end", "creator_message"]

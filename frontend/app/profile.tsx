@@ -31,7 +31,7 @@ const colors = {
   background: '#FFFEF7',
 };
 
-const BACKEND_URL = "http://localhost:8000";
+const BACKEND_URL = "https://www.coffy.app";
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
