@@ -672,8 +672,8 @@ class OpenRouterService:
         """Schedule event with final details and notify participants. Returns updated event info and notification status."""
         try:
             # Validate the event exists and get its details
-            print(f"Final start: {final_start}")
-            print(f"Final end: {final_end}")
+            print(f"Start: {start}")
+            print(f"End: {end}")
             event = await self.db_service.get_event_by_id(event_id)
             if not event:
                 raise RuntimeError(f"Event {event_id} not found")
