@@ -67,8 +67,13 @@ class GoogleCalendarService:
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
         }
-        start["dateTime"] = datetime.fromisoformat(start["dateTime"].replace("Z", "+00:00")).isoformat()
-        end["dateTime"] = datetime.fromisoformat(end["dateTime"].replace("Z", "+00:00")).isoformat()
+        
+        # Ensure timezone is properly formatted (replace Z with +00:00 if needed)
+        if start["dateTime"].endswith("Z"):
+            start["dateTime"] = start["dateTime"].replace("Z", "+00:00")
+        if end["dateTime"].endswith("Z"):
+            end["dateTime"] = end["dateTime"].replace("Z", "+00:00")
+            
         event_data = {
             "summary": title,
             "start": start,
