@@ -1366,6 +1366,21 @@ class OpenRouterService:
                                 if isinstance(tool_response, dict) and "phone_number" in tool_response:
                                     phone_numbers.add(tool_response["phone_number"])
                                     
+                                # If we've sent the confirmation text, we can stop the agent loop
+                                if tool_name == "send_confirmation_text":
+                                    print("Confirmation text sent, stopping agent loop")
+                                    return {
+                                        "success": True,
+                                        "stage_idx": self.stage_number,
+                                        "final_stage": self.STAGES[self.stage_number],
+                                        "phone_numbers": list(phone_numbers),
+                                        "event_id": self.current_event_id,
+                                        "response": response,
+                                        "step": step,
+                                        "total_prompt_tokens": total_prompt_tokens,
+                                        "total_completion_tokens": total_completion_tokens
+                                    }
+                                    
                             except Exception as e:
                                 logger.error(f"Error executing tool {tool_name}: {str(e)}")
                                 messages.append({
@@ -1411,7 +1426,7 @@ class OpenRouterService:
         try:
             # Find active conversation for this phone number
             conversations = await self.db_service.get_conversations_by_phone(phone_number)
-            print(f"Conversations: {conversations}")
+            print(f"Found conversations for {phone_number}: {conversations}")
             active_conversation = next(
                 (c for c in conversations if c["status"] == "active"),
                 None
@@ -1421,14 +1436,6 @@ class OpenRouterService:
                 logger.warning(f"No active conversation found for {phone_number}")
                 return {"message": message, "from_number": phone_number}
             
-            # Save the user message to conversation history
-            # user_message_obj = {
-            #     "role": "user",
-            #     "content": message,
-            #     "timestamp": datetime.now().isoformat()
-            # }
-            # await self.db_service.append_conversation_message(active_conversation["id"], user_message_obj)
-            
             # Set the current event from the conversation
             self.set_current_event(active_conversation["event_id"])
             
@@ -1436,16 +1443,9 @@ class OpenRouterService:
             now = datetime.now()
             current_datetime = now.astimezone().isoformat()
             event = await self.db_service.get_event_by_id(active_conversation["event_id"])
-            print("got event")
+            print(f"Found event: {event['title']} (ID: {event['id']})")
             participant = await self.db_service.get_event_participant_by_phone(active_conversation["event_id"], phone_number)
-            print("got participant")
-
-            # Fetch last 10 messages for LLM context
-            # conversation_history = await self.db_service.get_last_k_conversation_messages(active_conversation["id"], k=10)
-            # # Build LLM context from conversation history
-            # history_messages = [
-            #     {"role": m["role"], "content": m["content"]} for m in conversation_history
-            # ]
+            print(f"Found participant: {participant['name']} (Status: {participant['status']})")
 
             creator = await self.db_service.get_user_by_id(event["creator_id"])
             name = creator["name"] if creator else "A friend"
@@ -1460,7 +1460,10 @@ class OpenRouterService:
                 \nUser replied: {message}
                 """
             
+            print(f"Processing message with context: {context}")
+            
             if participant["status"] == "pending_confirmation":
+                print("Handling confirmation response")
                 messages = [
                     {
                         "role": "system",
@@ -1472,10 +1475,10 @@ class OpenRouterService:
                     }
                 ]
                 tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["handle_confirmation"]]]
-                print(f"Messages: {messages}")
+                print(f"Sending confirmation prompt to agent with messages: {messages}")
                 response, usage = await self.prompt_agent(messages, tools)
                 print("--------------------------------")
-                print(f"Response: {response}")
+                print(f"Confirmation response: {response}")
                 print("================================")
                 if hasattr(response, 'tool_calls') and response.tool_calls:
                     for tool_call in response.tool_calls:
@@ -1489,9 +1492,12 @@ class OpenRouterService:
                             out = await self.TOOL_MAPPINGS[tool_name](**tool_args)
                             print(f"Tool call output: {out}")
                 
+                # After handling confirmation, check if we need to move to availability
+                participant = await self.db_service.get_event_participant_by_phone(active_conversation["event_id"], phone_number)
                 if participant["status"] == "pending_availability":
-                    if participant["registered"]: # TODO: test this
-                        print("registered user")
+                    print("Moving to availability collection")
+                    if participant["registered"]:
+                        print("Handling registered user availability")
                         messages = [
                             {
                                 "role": "system",
@@ -1503,10 +1509,10 @@ class OpenRouterService:
                             }
                         ]
                         tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["get_google_calendar_busy_times"]]]
-                        print(f"Messages: {messages}")
+                        print(f"Sending availability prompt to agent with messages: {messages}")
                         response, usage = await self.prompt_agent(messages, tools)
                         print("--------------------------------")
-                        print(f"Response: {response}")
+                        print(f"Availability response: {response}")
                         print("================================")
                         if hasattr(response, 'tool_calls') and response.tool_calls:
                             for tool_call in response.tool_calls:
