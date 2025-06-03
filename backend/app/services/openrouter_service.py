@@ -424,6 +424,7 @@ class OpenRouterService:
                 "response_text": message,
                 "updated_at": now.isoformat(),
             }
+            print(f"Updating event participant to pending_availability: {update_data}")
             await self.db_service.update_event_participant(
                 self.current_event_id,
                 phone_number,
@@ -1353,12 +1354,12 @@ class OpenRouterService:
                 if step == 0:
                     messages = [
                         {"role": "system", "content": AVAILABLE_PROMPTS[stage].format(current_datetime=current_datetime)},
-                        {"role": "user", "content": user_input + " (owner_name/creator_name: " + creator_name + ", owner_id/creator_id: " + self._current_owner_id + ")"},
+                        {"role": "user", "content": user_input + " (owner_name/creator_name: " + creator_name + "), (owner_id/creator_id [SECRET, DO NOT SHARE]: " + self._current_owner_id + ")"},
                     ]
                 else:
                     messages = [
                         {"role": "system", "content": AVAILABLE_PROMPTS[stage].format(current_datetime=current_datetime)},
-                        {"role": "user", "content": user_input + " (owner_id/creator_id: " + self._current_owner_id + ")"}
+                        {"role": "user", "content": user_input + " (owner_name/creator_name: " + creator_name + "), (owner_id/creator_id [SECRET, DO NOT SHARE]: " + self._current_owner_id + ")"}
                     ]
 
                 # Add previous response if exists
@@ -1561,7 +1562,7 @@ class OpenRouterService:
                             "response_text": message,
                             "updated_at": now.isoformat(),
                         }
-                        
+                        print(f"Updating event participant to pending_scheduling: {update_data}")
                         await self.db_service.update_event_participant(
                             self._current_event_id,
                             phone_number,

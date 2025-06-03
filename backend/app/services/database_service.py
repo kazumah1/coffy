@@ -577,8 +577,10 @@ class DatabaseService:
         """
         now = datetime.now()
         update_data["updated_at"] = now.isoformat()
+        print("putting update data into supabase")
         response = self.client.table("event_participants").update(update_data).eq("event_id", event_id).eq("phone_number", phone_number).execute()
         
+        print("response", response)
         if not response.data:
             raise RuntimeError(f"Failed to update event participant: {response.error.message}")
             
