@@ -13,7 +13,7 @@ from app.dependencies import (
 
 router = APIRouter()
 
-@router.get("/test")
+@router.get("/test-user-retrieval")
 async def test_user_retrieval(phone_number: str, id: str,
     db_service: DatabaseService = Depends(get_database_service)
 ):

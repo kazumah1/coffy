@@ -107,11 +107,11 @@ GET_GOOGLE_CALENDAR_BUSY_TIMES_TOOL = {
     }
 }
 
-CREATE_AVAILABILITY_CONVERSATION_TOOL = {
+CREATE_OR_GET_CONVERSATION_TOOL = {
     "type": "function",
     "function": {
-        "name": "create_availability_conversation",
-        "description": "Create a new SMS conversation to check if a user is interested in an event. This is the first step in the availability collection process. After creating the conversation, the user will be asked if they are interested in the event through an SMS message.",
+        "name": "create_or_get_conversation",
+        "description": "Create a new SMS conversation to check if a user is interested in an event. This is the first step in the availability collection process. After creating the conversation, the user will be asked if they are interested in the event through an SMS message. If the conversation already exists, return the conversation.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -480,7 +480,7 @@ AVAILABLE_TOOLS = [
     CREATE_EVENT_PARTICIPANT_TOOL,
     SEARCH_CONTACTS_TOOL,
     GET_GOOGLE_CALENDAR_BUSY_TIMES_TOOL,
-    CREATE_AVAILABILITY_CONVERSATION_TOOL,
+    CREATE_OR_GET_CONVERSATION_TOOL,
     CHECK_USER_REGISTRATION_TOOL,
     HANDLE_CONFIRMATION_TOOL,
     CREATE_UNREGISTERED_TIME_SLOTS_TOOL,
@@ -501,7 +501,7 @@ TOOL_NAME_TO_INDEX = {
     "create_event_participant": 1,
     "search_contacts": 2,
     "get_google_calendar_busy_times": 3,
-    "create_availability_conversation": 4,
+    "create_or_get_conversation": 4,
     "check_user_registration": 5,
     "handle_confirmation": 6,
     "create_unregistered_time_slots": 7,

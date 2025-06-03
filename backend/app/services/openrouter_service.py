@@ -91,7 +91,7 @@ class OpenRouterService:
             "search_contacts": self.search_contacts,
             "check_user_registration": self.check_user_registration,
             "create_event_participant": self.create_event_participant,
-            "create_availability_conversation": self.create_availability_conversation,
+            "create_or_get_conversation": self.create_or_get_conversation,
             "handle_confirmation": self.handle_confirmation,
             "send_confirmation_text": self.send_confirmation_text,
             "send_availability_text": self.send_availability_text,
@@ -264,7 +264,7 @@ class OpenRouterService:
             
         return participant
 
-    async def create_availability_conversation(
+    async def create_or_get_conversation(
         self,
         phone_number: str,
         user_name: str,
@@ -297,14 +297,20 @@ class OpenRouterService:
                 f"Participant {phone_number} is registered but no user_id was provided"
             )
         
+        # Get conversation if exists
+        conversations = await self.db_service.get_conversations_by_phone(phone_number)
+        if conversations:
+            conversation = conversations[0]
+
         # Create conversation for this availability request
-        conversation = await self.db_service.create_conversation(
-            self.current_event_id,
-            phone_number,
-            user_name,
-            "registered" if user_id else "unregistered",
-            user_id
-        )
+        else:
+            conversation = await self.db_service.create_conversation(
+                self.current_event_id,
+                phone_number,
+                user_name,
+                "registered" if user_id else "unregistered",
+                user_id
+            )
         
         # Get event details for the message
         event = await self.db_service.get_event_by_id(self.current_event_id)
@@ -350,7 +356,7 @@ class OpenRouterService:
             await self.db_service.update_conversation(
                 self.current_event_id,
                 phone_number,
-                "failed",
+                "active",
                 user_name
             )
             raise RuntimeError(f"Failed to send availability request: {str(e)}")
@@ -428,7 +434,7 @@ class OpenRouterService:
             await self.db_service.update_conversation(
                 self.current_event_id,
                 phone_number,
-                "completed"
+                "active"
             )
             now = datetime.now()
             update_data = {
@@ -722,7 +728,7 @@ class OpenRouterService:
                     await self.db_service.update_conversation(
                         event_id,
                         participant["phone_number"],
-                        "completed"
+                        "active"
                     )
 
                     # create a google calendar event for registered users
@@ -860,7 +866,7 @@ class OpenRouterService:
             await self.db_service.update_conversation(
                 event_id,
                 phone_number,
-                "completed",
+                "active",
                 participant["name"],
                 last_message=message
             )
@@ -878,7 +884,7 @@ class OpenRouterService:
                 await self.db_service.update_conversation(
                     event_id,
                     phone_number,
-                    "failed",
+                    "active",
                     participant["name"]
                 )
             self._handle_error(e, "Failed to send reminder")
@@ -965,7 +971,7 @@ class OpenRouterService:
                         event_id,
                         participant["phone_number"],
                         participant["name"],
-                        "needs_rescheduling"
+                        "active"
                     )
                     
                     conversation_results.append({
@@ -1109,7 +1115,7 @@ class OpenRouterService:
             await self.db_service.update_conversation(
                 event_id,
                 phone_number,
-                "invitation_sent",
+                "active",
                 participant["name"]
             )
             
@@ -1126,7 +1132,7 @@ class OpenRouterService:
                 await self.db_service.update_conversation(
                     event_id,
                     phone_number,
-                    "failed",
+                    "active",
                     participant["name"]
                 )
             self._handle_error(e, "Failed to send event invitation")
@@ -1305,10 +1311,10 @@ class OpenRouterService:
 
     TOOLS_FOR_STAGE = {
         "agent loop": [
-            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_availability_conversation", "send_chat_message_to_user"
+            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_chat_message_to_user"
         ],
         "participant_setup": [
-            "create_event_participant", "create_availability_conversation"
+            "create_event_participant", "create_or_get_conversation"
         ],
         "confirmation": [
             "send_confirmation_text", "handle_confirmation"

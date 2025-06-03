@@ -119,6 +119,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     const profileData = JSON.parse(localProfile);
                     const hasProfile = profileData.name && profileData.phone_number;
                     const hasContacts = localContacts && JSON.parse(localContacts).length > 0;
+                    if (!hasContacts) {
+                        console.log('No contacts found, prompting user to load contacts');
+                    }
+                    if (!hasProfile) {
+                        console.log('No profile found, prompting user to complete profile');
+                    }
                     return !(hasProfile && hasContacts);
                 }
             } catch (localError) {
