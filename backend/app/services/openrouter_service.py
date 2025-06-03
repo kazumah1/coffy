@@ -1450,6 +1450,7 @@ class OpenRouterService:
         """Handle an incoming text message from a participant"""
         try:
             # Find active conversation for this phone number
+            print("getting conversations")
             conversations = await self.db_service.get_conversations_by_phone(phone_number)
             active_conversation = next(
                 (c for c in conversations if c["status"] == "active"),
@@ -1460,14 +1461,6 @@ class OpenRouterService:
                 logger.warning(f"No active conversation found for {phone_number}")
                 return {"message": message, "from_number": phone_number}
             
-            # Save the user message to conversation history
-            # user_message_obj = {
-            #     "role": "user",
-            #     "content": message,
-            #     "timestamp": datetime.now().isoformat()
-            # }
-            # await self.db_service.append_conversation_message(active_conversation["id"], user_message_obj)
-            
             # Set the current event from the conversation
             self.set_current_event(active_conversation["event_id"])
             
@@ -1476,25 +1469,27 @@ class OpenRouterService:
             current_datetime = now.astimezone().isoformat()
             event = await self.db_service.get_event_by_id(self._current_event_id)
             print("got event")
+            
+            if not event:
+                logger.error(f"Event {self._current_event_id} not found")
+                return {"message": message, "from_number": phone_number}
+            
             participant = await self.db_service.get_event_participant_by_phone(self._current_event_id, phone_number)
             print("got participant")
-
-            # Fetch last 10 messages for LLM context
-            # conversation_history = await self.db_service.get_last_k_conversation_messages(active_conversation["id"], k=10)
-            # # Build LLM context from conversation history
-            # history_messages = [
-            #     {"role": m["role"], "content": m["content"]} for m in conversation_history
-            # ]
+            
+            if not participant:
+                logger.error(f"Participant not found for event {self._current_event_id} and phone {phone_number}")
+                return {"message": message, "from_number": phone_number}
 
             creator = await self.db_service.get_user_by_id(event["creator_id"])
             name = creator["name"] if creator else "A friend"
 
-            context = f"""Event: {event["title"] if event else "Unknown Event"}
+            context = f"""Event: {event["title"]}
                 \nOwner ID: {event["creator_id"]}
                 \nOwner Name: {name}
                 \nPhone number: {phone_number}
                 \nLast message sent to user: {active_conversation.get("last_message", "No previous message")}
-                \nParticipant status: {participant["status"] if participant else "unknown"}
+                \nParticipant status: {participant["status"]}
                 \nUser replied: {message}
                 """
             
@@ -1642,7 +1637,6 @@ class OpenRouterService:
                     phone_number,
                     update_data
                 )
-                self._current_participants[phone_number].update(update_data)
                 schedule_event = True
                 print("checking if all participants are pending scheduling")
                 participants = await self.db_service.get_event_participants(self._current_event_id)

@@ -313,7 +313,7 @@ class DatabaseService:
         # Upsert to handle both new and existing records
         response = self.client.table("availability").upsert(data).execute()
         
-        if response.error:
+        if not response.data:
             raise RuntimeError(f"Failed to store busy times: {response.error.message}")
             
         return data
@@ -399,7 +399,7 @@ class DatabaseService:
         response = self.client.table("event_participants").select("*").eq("event_id", event_id).eq("phone_number", phone_number).execute()
         if not response.data:
             return None
-        return self.from_iso_strings(response.data[0])
+        return response.data[0]
 
     async def create_conversation(
         self,
