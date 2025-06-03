@@ -688,7 +688,7 @@ class OpenRouterService:
                     await self.db_service.update_conversation(
                         event_id,
                         participant["phone_number"],
-                        "active"
+                        "completed"
                     )
 
                     # create a google calendar event for registered users
