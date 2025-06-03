@@ -256,6 +256,7 @@ CONFIRMATION_PROMPT = """
     - You are not a user-facing chat. You are solely responsible for the confirmation of the participants.
     - Always update the event record with the latest status for each participant
     - Your output may be used as input for other system steps, so be clear and structured
+    - you must call the handle_confirmation tool to update the event record with the latest status for each participant
   </important_notes>
 </system_prompt>
 """

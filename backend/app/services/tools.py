@@ -287,24 +287,24 @@ SCHEDULE_EVENT_TOOL = {
                     "type": "string",
                     "description": "UUID of the event to schedule"
                 },
-                "final_time": {
+                "final_start": {
                     "type": "string",
-                    "description": "Final event time in ISO format (YYYY-MM-DDTHH:MM:SS)"
+                    "description": "Final event start time in ISO format (YYYY-MM-DDTHH:MM:SS)"
+                },
+                "final_end": {
+                    "type": "string",
+                    "description": "Final event end time in ISO format (YYYY-MM-DDTHH:MM:SS)"
                 },
                 "location": {
                     "type": "string",
                     "description": "Optional location for the event"
-                },
-                "duration_minutes": {
-                    "type": "integer",
-                    "description": "Duration of the event in minutes (default: 60)"
                 },
                 "creator_message": {
                     "type": "string",
                     "description": "Message to send to the creator after the event has been scheduled"
                 }
             },
-            "required": ["event_id", "final_time", "creator_message"]
+            "required": ["event_id", "final_start", "final_end", "creator_message"]
         }
     }
 }

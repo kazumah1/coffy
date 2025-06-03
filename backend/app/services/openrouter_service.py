@@ -715,13 +715,15 @@ class OpenRouterService:
         """Schedule event with final details and notify participants. Returns updated event info and notification status."""
         try:
             # Validate the event exists and get its details
+            print(f"Final start: {final_start}")
+            print(f"Final end: {final_end}")
             event = await self.db_service.get_event_by_id(event_id)
             if not event:
                 raise RuntimeError(f"Event {event_id} not found")
                 
             # Get all participants
             participants = await self.db_service.get_event_participants(event_id)
-            
+            print(f"Participants: {participants}")
             # Send notifications to all participants
             attendees = []
             for participant in participants:
@@ -736,13 +738,13 @@ class OpenRouterService:
                     if participant["registered"]: # only registered users have a calendarId
                         user = await self.db_service.get_user_by_phone(participant["phone_number"])
                         attendees.append(user["email"])
-                        
+            print(f"Attendees: {attendees}")
             creator = await self.db_service.get_user_by_id(event["creator_id"])
-
+            print(f"Creator: {creator}")
             final_start["dateTime"] = datetime.fromisoformat(final_start["dateTime"].replace("Z", "+00:00")).isoformat()
             final_end["dateTime"] = datetime.fromisoformat(final_end["dateTime"].replace("Z", "+00:00")).isoformat()
 
-            self.google_calendar_service.add_event(
+            await self.google_calendar_service.add_event(
                 creator["google_access_token"],
                 event["title"],
                 final_start,
@@ -751,7 +753,7 @@ class OpenRouterService:
                 location=location,
                 description=event["description"]
             )
-
+            print("added event to google calendar")
             # Update event with final details
             update_data = {
                 "status": "scheduled",
@@ -759,15 +761,15 @@ class OpenRouterService:
                 "final_end": final_end,
                 "location": location
             }
-            
+            print(f"Updating event: {update_data}")
             updated_event = await self.db_service.update_event(event_id, update_data)
-
+            print(f"Updated event: {updated_event}")
             # Send final message to creator via chat
             final_message = f"Great! Your event '{event['title']}' has been scheduled for {final_start['dateTime']} - {final_end['dateTime']}"
             if location:
                 final_message += f" at {location}"
             final_message += "."
-            
+            print(f"Sending final message to creator: {final_message}")
             await send_chat_message(creator["id"], final_message)
 
             # Send text messages to participants
@@ -778,7 +780,7 @@ class OpenRouterService:
                         f"Scheduled {event['title']} with {creator['name']} for {final_start['dateTime']} - {final_end['dateTime']} at {location}.",
                         "final"
                     )
-            
+                    print(f"Sent final message to participant: {participant['phone_number']}")
             return {
                 "success": True,
                 "event": updated_event,
@@ -1450,8 +1452,8 @@ class OpenRouterService:
         """Handle an incoming text message from a participant"""
         try:
             # Find active conversation for this phone number
-            print("getting conversations")
             conversations = await self.db_service.get_conversations_by_phone(phone_number)
+            print(f"Conversations: {conversations}")
             active_conversation = next(
                 (c for c in conversations if c["status"] == "active"),
                 None
@@ -1461,6 +1463,14 @@ class OpenRouterService:
                 logger.warning(f"No active conversation found for {phone_number}")
                 return {"message": message, "from_number": phone_number}
             
+            # Save the user message to conversation history
+            # user_message_obj = {
+            #     "role": "user",
+            #     "content": message,
+            #     "timestamp": datetime.now().isoformat()
+            # }
+            # await self.db_service.append_conversation_message(active_conversation["id"], user_message_obj)
+            
             # Set the current event from the conversation
             self.set_current_event(active_conversation["event_id"])
             
@@ -1469,27 +1479,25 @@ class OpenRouterService:
             current_datetime = now.astimezone().isoformat()
             event = await self.db_service.get_event_by_id(self._current_event_id)
             print("got event")
-            
-            if not event:
-                logger.error(f"Event {self._current_event_id} not found")
-                return {"message": message, "from_number": phone_number}
-            
             participant = await self.db_service.get_event_participant_by_phone(self._current_event_id, phone_number)
             print("got participant")
-            
-            if not participant:
-                logger.error(f"Participant not found for event {self._current_event_id} and phone {phone_number}")
-                return {"message": message, "from_number": phone_number}
+
+            # Fetch last 10 messages for LLM context
+            # conversation_history = await self.db_service.get_last_k_conversation_messages(active_conversation["id"], k=10)
+            # # Build LLM context from conversation history
+            # history_messages = [
+            #     {"role": m["role"], "content": m["content"]} for m in conversation_history
+            # ]
 
             creator = await self.db_service.get_user_by_id(event["creator_id"])
             name = creator["name"] if creator else "A friend"
 
-            context = f"""Event: {event["title"]}
+            context = f"""Event: {event["title"] if event else "Unknown Event"}
                 \nOwner ID: {event["creator_id"]}
                 \nOwner Name: {name}
                 \nPhone number: {phone_number}
                 \nLast message sent to user: {active_conversation.get("last_message", "No previous message")}
-                \nParticipant status: {participant["status"]}
+                \nParticipant status: {participant["status"] if participant else "unknown"}
                 \nUser replied: {message}
                 """
             

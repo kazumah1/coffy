@@ -2,12 +2,13 @@ import requests
 from datetime import datetime
 import icalendar
 from typing import Optional
+import aiohttp
 
 class GoogleCalendarService:
     def __init__(self):
         self.base_url = "https://www.googleapis.com/calendar/v3"
 
-    def get_calendar_ids(self, access_token: str) -> list[str]:
+    async def get_calendar_ids(self, access_token: str) -> list[str]:
         """Get list of calendar IDs for the user"""
         response = requests.get(
             f"{self.base_url}/users/me/calendarList",
@@ -15,7 +16,7 @@ class GoogleCalendarService:
         )
         return [calendar["id"] for calendar in response.json()["items"]]
 
-    def get_events(self, access_token: str, calendar_id: str, start_date: str, end_date: str) -> list[dict]:
+    async def get_events(self, access_token: str, calendar_id: str, start_date: str, end_date: str) -> list[dict]:
         """Get events from a specific calendar"""
         url = f"{self.base_url}/calendars/{calendar_id}/events"
         headers = {"Authorization": f"Bearer {access_token}"}
@@ -38,18 +39,18 @@ class GoogleCalendarService:
             for event in events if "start" in event and "end" in event
         ]
 
-    def get_all_events(self, access_token: str, start_date: str, end_date: str) -> list[dict]:
+    async def get_all_events(self, access_token: str, start_date: str, end_date: str) -> list[dict]:
         """Get events from all calendars"""
-        calendar_ids = self.get_calendar_ids(access_token)
+        calendar_ids = await self.get_calendar_ids(access_token)
         all_events = []
         for cal_id in calendar_ids:
-            events = self.get_events(access_token, cal_id, start_date, end_date)
+            events = await self.get_events(access_token, cal_id, start_date, end_date)
             for event in events:
                 event["calendar_id"] = cal_id
             all_events.extend(events)
         return all_events
 
-    def add_event(
+    async def add_event(
         self,
         access_token: str,
         title: str,
@@ -78,11 +79,11 @@ class GoogleCalendarService:
         if description:
             event_data["description"] = description
             
-        response = requests.post(url, headers=headers, json=event_data)
-        response.raise_for_status()
-        return response.json()
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=event_data) as resp:
+                return await resp.json()
 
-    def generate_ics(
+    async def generate_ics(
         self,
         title: str,
         start_time: str,
