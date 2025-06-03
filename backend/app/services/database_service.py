@@ -576,19 +576,11 @@ class DatabaseService:
             update_data: Dictionary of fields to update
         """
         now = datetime.now()
-        event_participant = {
-            "updated_at": now.isoformat()
-        }
-        if update_data:
-            event_participant.update(update_data)
-        
-        response = self.client.table("event_participants").update(event_participant).eq("event_id", event_id).eq("phone_number", phone_number).execute()
+        update_data["updated_at"] = now.isoformat()
+        response = self.client.table("event_participants").update(update_data).eq("event_id", event_id).eq("phone_number", phone_number).execute()
         
         if not response.data:
             raise RuntimeError(f"Failed to update event participant: {response.error.message}")
-            
-        if not response.data:
-            raise RuntimeError(f"Event participant not found for phone {phone_number}")
             
         return response.data[0]
 

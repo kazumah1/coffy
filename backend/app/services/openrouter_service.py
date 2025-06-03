@@ -1485,9 +1485,12 @@ class OpenRouterService:
             #     {"role": m["role"], "content": m["content"]} for m in conversation_history
             # ]
 
+            creator = await self.db_service.get_user_by_id(event["creator_id"])
+            name = creator["name"] if creator else "A friend"
+
             context = f"""Event: {event["title"] if event else "Unknown Event"}
-                \nOwner ID: {self._current_owner_id}
-                \nStage: {event["stage"]}
+                \nOwner ID: {event["creator_id"]}
+                \nOwner Name: {name}
                 \nPhone number: {phone_number}
                 \nLast message sent to user: {active_conversation.get("last_message", "No previous message")}
                 \nParticipant status: {participant["status"] if participant else "unknown"}
@@ -1632,7 +1635,7 @@ class OpenRouterService:
                     "response_text": message,
                     "updated_at": now.isoformat(),
                 }
-                
+                print(f"Updating event participant: {update_data}")
                 await self.db_service.update_event_participant(
                     self._current_event_id,
                     phone_number,
