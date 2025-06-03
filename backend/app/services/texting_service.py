@@ -13,29 +13,11 @@ class TextingService:
         db_service: DatabaseService = None,
         openrouter_service: "OpenRouterService" = None
     ):
-        # SignalWire configuration
-        self.space_url = "coffy.signalwire.com"
-        self.project_id = "a31d9015-86f4-4545-a078-f2a1a357e683"
-        self.api_token = "PTbcab8b45ba655ae2f78df5a5803d22aa03740ef44640284f"
-        self.from_number = "+16265444767"  # e.g. "+1XXXYYYZZZZ"
 
         self.db_service = db_service
         self.openrouter_service = openrouter_service
 
     async def send_text( self, to_number: str, message: str, final: bool = False ) -> dict:
-        url = (
-            f"https://{self.space_url}"
-            f"/api/laml/2010-04-01/Accounts/{self.project_id}/Messages.json"
-        )
-
-        # Basic auth with Project ID and API token
-        auth = aiohttp.BasicAuth(self.project_id, self.api_token)
-
-        # payload = {
-        #     "From": self.from_number,
-        #     "To": to_number,
-        #     "Body": message
-        # }
 
         url = "https://textbelt.com/text"
         if not final:
@@ -56,30 +38,6 @@ class TextingService:
             async with session.post(url, data=payload) as resp:
                 return await resp.json()
 
-    async def send_mms(
-        self,
-        to_number: str,
-        message: str,
-        media_url: str,
-    ) -> dict:
-        url = (
-            f"https://{self.space_url}"
-            f"/api/laml/2010-04-01/Accounts/{self.project_id}/Messages.json"
-        )
-        auth = aiohttp.BasicAuth(self.project_id, self.api_token)
-
-        payload = {
-            "From": self.from_number,
-            "To": to_number,
-            "Body": message,
-            "MediaUrl": media_url
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=payload, auth=auth) as resp:
-                return await resp.json()
-
-
     async def handle_text_reply(self, request: dict) -> dict:
         logger.info("Received SignalWire inbound SMS: %s", request)
 
@@ -98,4 +56,13 @@ class TextingService:
 
 
     async def send_test_text(self, to_number: str, message: str) -> dict:
-        pass
+        url = "https://textbelt.com/text"
+        payload = {
+            "phone": to_number,
+            "message": message,
+            "key": settings.TEXTING_API_KEY + "_test"
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, data=payload) as resp:
+                return await resp.json()

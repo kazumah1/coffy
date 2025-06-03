@@ -1461,12 +1461,12 @@ class OpenRouterService:
                 return {"message": message, "from_number": phone_number}
             
             # Save the user message to conversation history
-            user_message_obj = {
-                "role": "user",
-                "content": message,
-                "timestamp": datetime.now().isoformat()
-            }
-            await self.db_service.append_conversation_message(active_conversation["id"], user_message_obj)
+            # user_message_obj = {
+            #     "role": "user",
+            #     "content": message,
+            #     "timestamp": datetime.now().isoformat()
+            # }
+            # await self.db_service.append_conversation_message(active_conversation["id"], user_message_obj)
             
             # Set the current event from the conversation
             self.set_current_event(active_conversation["event_id"])
@@ -1647,8 +1647,10 @@ class OpenRouterService:
                 participants = await self.db_service.get_event_participants(self._current_event_id)
                 for p in participants:
                     if p["status"] != "pending_scheduling":
+                        print(f"Participant {p['name']} is not pending scheduling")
                         schedule_event = False
                 if schedule_event:
+                    print("scheduling event")
                     participants = await self.db_service.get_event_participants(self._current_event_id)
                     for p in participants:
                         if p["status"] != "pending_scheduling":
