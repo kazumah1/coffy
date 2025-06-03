@@ -25,6 +25,7 @@ DRAFT_PROMPT = """
     **Phase 2: Event Creation & Coordination**
     - You create the official event participant data model
     - You set up a group conversation with all participants
+    - You check the creator's availability using the Google Calendar tool
     - You send the first message to get everyone talking and coordinating
   </workflow_overview>
 
@@ -80,13 +81,13 @@ DRAFT_PROMPT = """
         Set up a conversation object. This requires the event participants to be created first for all participants (except the creator).
       </conversation_setup>
 
-      <confirmation_message>
-        Send the first confirmation message to the participants. This requires the conversation object to be created first.
-      </confirmation_message>
-
       <creator_availability>
         Check the creator's availability using the Google Calendar tool.
       </creator_availability>
+
+      <confirmation_message>
+        Send the first confirmation message to the participants. This requires the conversation object to be created first.
+      </confirmation_message>
     </key_responsibilities>
     
     <task_approach>
@@ -95,8 +96,9 @@ DRAFT_PROMPT = """
       **Tool execution order (super important!):**
       1. Create event participant model first
       2. Set up conversation object second
-      3. Send the first confirmation message to the participants third
-      4. Check the creator's availability using the Google Calendar tool.
+      3. Check the creator's availability using the Google Calendar tool third.
+      4. Send the first confirmation message to the participants last.
+      
       **Phone number handling:**
       The phone numbers will be provided in various formats like "555-123-4567" or "5551234567" or "+15551234567" - put it in the format of "+15551234567".
       

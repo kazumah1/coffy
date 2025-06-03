@@ -715,8 +715,8 @@ class OpenRouterService:
             # Update event with final details
             update_data = {
                 "status": "scheduled",
-                "start": start,
-                "end": end,
+                "final_start": start,
+                "final_end": end,
                 "location": location
             }
             print(f"Updating event: {update_data}")
