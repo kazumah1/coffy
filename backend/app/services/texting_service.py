@@ -16,8 +16,8 @@ class TextingService:
         # SignalWire configuration
         self.space_url = "coffy.signalwire.com"
         self.project_id = "a31d9015-86f4-4545-a078-f2a1a357e683"
-        self.api_token = "PSK_ahnxKGbQggU1AovvoeHMJ3Ai"
-        self.from_number = "INSERT LATER"  # e.g. "+1XXXYYYZZZZ"
+        self.api_token = "PTbcab8b45ba655ae2f78df5a5803d22aa03740ef44640284f"
+        self.from_number = "+16265444767"  # e.g. "+1XXXYYYZZZZ"
 
         self.db_service = db_service
         self.openrouter_service = openrouter_service
@@ -31,16 +31,30 @@ class TextingService:
         # Basic auth with Project ID and API token
         auth = aiohttp.BasicAuth(self.project_id, self.api_token)
 
-        payload = {
-            "From": self.from_number,
-            "To": to_number,
-            "Body": message
-        }
+        # payload = {
+        #     "From": self.from_number,
+        #     "To": to_number,
+        #     "Body": message
+        # }
+
+        url = "https://textbelt.com/text"
+        if not final:
+            payload = {
+                "phone": to_number,
+                "message": message,
+                "replyWebhookUrl": "https://coffy.app/text/reply",
+                "key": "01c1dc541121a6fb2e598557a71ad6425a2e2647ncs2hTldCM8WgY8uHoBnrNd8j_test"
+            }
+        else:
+            payload = {
+                "phone": to_number,
+                "message": message,
+                "key": "01c1dc541121a6fb2e598557a71ad6425a2e2647ncs2hTldCM8WgY8uHoBnrNd8j_test"
+            }
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=payload, auth=auth) as resp:
+            async with session.post(url, data=payload) as resp:
                 return await resp.json()
-
 
     async def send_mms(
         self,

@@ -47,8 +47,8 @@ const WELCOME_SUGGESTIONS = [
   "Plan dinner for my friend group"
 ];
 
-const BACKEND_URL = "http://localhost:8000";
-const WS_URL = "ws://localhost:8000";
+const BACKEND_URL = "https://coffy.app";
+const WS_URL = "wss://coffy.app";
 
 export default function ChatScreen() {
   const { user } = useAuth();

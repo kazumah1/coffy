@@ -19,7 +19,7 @@ import * as Contacts from 'expo-contacts';
 import { useAuth } from '@/contexts/AuthContext';
 import * as SecureStore from 'expo-secure-store';
 
-const BACKEND_URL = "http://localhost:8000";
+const BACKEND_URL = "https://coffy.app";
 const REQUEST_TIMEOUT = 3000; // 3 seconds timeout
 
 // Coffee-themed color palette

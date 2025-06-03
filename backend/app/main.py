@@ -42,7 +42,7 @@ app.include_router(contacts_router, prefix="/contacts", tags=["contacts"])
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to W2M app"}
+    return {"message": "Welcome to Coffy"}
 
 @app.get("/health")
 def health_check():

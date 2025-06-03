@@ -23,7 +23,7 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const BACKEND_URL = "http://localhost:8000";
+const BACKEND_URL = "https://coffy.app";
 const REQUEST_TIMEOUT = 3000; // 3 seconds timeout
 
 // Helper function to add timeout to fetch requests

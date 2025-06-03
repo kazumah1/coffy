@@ -1351,7 +1351,7 @@ class OpenRouterService:
                     ]
                 else:
                     messages = [
-                        {"role": "system", "content": AVAILABLE_PROMPTS[self.STAGES[stage]].format(current_datetime=current_datetime)},
+                        {"role": "system", "content": AVAILABLE_PROMPTS[stage].format(current_datetime=current_datetime)},
                         {"role": "user", "content": user_input + " (owner_id: " + self._current_owner_id + ")"}
                     ]
 
