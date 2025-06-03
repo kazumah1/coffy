@@ -61,32 +61,32 @@ class GoogleCalendarService:
         description: Optional[str] = None
     ) -> dict:
         """Add an event to the user's primary calendar"""
-        print("starting add_event")
-        url = f"https://www.googleapis.com/calendar/v3/calendars/primary/events"
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
-        }
-        
-        # Ensure timezone is properly formatted (replace Z with +00:00 if needed)
-        if start["dateTime"].endswith("Z"):
-            start["dateTime"] = start["dateTime"].replace("Z", "+00:00")
-        if end["dateTime"].endswith("Z"):
-            end["dateTime"] = end["dateTime"].replace("Z", "+00:00")
-            
-        event_data = {
-            "summary": title,
-            "start": start,
-            "end": end,
-            "attendees": attendees
-        }
-        print("event_data", event_data)
-        if location:
-            event_data["location"] = location
-        if description:
-            event_data["description"] = description
-            
         try:
+            print("starting add_event")
+            url = f"https://www.googleapis.com/calendar/v3/calendars/primary/events"
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+            print("continuing to add event")
+            # Ensure timezone is properly formatted (replace Z with +00:00 if needed)
+            if start["dateTime"].endswith("Z"):
+                start["dateTime"] = start["dateTime"].replace("Z", "+00:00")
+            if end["dateTime"].endswith("Z"):
+                end["dateTime"] = end["dateTime"].replace("Z", "+00:00")
+            print('continuing further')
+            event_data = {
+                "summary": title,
+                "start": start,
+                "end": end,
+                "attendees": attendees
+            }
+            print("event_data", event_data)
+            if location:
+                event_data["location"] = location
+            if description:
+                event_data["description"] = description
+            print("continuing to make request")
             async with aiohttp.ClientSession() as session:
                 print("Making request to Google Calendar API...")
                 async with session.post(url, headers=headers, json=event_data) as resp:
