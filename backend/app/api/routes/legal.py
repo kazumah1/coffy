@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import RedirectResponse, HTMLResponse
 from pathlib import Path
 
 router = APIRouter()
 
 # Get the path to the static directory relative to where the server is running
-STATIC_DIR = Path("static")
+STATIC_DIR = Path(__file__).resolve().parent.parent.parent / "static"
 
 @router.get("/privacy-policy")
 async def privacy_policy(request: Request):
@@ -16,7 +16,13 @@ async def privacy_policy(request: Request):
             url=f"https://www.coffy.app/privacy-policy",
             status_code=301
         )
-    return RedirectResponse(url="/static/privacy-policy.html")
+    
+    try:
+        with open(STATIC_DIR / "privacy-policy.html", "r") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Privacy policy page not found")
 
 @router.get("/terms")
 async def terms(request: Request):
@@ -27,4 +33,10 @@ async def terms(request: Request):
             url=f"https://www.coffy.app/terms",
             status_code=301
         )
-    return RedirectResponse(url="/static/terms.html") 
+    
+    try:
+        with open(STATIC_DIR / "terms.html", "r") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Terms page not found") 

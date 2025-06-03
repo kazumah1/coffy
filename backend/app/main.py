@@ -1,8 +1,6 @@
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-import os
 
 from app.api.routes import auth
 from app.api.routes.events import router as events_router
@@ -19,22 +17,11 @@ from app.dependencies import (
     get_texting_service_dependency
 )
 
-
 app = FastAPI(
     title="CoffyChat",
     description="Smart Event Scheduling API",
     version="0.1.0"
 )
-
-# Mount static files
-# Get the absolute path to the static directory
-BASE_DIR = Path(__file__).resolve().parent
-STATIC_DIR = BASE_DIR / "static"
-
-# Create static directory if it doesn't exist
-os.makedirs(STATIC_DIR, exist_ok=True)
-
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 app.add_middleware(
     CORSMiddleware,
