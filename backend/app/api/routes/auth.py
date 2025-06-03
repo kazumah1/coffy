@@ -90,7 +90,7 @@ async def google_revoke(user_id: str, token_manager: TokenManager = Depends(get_
 @router.post("/users/update-profile")
 async def update_profile(request: UpdateProfileRequest, db_service: DatabaseService = Depends(get_database_service)):
     print("Updating profile", request.user_id, request.name, request.email, request.phone_number)
-    user = await db_service.update_user(request.user_id, request.name, request.email, request.phone_number)
+    user = await db_service.update_user(request.user_id, request.name, request.email, request.phone_number, request.contacts_loaded)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user

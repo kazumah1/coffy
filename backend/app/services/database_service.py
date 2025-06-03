@@ -86,7 +86,8 @@ class DatabaseService:
             "name": name,
             "email": email,
             "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat()
+            "updated_at": datetime.now().isoformat(),
+            "contacts_loaded": False
         }
         response = self.client.table("users").insert(data).execute()
         return self.from_iso_strings(response.data[0])
@@ -114,7 +115,7 @@ class DatabaseService:
             return None
         return self.from_iso_strings(response.data[0])
 
-    async def update_user(self, user_id: str, name: str, email: str, phone_number: str) -> dict:
+    async def update_user(self, user_id: str, name: str, email: str, phone_number: str, contacts_loaded: bool) -> dict:
         # Update user by ID
         update_data = {}
         if name:
@@ -123,6 +124,8 @@ class DatabaseService:
             update_data["email"] = email
         if phone_number:
             update_data["phone_number"] = phone_number
+        if contacts_loaded:
+            update_data["contacts_loaded"] = contacts_loaded
         response = self.client.table("users").update(update_data).eq("id", user_id).execute()
         if not response.data:
             return None
@@ -600,16 +603,17 @@ class DatabaseService:
             "created_at": now.isoformat(),
             "updated_at": now.isoformat()
         }
-        
+        print("contact_data", contact_data)
         # Check if any phone number belongs to a registered user
         check_registered = await self.get_user_by_phone(contact_data["phone_number"])
+        print("check_registered", check_registered)
         if check_registered:
             contact["recipient_id"] = check_registered["id"]
         else:
             contact["recipient_id"] = None
-        
+
         response = self.client.table("contacts").insert(contact).execute()
-        
+        print("response", response)
         if not response.data:
             raise RuntimeError(f"Failed to create contact: {response.error.message}")
             

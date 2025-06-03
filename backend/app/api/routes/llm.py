@@ -54,6 +54,7 @@ async def run_llm(
     token_manager: TokenManager = Depends(get_token_manager),
     texting_service: TextingService = Depends(get_texting_service),
 ):
+    print("request", request)
     # Start the agent loop in the background
     openrouter_service = OpenRouterService(
         db_service=db_service,
@@ -64,7 +65,7 @@ async def run_llm(
     
     # Start the agent loop in the background
     print("starting agent loop with message:", request)
-    # asyncio.create_task(openrouter_service.run_agent_loop(request, creator_id))
+    asyncio.create_task(openrouter_service.run_agent_loop(request["request"], request["creator_id"]))
     
     # Return immediately with a hardcoded response
     return {

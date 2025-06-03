@@ -249,6 +249,7 @@ export default function ProfileSetupScreen() {
           name: name.trim(),
           email: user?.email,
           phone_number: '+1' + rawPhoneNumber,
+          contacts_loaded: true
         }),
       });
 

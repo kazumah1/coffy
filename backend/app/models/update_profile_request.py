@@ -5,3 +5,4 @@ class UpdateProfileRequest(BaseModel):
     name: str
     email: str
     phone_number: str
+    contacts_loaded: bool
