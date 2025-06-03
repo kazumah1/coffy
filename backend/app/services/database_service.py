@@ -617,21 +617,23 @@ class DatabaseService:
 
     async def update_contact(self, contact_id: str, contact_data: dict) -> dict:
         """Update an existing contact"""
+        now = datetime.now()
         update_data = {
             "name": contact_data["name"],
             "phone_number": contact_data["phone_number"],
-            "updated_at": datetime.now().isoformat()
+            "updated_at": now.isoformat()
         }
-        
+        print("update_data", update_data)
         # Check if any phone number belongs to a registered user
         check_registered = await self.get_user_by_phone(contact_data["phone_number"])
+        print("check_registered update", check_registered)
         if check_registered:
             update_data["recipient_id"] = check_registered["id"]
         else:
             update_data["recipient_id"] = None
         
         response = self.client.table("contacts").update(update_data).eq("id", contact_id).execute()
-        
+        print("response", response)
         if not response.data:
             raise RuntimeError(f"Failed to update contact {contact_id}")
             

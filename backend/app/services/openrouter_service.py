@@ -698,8 +698,6 @@ class OpenRouterService:
             print(f"Attendees: {attendees}")
             creator = await self.db_service.get_user_by_id(event["creator_id"])
             print(f"Creator: {creator}")
-            final_start["dateTime"] = datetime.fromisoformat(final_start["dateTime"].replace("Z", "+00:00")).isoformat()
-            final_end["dateTime"] = datetime.fromisoformat(final_end["dateTime"].replace("Z", "+00:00")).isoformat()
 
             access_token = await self.token_manager.get_token(creator["id"])
 
@@ -1560,11 +1558,11 @@ class OpenRouterService:
                             tool_name = tool_call.function.name
                             tool_args = json.loads(tool_call.function.arguments)
                             
-                        if tool_name in self.TOOL_MAPPINGS:
-                            out = await self.TOOL_MAPPINGS[tool_name](**tool_args)
-                            print(f"Tool call output: {out}")
-                        
-                return {"message": message, "from_number": phone_number}
+                            if tool_name in self.TOOL_MAPPINGS:
+                                out = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                                print(f"Tool call output: {out}")
+                            
+                    return {"message": message, "from_number": phone_number}
             
             elif participant["status"] == "pending_availability": # gets triggered for unregistered users, skipped by registered users
                 messages = [
@@ -1591,9 +1589,9 @@ class OpenRouterService:
                         tool_name = tool_call.function.name
                         tool_args = json.loads(tool_call.function.arguments)
 
-                    if tool_name in self.TOOL_MAPPINGS:
-                        out = await self.TOOL_MAPPINGS[tool_name](**tool_args)
-                        print(f"Tool call output: {out}")
+                        if tool_name in self.TOOL_MAPPINGS:
+                            out = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                            print(f"Tool call output: {out}")
 
                 update_data = {
                     "status": "pending_scheduling", 
@@ -1619,7 +1617,7 @@ class OpenRouterService:
                     for p in participants:
                         if p["status"] != "pending_scheduling":
                             return {"message": message, "from_number": phone_number}
-                        
+                    print("all participants are pending scheduling")
                     participant_times = {}
                     for p in participants:
                         if p["registered"]:
@@ -1628,7 +1626,7 @@ class OpenRouterService:
                             participant_times[p["name"]] = await self.db_service.get_unregistered_time_slots(self._current_event_id, p["phone_number"])
 
                     context += f"\nParticipant times: {participant_times}"
-
+                    print("context", context)
                     messages = [
                         {
                             "role": "system",

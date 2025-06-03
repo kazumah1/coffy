@@ -66,7 +66,8 @@ class GoogleCalendarService:
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
         }
-        
+        start["dateTime"] = datetime.fromisoformat(start["dateTime"].replace("Z", "+00:00")).isoformat()
+        end["dateTime"] = datetime.fromisoformat(end["dateTime"].replace("Z", "+00:00")).isoformat()
         event_data = {
             "summary": title,
             "start": start,
