@@ -19,7 +19,7 @@ import * as Haptics from 'expo-haptics';
 
 const { width, height } = Dimensions.get('window');
 
-const BACKEND_URL = "http://localhost:8000";
+const BACKEND_URL = "https://www.coffy.app";
 const REQUEST_TIMEOUT = 3000; // 3 seconds timeout
 
 // Helper function to add timeout to fetch requests

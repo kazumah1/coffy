@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     # Google OAuth settings
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
-    GOOGLE_REDIRECT_URI: str = "https://coffy.app/auth/google/callback"
+    GOOGLE_REDIRECT_URI: str = "https://www.coffy.app/auth/google/callback"
     GOOGLE_CALENDAR_SCOPES: list[str] = [
         "https://www.googleapis.com/auth/calendar.events",
         "https://www.googleapis.com/auth/calendar.readonly",

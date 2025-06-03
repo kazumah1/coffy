@@ -298,19 +298,19 @@ class OpenRouterService:
                 f"Participant {phone_number} is registered but no user_id was provided"
             )
         
-        # Get conversation if exists
-        conversations = await self.db_service.get_conversations_by_phone(phone_number)
-        if conversations:
-            conversation = conversations[0]
-        else:
-            # Create conversation for this availability request
-            conversation = await self.db_service.create_conversation(
-                self.current_event_id,
-                phone_number,
-                user_name,
-                "registered" if user_id else "unregistered",
-                user_id
-            )
+        # # Get conversation if exists
+        # conversations = await self.db_service.get_conversations_by_phone(phone_number)
+        # if conversations:
+        #     conversation = conversations[0]
+        # else:
+        # Create conversation for this availability request
+        conversation = await self.db_service.create_conversation(
+            self.current_event_id,
+            phone_number,
+            user_name,
+            "registered" if user_id else "unregistered",
+            user_id
+        )
         
         return {
             "success": True,

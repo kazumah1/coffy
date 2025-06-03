@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Dimensions,
   Platform,
+  Linking,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusBar } from 'expo-status-bar';
@@ -112,8 +113,19 @@ export default function LoginScreen() {
         <View style={styles.legalContainer}>
           <Text style={styles.legalText}>
             By clicking continue, you agree to our{' '}
-            <Text style={styles.legalLink}>Terms of Service</Text>
-            {'\n'}and <Text style={styles.legalLink}>Privacy Policy</Text>
+            <Text 
+              style={styles.legalLink}
+              onPress={() => Linking.openURL('https://www.coffy.app/terms')}
+            >
+              Terms of Service
+            </Text>
+            {'\n'}and{' '}
+            <Text 
+              style={styles.legalLink}
+              onPress={() => Linking.openURL('https://www.coffy.app/privacy-policy')}
+            >
+              Privacy Policy
+            </Text>
           </Text>
         </View>
       </View>

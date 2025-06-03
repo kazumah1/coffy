@@ -34,7 +34,7 @@ const colors = {
   background: '#FFFEF7',
 };
 
-const BACKEND_URL = "http://localhost:8000";
+const BACKEND_URL = "https://www.coffy.app";
 const REQUEST_TIMEOUT = 3000; // 3 seconds timeout
 
 interface Contact {

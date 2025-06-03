@@ -14,7 +14,7 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
-const BACKEND_URL = "http://localhost:8000";
+const BACKEND_URL = "https://www.coffy.app";
 
 interface BestFriend {
   id: string;
