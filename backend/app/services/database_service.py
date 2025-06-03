@@ -206,7 +206,7 @@ class DatabaseService:
         response = self.client.table("event_participants").insert(event_participant).execute()
         
         if not response.data:
-            raise RuntimeError(f"Failed to create event participant: {response.error.message}")
+            raise RuntimeError(f"Failed to create event participant for event {event_id} and phone {phone_number}")
             
         return event_participant
     
@@ -291,16 +291,7 @@ class DatabaseService:
         participant_id: str,
         busy_slots: list[dict]
     ) -> dict:
-        """Store busy time slots for an event participant.
-        
-        Args:
-            event_id: UUID of the event
-            participant_id: UUID of the participant
-            busy_slots: List of busy time slots, each containing:
-                - start_time: datetime
-                - end_time: datetime
-                - source: str (e.g. "calendar")
-        """
+        """Store busy time slots for an event participant."""
         now = datetime.now()
         data = {
             "event_id": event_id,
@@ -314,7 +305,7 @@ class DatabaseService:
         response = self.client.table("availability").upsert(data).execute()
         
         if not response.data:
-            raise RuntimeError(f"Failed to store busy times: {response.error.message}")
+            raise RuntimeError(f"Failed to store busy times for event {event_id} and participant {participant_id}")
             
         return data
 
@@ -422,12 +413,11 @@ class DatabaseService:
             "last_message": None,
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
-            # "messages": []
         }
         response = self.client.table("conversations").insert(conversation).execute()
         
         if not response.data:
-            raise RuntimeError("Failed to create conversation: No data returned from database")
+            raise RuntimeError(f"Failed to create conversation for event {event_id} and phone {phone_number}")
             
         return conversation
 
@@ -437,7 +427,7 @@ class DatabaseService:
         phone_number: str,
         time_slots: list[dict]
     ) -> dict:
-        """Store time slots (busy/available) for an unregistered user, including slot metadata like times, type, source, and confidence."""
+        """Store time slots for an unregistered user."""
         now = datetime.now()
         data = {
             "id": str(uuid4()),
@@ -448,14 +438,13 @@ class DatabaseService:
         }
         
         # Upsert to handle both new and existing records
-        # When a duplicate is found, update the time_slots and updated_at fields
         response = self.client.table("unregistered_time_slots").upsert(
             data,
             on_conflict="event_id,phone_number"
         ).execute()
         
         if not response.data:
-            raise RuntimeError("Failed to store time slots: No data returned from database")
+            raise RuntimeError(f"Failed to store time slots for event {event_id} and phone {phone_number}")
             
         return data
 
@@ -570,7 +559,7 @@ class DatabaseService:
         response = self.client.table("conversations").update(conversation).eq("event_id", event_id).eq("phone_number", phone_number).execute()
         
         if not response.data:
-            raise RuntimeError(f"Failed to update conversation status: {response.error.message}")
+            raise RuntimeError(f"Failed to update conversation for event {event_id} and phone {phone_number}")
             
         return conversation
 
@@ -594,7 +583,7 @@ class DatabaseService:
         
         print("response", response)
         if not response.data:
-            raise RuntimeError(f"Failed to update event participant: {response.error.message}")
+            raise RuntimeError(f"Failed to update event participant for event {event_id} and phone {phone_number}")
             
         return response.data[0]
 
@@ -622,7 +611,7 @@ class DatabaseService:
         response = self.client.table("contacts").insert(contact).execute()
         print("response", response)
         if not response.data:
-            raise RuntimeError(f"Failed to create contact: {response.error.message}")
+            raise RuntimeError(f"Failed to create contact for owner {contact_data['owner_id']} and phone {contact_data['phone_number']}")
             
         return contact
 
@@ -644,7 +633,7 @@ class DatabaseService:
         response = self.client.table("contacts").update(update_data).eq("id", contact_id).execute()
         
         if not response.data:
-            raise RuntimeError(f"Failed to update contact: {contact_id}")
+            raise RuntimeError(f"Failed to update contact {contact_id}")
             
         return update_data
 

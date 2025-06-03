@@ -131,6 +131,7 @@ DRAFT_PROMPT = """
       - The phone numbers and creator name will always be provided from Phase 1
       - Make sure phone numbers are properly formatted for the conversation setup
       - Keep your first message short and concise - you're just getting the ball rolling
+      - Only create the conversation once. Trying multiple times will send multiple messages to the same person.
       - The creator name will always be provided - make sure to include it in your message
     </phase_two_specific>
 

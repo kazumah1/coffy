@@ -273,15 +273,17 @@ class OpenRouterService:
         end_date: str = None,
         message: str = None
     ) -> dict:
-        """Creates an availability conversation - first asks if they're interested, then gets availability if they confirm."""
+        """Each person (identified by phone number) will only ever have one conversation."""
         if not self.current_event_id:
+            print("No current event set - create an event first")
             raise RuntimeError("No current event set - create an event first")
             
         # Get all event participants and find the matching one
         participants = await self._get_current_participants()
         participant = participants.get(phone_number)
-        
+        print(f"Participant: {participant}")
         if not participant:
+            print(f"No participant found with phone number {phone_number} - create participant first using create_event_participant")
             raise RuntimeError(
                 f"No participant found with phone number {phone_number} - "
                 "create participant first using create_event_participant"
@@ -289,10 +291,12 @@ class OpenRouterService:
             
         # Verify participant registration status matches user_id
         if user_id and not participant["registered"]:
+            print(f"Participant {phone_number} is not registered but user_id was provided")
             raise RuntimeError(
                 f"Participant {phone_number} is not registered but user_id was provided"
             )
         if not user_id and participant["registered"]:
+            print(f"Participant {phone_number} is registered but no user_id was provided")
             raise RuntimeError(
                 f"Participant {phone_number} is registered but no user_id was provided"
             )
@@ -301,9 +305,8 @@ class OpenRouterService:
         conversations = await self.db_service.get_conversations_by_phone(phone_number)
         if conversations:
             conversation = conversations[0]
-
-        # Create conversation for this availability request
         else:
+            # Create conversation for this availability request
             conversation = await self.db_service.create_conversation(
                 self.current_event_id,
                 phone_number,
@@ -312,54 +315,11 @@ class OpenRouterService:
                 user_id
             )
         
-        # Get event details for the message
-        event = await self.db_service.get_event_by_id(self.current_event_id)
-        if not event:
-            raise RuntimeError(f"Event {self.current_event_id} not found")
-            
-        # Get creator's name
-        creator = await self.db_service.get_user_by_id(event["creator_id"])
-        creator_name = creator["name"] if creator else "Someone"
-            
-        # Format message - same for all users initially
-        date_range = ""
-        if start_date and end_date:
-            date_range = f"between {start_date} and {end_date}"
-        if not message:
-            message = (
-                f"Hey {user_name}, {creator_name} wants to plan a {event['title']} with you {date_range}. "
-                "Would you be down?"
-            )
-        
-        message = "Hi! I'm Coffy. " + message
-        try:
-            # Send the initial message
-            await self.send_confirmation_text(phone_number, message)
-            
-            # Update conversation status to active (not message_sent)
-            await self.db_service.update_conversation(
-                self.current_event_id,
-                phone_number,
-                "active",
-                user_name
-            )
-            
-            return {
-                "success": True,
-                "conversation": conversation,
-                "message": message,
-                "phone_number": phone_number
-            }
-            
-        except Exception as e:
-            # Update conversation status to failed
-            await self.db_service.update_conversation(
-                self.current_event_id,
-                phone_number,
-                "active",
-                user_name
-            )
-            raise RuntimeError(f"Failed to send availability request: {str(e)}")
+        return {
+            "success": True,
+            "conversation": conversation,
+            "phone_number": phone_number
+        }
 
     async def handle_confirmation(
         self,
@@ -1315,7 +1275,7 @@ class OpenRouterService:
 
     TOOLS_FOR_STAGE = {
         "agent loop": [
-            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_chat_message_to_user"
+            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_chat_message_to_user", "send_confirmation_text"
         ],
         "participant_setup": [
             "create_event_participant", "create_or_get_conversation"
@@ -1478,9 +1438,9 @@ class OpenRouterService:
             # Get event and participant details
             now = datetime.now()
             current_datetime = now.astimezone().isoformat()
-            event = await self.db_service.get_event_by_id(self._current_event_id)
+            event = await self.db_service.get_event_by_id(active_conversation["event_id"])
             print("got event")
-            participant = await self.db_service.get_event_participant_by_phone(self._current_event_id, phone_number)
+            participant = await self.db_service.get_event_participant_by_phone(active_conversation["event_id"], phone_number)
             print("got participant")
 
             # Fetch last 10 messages for LLM context
