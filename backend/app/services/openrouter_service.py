@@ -724,7 +724,7 @@ class OpenRouterService:
             print(f"Updated event: {updated_event}")
 
             # Send final message to creator via chat
-            final_message = f"Great! Your event '{event['title']}' has been scheduled for {final_start['dateTime']} - {final_end['dateTime']}"
+            final_message = f"Great! Your event '{event['title']}' has been scheduled for {start['dateTime']} - {end['dateTime']}"
             if location:
                 final_message += f" at {location}"
             final_message += "."
@@ -736,7 +736,7 @@ class OpenRouterService:
                 if participant["status"] == "confirmed": # only confirmed participants
                     await self.send_final_text(
                         participant["phone_number"],
-                        f"Scheduled {event['title']} with {creator['name']} for {final_start['dateTime']} - {final_end['dateTime']} at {location}.",
+                        f"Scheduled {event['title']} with {creator['name']} for {start['dateTime']} - {end['dateTime']} at {location}.",
                         "final"
                     )
                     print(f"Sent final message to participant: {participant['phone_number']}")
