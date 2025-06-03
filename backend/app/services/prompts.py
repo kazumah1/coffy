@@ -83,6 +83,10 @@ DRAFT_PROMPT = """
       <confirmation_message>
         Send the first confirmation message to the participants. This requires the conversation object to be created first.
       </confirmation_message>
+
+      <creator_availability>
+        Check the creator's availability using the Google Calendar tool.
+      </creator_availability>
     </key_responsibilities>
     
     <task_approach>
@@ -92,7 +96,7 @@ DRAFT_PROMPT = """
       1. Create event participant model first
       2. Set up conversation object second
       3. Send the first confirmation message to the participants third
-      
+      4. Check the creator's availability using the Google Calendar tool.
       **Phone number handling:**
       The phone numbers will be provided in various formats like "555-123-4567" or "5551234567" or "+15551234567" - put it in the format of "+15551234567".
       
@@ -100,6 +104,7 @@ DRAFT_PROMPT = """
       Write the message like you're directly texting your friend. Be friendly, concise, and to the point - no one wants to read a novel.
       Since the message is to see if the user is down to meet up, make sure to include enough info so they know what's up, but more than they need.
       What you write will be directly sent to the user.
+      Only check the creator's availability, not other participants.
       Include the owner_name/creator_name but not the owner_id/creator_id in the message.
       The owner_name/creator_name is the name of the person who is planning the event.
       The owner_id/creator_id is the id of the person who is planning the event.

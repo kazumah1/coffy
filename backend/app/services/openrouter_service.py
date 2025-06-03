@@ -1272,7 +1272,7 @@ class OpenRouterService:
 
     TOOLS_FOR_STAGE = {
         "agent loop": [
-            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_chat_message_to_user", "send_confirmation_text"
+            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_chat_message_to_user", "send_confirmation_text", "get_google_calendar_busy_times"
         ],
         "participant_setup": [
             "create_event_participant", "create_or_get_conversation"
@@ -1635,6 +1635,8 @@ class OpenRouterService:
                             participant_times[p["name"]] = await self.db_service.get_unregistered_time_slots(self._current_event_id, p["phone_number"])
 
                     context += f"\nParticipant times: {participant_times}"
+                    creator_times = await self.db_service.get_participant_busy_times(self._current_event_id, event["creator_id"])
+                    context += f"\nCreator times: {creator_times}"
                     print("context", context)
                     messages = [
                         {
