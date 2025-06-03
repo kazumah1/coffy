@@ -34,12 +34,12 @@ DRAFT_PROMPT = """
       Your main job here is to draft an event plan with people from the user's contact list. When someone says something like "I want to grab dinner with Sarah and Mike" or "let's plan coffee with Jessica," you need to be their detective and organizer.
     </purpose>
     
-    <tasks>
+    <task_approach>
       - Search through their contacts to find the specific people they mentioned
       - Determine if the contacts are registered (this will be important for Phase 2)
-      - Create the event concept they're asking for
+      - Draft the event details they're asking for (required for phase 2)
       - Gather all the necessary information for the next phase
-    </tasks>
+    </task_approach>
     
     <approach>
       You'll use the available tools to search contacts, check registration status, and create event drafts.

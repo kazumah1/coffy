@@ -487,6 +487,18 @@ class DatabaseService:
             record["phone_number"]: record.get("time_slots", [])
             for record in response.data
         }
+    
+    async def delete_event_unregistered_time_slots(
+        self,
+        event_id: str
+    ) -> dict:
+        """Delete all unregistered users' time slots for an event."""
+        response = self.client.table("unregistered_time_slots").delete().eq("event_id", event_id).execute()
+        
+        if not response.data:
+            return None
+            
+        return response.data
 
     async def get_unregistered_time_slots_in_range(
         self,

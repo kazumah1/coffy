@@ -717,9 +717,9 @@ class OpenRouterService:
             # Validate the event exists and get its details
             print(f"Final start: {final_start}")
             print(f"Final end: {final_end}")
-            event = await self.db_service.get_event_by_id(event_id)
+            event = await self.db_service.get_event_by_id(self.current_event_id)
             if not event:
-                raise RuntimeError(f"Event {event_id} not found")
+                raise RuntimeError(f"Event {self.current_event_id} not found")
                 
             # Get all participants
             participants = await self.db_service.get_event_participants(event_id)
@@ -764,6 +764,7 @@ class OpenRouterService:
             print(f"Updating event: {update_data}")
             updated_event = await self.db_service.update_event(event_id, update_data)
             print(f"Updated event: {updated_event}")
+
             # Send final message to creator via chat
             final_message = f"Great! Your event '{event['title']}' has been scheduled for {final_start['dateTime']} - {final_end['dateTime']}"
             if location:
@@ -1492,7 +1493,8 @@ class OpenRouterService:
             creator = await self.db_service.get_user_by_id(event["creator_id"])
             name = creator["name"] if creator else "A friend"
 
-            context = f"""Event: {event["title"] if event else "Unknown Event"}
+            context = f"""Event: {event["title"]}
+                \nEvent ID: {event["id"]}
                 \nOwner ID: {event["creator_id"]}
                 \nOwner Name: {name}
                 \nPhone number: {phone_number}
