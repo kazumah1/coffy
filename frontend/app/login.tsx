@@ -60,7 +60,6 @@ const CoffeeCharacter = () => {
 
   return (
     <View style={styles.coffeeContainer}>
-      <Animated.View style={[styles.coffeeImageContainer, animatedStyle]}>
         <Image
           source={require('../assets/images/coffee-character.png')}
           style={styles.coffeeImage}
@@ -68,7 +67,6 @@ const CoffeeCharacter = () => {
           placeholder="☕"
           transition={200}
         />
-      </Animated.View>
     </View>
   );
 };

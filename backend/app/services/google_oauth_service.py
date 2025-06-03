@@ -13,6 +13,13 @@ class GoogleOAuthHandler:
     
     def __init__(self):
         """Initialize the OAuth handler with settings from config."""
+        print("Initializing OAuth handler with settings:")
+        print(f"Client ID: {settings.GOOGLE_CLIENT_ID[:10]}...")  # Only log first 10 chars
+        print(f"Auth URI: {settings.GOOGLE_AUTH_URI}")
+        print(f"Token URI: {settings.GOOGLE_TOKEN_URI}")
+        print(f"Redirect URI: {settings.GOOGLE_REDIRECT_URI}")
+        print(f"Scopes: {settings.GOOGLE_CALENDAR_SCOPES}")
+        
         self.flow = google_auth_oauthlib.flow.Flow.from_client_config(
             {
                 "web": {
@@ -25,6 +32,7 @@ class GoogleOAuthHandler:
             scopes=settings.GOOGLE_CALENDAR_SCOPES
         )
         self.flow.redirect_uri = settings.GOOGLE_REDIRECT_URI
+        print("OAuth handler initialized successfully")
 
     def get_authorization_url(self) -> str:
         """Generate the Google OAuth authorization URL."""

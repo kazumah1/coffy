@@ -73,6 +73,10 @@ export default function ChatScreen() {
     router.push('/profile');
   };
 
+  const navigateToProfileSetup = () => {
+    router.push('/profile-setup');
+  };
+
   // WebSocket connection
   useEffect(() => {
     if (!user?.id) {
@@ -329,9 +333,14 @@ export default function ChatScreen() {
           </View>
           <Text style={styles.appName}>Joe</Text>
         </View>
-        <TouchableOpacity style={styles.profileButton} onPress={navigateToProfile}>
+        {user ? (
+          <TouchableOpacity style={styles.profileButton} onPress={navigateToProfile}>
             <Text style={styles.profileText}>👤</Text>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        ) : (
+        <TouchableOpacity style={styles.profileButton} onPress={navigateToProfileSetup}>
+          <Text style={styles.profileText}>Login</Text>
+        </TouchableOpacity>)}
       </View>
 
       {/* Main Chat Area */}
