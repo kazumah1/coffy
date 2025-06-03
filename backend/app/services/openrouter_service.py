@@ -1369,6 +1369,9 @@ class OpenRouterService:
                                 # If we've sent the confirmation text, we can stop the agent loop
                                 if tool_name == "send_confirmation_text":
                                     print("Confirmation text sent, stopping agent loop")
+                                    # Force flush any buffered output
+                                    import sys
+                                    sys.stdout.flush()
                                     return {
                                         "success": True,
                                         "stage_idx": self.stage_number,
@@ -1538,37 +1541,37 @@ class OpenRouterService:
                         )
                         self._current_participants[phone_number].update(update_data)
                         return {"message": message, "from_number": phone_number}
-                else:
-                    print("unregistered user")
-                    messages = [
-                        {
-                            "role": "system",
-                            "content": AVAILABLE_PROMPTS["unregistered_availability"].format(current_datetime=current_datetime)
-                        },
-                        {
-                            "role": "assistant",
-                            "content": context
-                        }
-                    ]
-                    tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["send_availability_text"]]]
-                    print(f"Messages: {messages}")
-                    response, usage = await self.prompt_agent(messages, tools)
-                    print("--------------------------------")
-                    print(f"Response: {response}")
-                    print("================================")
-                    if hasattr(response, 'tool_calls') and response.tool_calls:
-                        for tool_call in response.tool_calls:
-                            print("<<<<<<<<<<<<<<<<<")
-                            print(f"Tool call: {tool_call}")
-                            print(">>>>>>>>>>>>>>>>>")
-                            tool_name = tool_call.function.name
-                            tool_args = json.loads(tool_call.function.arguments)
-                            
-                            if tool_name in self.TOOL_MAPPINGS:
-                                out = await self.TOOL_MAPPINGS[tool_name](**tool_args)
-                                print(f"Tool call output: {out}")
-                            
-                    return {"message": message, "from_number": phone_number}
+                    else:
+                        print("unregistered user")
+                        messages = [
+                            {
+                                "role": "system",
+                                "content": AVAILABLE_PROMPTS["unregistered_availability"].format(current_datetime=current_datetime)
+                            },
+                            {
+                                "role": "assistant",
+                                "content": context
+                            }
+                        ]
+                        tools = [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX["send_availability_text"]]]
+                        print(f"Messages: {messages}")
+                        response, usage = await self.prompt_agent(messages, tools)
+                        print("--------------------------------")
+                        print(f"Response: {response}")
+                        print("================================")
+                        if hasattr(response, 'tool_calls') and response.tool_calls:
+                            for tool_call in response.tool_calls:
+                                print("<<<<<<<<<<<<<<<<<")
+                                print(f"Tool call: {tool_call}")
+                                print(">>>>>>>>>>>>>>>>>")
+                                tool_name = tool_call.function.name
+                                tool_args = json.loads(tool_call.function.arguments)
+                                
+                                if tool_name in self.TOOL_MAPPINGS:
+                                    out = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                                    print(f"Tool call output: {out}")
+                                
+                        return {"message": message, "from_number": phone_number}
             
             elif participant["status"] == "pending_availability": # gets triggered for unregistered users, skipped by registered users
                 messages = [
