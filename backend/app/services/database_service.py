@@ -213,7 +213,7 @@ class DatabaseService:
     async def get_event_participants(self, event_id: str) -> list[dict]:
         # Get all participants for an event
         response = self.client.table("event_participants").select("*").eq("event_id", event_id).execute()
-        return [self.from_iso_strings(p) for p in response.data]
+        return [p for p in response.data]
 
     async def create_draft_event(
         self,

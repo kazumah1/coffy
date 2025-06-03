@@ -1644,6 +1644,7 @@ class OpenRouterService:
                 )
                 self._current_participants[phone_number].update(update_data)
                 schedule_event = True
+                print("checking if all participants are pending scheduling")
                 participants = await self.db_service.get_event_participants(self._current_event_id)
                 for p in participants:
                     if p["status"] != "pending_scheduling":
