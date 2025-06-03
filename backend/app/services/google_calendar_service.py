@@ -61,6 +61,7 @@ class GoogleCalendarService:
         description: Optional[str] = None
     ) -> dict:
         """Add an event to the user's primary calendar"""
+        print("starting add_event")
         url = f"https://www.googleapis.com/calendar/v3/calendars/primary/events"
         headers = {
             "Authorization": f"Bearer {access_token}",
@@ -74,7 +75,7 @@ class GoogleCalendarService:
             "end": end,
             "attendees": attendees
         }
-        
+        print("event_data", event_data)
         if location:
             event_data["location"] = location
         if description:
