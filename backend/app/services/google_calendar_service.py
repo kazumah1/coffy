@@ -86,9 +86,21 @@ class GoogleCalendarService:
         if description:
             event_data["description"] = description
             
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, json=event_data) as resp:
-                return await resp.json()
+        try:
+            async with aiohttp.ClientSession() as session:
+                print("Making request to Google Calendar API...")
+                async with session.post(url, headers=headers, json=event_data) as resp:
+                    print(f"Response status: {resp.status}")
+                    if resp.status != 200:
+                        error_text = await resp.text()
+                        print(f"Error response: {error_text}")
+                        raise Exception(f"Failed to create event: {error_text}")
+                    response_data = await resp.json()
+                    print("Successfully created event")
+                    return response_data
+        except Exception as e:
+            print(f"Error in add_event: {str(e)}")
+            raise
 
     async def generate_ics(
         self,
