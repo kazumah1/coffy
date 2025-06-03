@@ -1334,7 +1334,7 @@ class OpenRouterService:
         total_completion_tokens = 0
 
         creator = await self.db_service.get_user_by_id(creator_id)
-        creator_name = creator["name"] if creator else "Someone"
+        creator_name = creator["name"] if creator else "A friend"
 
         # Get current datetime in ISO format with timezone
         current_datetime = datetime.now().astimezone().isoformat()

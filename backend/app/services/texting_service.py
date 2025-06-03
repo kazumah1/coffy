@@ -83,8 +83,8 @@ class TextingService:
     async def handle_text_reply(self, request: dict) -> dict:
         logger.info("Received SignalWire inbound SMS: %s", request)
 
-        reply = request.get("Body", "")
-        from_number = request.get("From", "")
+        reply = request.get("Body", "") or request.get("text", "")
+        from_number = request.get("From", "") or request.get("fromNumber", "")
 
         if self.db_service and self.openrouter_service:
             try:

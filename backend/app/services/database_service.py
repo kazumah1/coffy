@@ -113,7 +113,7 @@ class DatabaseService:
         response = self.client.table("users").select("*").eq("id", user_id).execute()
         if not response.data:
             return None
-        return self.from_iso_strings(response.data[0])
+        return response.data[0]
 
     async def update_user(self, user_id: str, name: str, email: str, phone_number: str, contacts_loaded: bool) -> dict:
         # Update user by ID
