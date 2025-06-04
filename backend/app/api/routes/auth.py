@@ -53,7 +53,7 @@ async def google_callback(
                     <h2>Login Successful!</h2>
                     <p>You can close this window and return to the app.</p>
                     <script>
-                        window.location.href = "coffychat://auth?email={email}&user_id={user['id']}&name={name}"
+                        window.location.href = "com.coffy.app://auth?email={email}&user_id={user['id']}&name={name}"
                     </script>
                 </body>
             </html>

@@ -44,35 +44,27 @@ async def sync_contacts(
     try:
         # Get existing contacts for the user
         existing_contacts = await db_service.get_user_contacts(request.user_id)
-        print("existing_contacts", existing_contacts)
         existing_contact_map = {c["phone_number"]: c for c in existing_contacts}
-        print("existing_contact_map", existing_contact_map)
 
-        # Process each contact from the device
+        # Process each contact from the device (no limit)
         for contact in request.contacts:
             # TODO: allow multiple phone numbers
-            print("contact", contact)
-            if contact.phoneNumbers[0].number in existing_contact_map:
+            if contact.phoneNumbers and contact.phoneNumbers[0].number in existing_contact_map:
                 contact_data = {
                     "name": contact.name,
                     "phone_number": standardize_phone_number(contact.phoneNumbers[0].number)
                 }
-                print("contact_data", contact_data)
                 # Update existing contact
                 await db_service.update_contact(existing_contact_map[contact.phoneNumbers[0].number]["id"], contact_data)
-    
-            else:
+            elif contact.phoneNumbers:
                 # Create new contact
                 contact_data = {
                     "owner_id": request.user_id,
                     "name": contact.name,
                     "phone_number": standardize_phone_number(contact.phoneNumbers[0].number)
                 }
-                print("contact_data new", contact_data)
                 await db_service.create_contact(contact_data)
-        
         return {"success": True, "message": f"Synced {len(request.contacts)} contacts"}
-        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error syncing contacts: {str(e)}")
 

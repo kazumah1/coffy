@@ -24,7 +24,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const BACKEND_URL = "https://www.coffy.app";
-const REQUEST_TIMEOUT = 3000; // 3 seconds timeout
+const REQUEST_TIMEOUT = 30000; // 30 seconds timeout
 
 // Helper function to add timeout to fetch requests
 const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = REQUEST_TIMEOUT): Promise<Response> => {
@@ -51,19 +51,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         // Load user from secure storage on mount
         const loadUser = async () => {
-            try {
-                const userJson = await SecureStore.getItemAsync('user');
-                if (userJson) {
-                    const userData = JSON.parse(userJson);
-                    setUser(userData);
+            try {   
+                if (user) {
+                    setUser(user);
                     
                     // Check if user needs profile setup
-                    if (userData.id && !userData.needsProfileSetup) {
-                        const needsSetup = await checkProfileCompletion(userData.id);
+                    if (user.id && !user.needsProfileSetup) {
+                        const needsSetup = await checkProfileCompletion(user.id);
                         if (needsSetup) {
-                            const updatedUser = { ...userData, needsProfileSetup: true };
+                            const updatedUser = { ...user, needsProfileSetup: true };
                             setUser(updatedUser);
-                            await SecureStore.setItemAsync('user', JSON.stringify(updatedUser));
                         }
                     }
                 }
@@ -110,26 +107,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 return !(hasProfile && hasContacts);
             }
         } catch (error) {
-            console.log('Backend not available, checking local profile completion');
-            // Fallback to local storage check immediately
-            try {
-                const localProfile = await SecureStore.getItemAsync('userProfile');
-                const localContacts = await SecureStore.getItemAsync('userContacts');
-                if (localProfile) {
-                    const profileData = JSON.parse(localProfile);
-                    const hasProfile = profileData.name && profileData.phone_number;
-                    const hasContacts = localContacts && JSON.parse(localContacts).length > 0;
-                    if (!hasContacts) {
-                        console.log('No contacts found, prompting user to load contacts');
-                    }
-                    if (!hasProfile) {
-                        console.log('No profile found, prompting user to complete profile');
-                    }
-                    return !(hasProfile && hasContacts);
-                }
-            } catch (localError) {
-                console.error('Error checking local profile:', localError);
-            }
+            console.error('Error checking profile completion:', error);
+            return true; // Default to needing setup if we can't verify
         }
         return true; // Default to needing setup if we can't verify
     };

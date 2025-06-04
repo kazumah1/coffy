@@ -283,7 +283,7 @@ class DatabaseService:
             raise RuntimeError(f"Failed to search contacts: {e}")
             
         # Convert all datetime fields in the response
-        return [self.from_iso_strings(c) for c in response.data]
+        return [c for c in response.data]
 
     async def store_participant_busy_times(
         self,

@@ -12,7 +12,10 @@ import {
   Alert,
   ActivityIndicator,
   Animated,
-  Easing
+  Easing,
+  Keyboard,
+  InputAccessoryView,
+  Button
 } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -73,6 +76,7 @@ export default function ProfileSetupScreen() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [hasContactsPermission, setHasContactsPermission] = useState(false);
+  const [syncingContacts, setSyncingContacts] = useState(false);
   
   // Animation values
   const fadeAnim = new Animated.Value(1);
@@ -159,6 +163,7 @@ export default function ProfileSetupScreen() {
 
   const loadContacts = async () => {
     setContactsLoading(true);
+    setSyncingContacts(true);
     console.log('📱 Profile Setup: Starting contacts load...');
     try {
       // Always get contacts from device
@@ -166,6 +171,7 @@ export default function ProfileSetupScreen() {
       if (status !== 'granted') {
         Alert.alert('Permission Required', 'Please grant permission to access your contacts.');
         setContactsLoading(false);
+        setSyncingContacts(false);
         return;
       }
       const { data } = await Contacts.getContactsAsync({
@@ -183,7 +189,7 @@ export default function ProfileSetupScreen() {
       setContacts(formattedContacts);
       await SecureStore.setItemAsync('userContacts', JSON.stringify(formattedContacts));
       console.log('✅ Loaded contacts from device');
-      // Sync with backend (using the sync endpoint)
+      // Sync with backend (send all contacts, no limit)
       if (user) {
         await syncContactsWithBackend(formattedContacts);
       }
@@ -197,6 +203,7 @@ export default function ProfileSetupScreen() {
       Alert.alert('Error', 'Couldn\'t load contacts. Please try again.');
     } finally {
       setContactsLoading(false);
+      setSyncingContacts(false);
     }
   };
 
@@ -336,7 +343,7 @@ export default function ProfileSetupScreen() {
       ]}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.header}>
         <View style={styles.logoContainer}>
           <Image 
             source={require('@/assets/images/coffee-character.png')} 
@@ -348,10 +355,10 @@ export default function ProfileSetupScreen() {
         <Text style={styles.welcomeSubtitle}>
           Let's set up your profile so Joe can help coordinate with your friends
         </Text>
-      </View>
+      </KeyboardAvoidingView>
 
       {/* Form */}
-      <View style={styles.form}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.form}>
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Your Name</Text>
           <View style={styles.inputWrapper}>
@@ -379,21 +386,29 @@ export default function ProfileSetupScreen() {
               placeholderTextColor={colors.textLight}
               keyboardType="number-pad"
               maxLength={14}
+              inputAccessoryViewID={Platform.OS === 'ios' ? 'phoneInputAccessory' : undefined}
             />
+            {Platform.OS === 'ios' && (
+              <InputAccessoryView nativeID='phoneInputAccessory'>
+                <View style={{ backgroundColor: '#fff', padding: 8, alignItems: 'flex-end', borderTopWidth: 1, borderColor: '#eee' }}>
+                  <Button onPress={Keyboard.dismiss} title="Done" />
+                </View>
+              </InputAccessoryView>
+            )}
           </View>
           <Text style={styles.hint}>Joe will use this to coordinate coffee meetups</Text>
         </View>
-      </View>
+      </KeyboardAvoidingView>
 
       {/* Actions */}
-      <View style={styles.actions}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.actions}>
         <TouchableOpacity 
           style={styles.continueButton} 
           onPress={handleProfileComplete}
         >
           <Text style={styles.continueButtonText}>Next: Load Contacts</Text>
         </TouchableOpacity>
-      </View>
+      </KeyboardAvoidingView>
     </Animated.View>
   );
 
@@ -408,7 +423,7 @@ export default function ProfileSetupScreen() {
       ]}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.header}>
         <View style={styles.logoContainer}>
           <Image 
             source={require('@/assets/images/coffee-character.png')} 
@@ -420,10 +435,10 @@ export default function ProfileSetupScreen() {
         <Text style={styles.welcomeSubtitle}>
           Joe needs access to your contacts to help coordinate coffee meetups with your friends
         </Text>
-      </View>
+      </KeyboardAvoidingView>
 
       {/* Contacts Status */}
-      <View style={styles.contactsStatus}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.contactsStatus}>
         {contacts.length > 0 ? (
           <View style={styles.contactsSuccess}>
             <Text style={styles.contactsSuccessIcon}>✅</Text>
@@ -445,17 +460,17 @@ export default function ProfileSetupScreen() {
             </Text>
           </View>
         )}
-      </View>
+      </KeyboardAvoidingView>
 
       {/* Actions */}
-      <View style={styles.actions}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.actions}>
         {contacts.length === 0 ? (
           <TouchableOpacity 
-            style={[styles.continueButton, contactsLoading && styles.continueButtonDisabled]} 
+            style={[styles.continueButton, (contactsLoading || syncingContacts) && styles.continueButtonDisabled]} 
             onPress={hasContactsPermission ? loadContacts : requestContactsPermission}
-            disabled={contactsLoading}
+            disabled={contactsLoading || syncingContacts}
           >
-            {contactsLoading ? (
+            {(contactsLoading || syncingContacts) ? (
               <ActivityIndicator size="small" color={colors.coffeeWhite} />
             ) : (
               <Text style={styles.continueButtonText}>
@@ -465,13 +480,18 @@ export default function ProfileSetupScreen() {
           </TouchableOpacity>
         ) : (
           <TouchableOpacity 
-            style={styles.continueButton} 
+            style={[styles.continueButton, syncingContacts && styles.continueButtonDisabled]} 
             onPress={proceedToComplete}
+            disabled={syncingContacts}
           >
-            <Text style={styles.continueButtonText}>Continue Setup</Text>
+            {syncingContacts ? (
+              <ActivityIndicator size="small" color={colors.coffeeWhite} />
+            ) : (
+              <Text style={styles.continueButtonText}>Continue Setup</Text>
+            )}
           </TouchableOpacity>
         )}
-      </View>
+      </KeyboardAvoidingView>
     </Animated.View>
   );
 
@@ -486,7 +506,7 @@ export default function ProfileSetupScreen() {
       ]}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.header}>
         <View style={styles.logoContainer}>
           <Image 
             source={require('@/assets/images/coffee-character.png')} 
@@ -498,10 +518,10 @@ export default function ProfileSetupScreen() {
         <Text style={styles.welcomeSubtitle}>
           Your profile is ready and Joe has access to your contacts. Time to start coordinating coffee!
         </Text>
-      </View>
+      </KeyboardAvoidingView>
 
       {/* Summary */}
-      <View style={styles.summary}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}  style={styles.summary}>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryIcon}>👤</Text>
           <Text style={styles.summaryText}>Profile: {name}</Text>
@@ -514,10 +534,10 @@ export default function ProfileSetupScreen() {
           <Text style={styles.summaryIcon}>📱</Text>
           <Text style={styles.summaryText}>Contacts: {contacts.length} loaded</Text>
         </View>
-      </View>
+      </KeyboardAvoidingView>
 
       {/* Actions */}
-      <View style={styles.actions}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.actions}>
         <TouchableOpacity 
           style={[styles.continueButton, isLoading && styles.continueButtonDisabled]} 
           onPress={completeSetup}
@@ -529,7 +549,7 @@ export default function ProfileSetupScreen() {
             <Text style={styles.continueButtonText}>Enter Coffy</Text>
           )}
         </TouchableOpacity>
-      </View>
+      </KeyboardAvoidingView>
     </Animated.View>
   );
 
@@ -548,7 +568,7 @@ export default function ProfileSetupScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* Progress Indicator */}
-        <View style={styles.progressContainer}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.progressContainer}>
           <View style={styles.progressBar}>
             <View style={[
               styles.progressFill,
@@ -561,7 +581,7 @@ export default function ProfileSetupScreen() {
           <Text style={styles.progressText}>
             Step {currentStep === 'profile' ? '1' : currentStep === 'contacts' ? '2' : '3'} of 3
           </Text>
-        </View>
+        </KeyboardAvoidingView>
 
         {currentStep === 'profile' && renderProfileStep()}
         {currentStep === 'contacts' && renderContactsStep()}

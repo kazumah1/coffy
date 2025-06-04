@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "coffy",
-    "slug": "coffychat",
+    "slug": "coffy",
     "version": "1.0.1",
     "owner": "kazumah",
     "orientation": "portrait",
@@ -57,7 +57,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "4c8c66ab-2016-44a5-86e2-c69cc6bb746f"
+        "projectId": "d903368c-51d5-4446-9742-15eaea34e52d"
       }
     }
   }

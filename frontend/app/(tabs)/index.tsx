@@ -315,7 +315,7 @@ export default function ChatScreen() {
   });
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       
       {/* Minimal Header */}
@@ -510,7 +510,7 @@ export default function ChatScreen() {
           </Animated.View>
         </KeyboardAvoidingView>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
