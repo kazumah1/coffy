@@ -150,6 +150,8 @@ class OpenRouterService:
     async def prompt_agent(self, messages: list[dict[str, str]], tools: list[dict[str, Any]]) -> tuple[Dict[str, Any], Dict[str, int]]:
         """Send a prompt to the OpenRouter agent and get a response"""
         try:
+            print(f"Tools: {tools}")
+            print(f"Messages: {messages}")
             client = OpenAI(
                 api_key=self.api_key,
                 base_url="https://openrouter.ai/api/v1",
