@@ -1,4 +1,4 @@
-package com.coffychat.app
+package com.coffy.app
 
 import android.app.Application
 import android.content.res.Configuration

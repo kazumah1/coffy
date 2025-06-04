@@ -1,4 +1,4 @@
-package com.coffychat.app
+package com.coffy.app
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "coffychat.app"
-               BlueprintName = "coffychat"
-               ReferencedContainer = "container:coffychat.xcodeproj">
+               BuildableName = "coffy.app"
+               BlueprintName = "coffy"
+               ReferencedContainer = "container:coffy.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "coffychatTests.xctest"
-               BlueprintName = "coffychatTests"
-               ReferencedContainer = "container:coffychat.xcodeproj">
+               BuildableName = "coffyTests.xctest"
+               BlueprintName = "coffyTests"
+               ReferencedContainer = "container:coffy.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "coffychat.app"
-            BlueprintName = "coffychat"
-            ReferencedContainer = "container:coffychat.xcodeproj">
+            BuildableName = "coffy.app"
+            BlueprintName = "coffy"
+            ReferencedContainer = "container:coffy.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "coffychat.app"
-            BlueprintName = "coffychat"
-            ReferencedContainer = "container:coffychat.xcodeproj">
+            BuildableName = "coffy.app"
+            BlueprintName = "coffy"
+            ReferencedContainer = "container:coffy.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
