@@ -1,17 +1,17 @@
 {
   "expo": {
-    "name": "coffychat",
+    "name": "coffy",
     "slug": "coffychat",
     "version": "1.0.0",
     "owner": "kazumah",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "coffychat",
+    "scheme": "coffy",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.coffychat.app"
+      "bundleIdentifier": "com.coffy.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +19,11 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.coffychat.app"
+      "package": "com.coffy.app",
+      "permissions": [
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -42,12 +46,18 @@
       [
         "expo-contacts",
         {
-          "contactsPermission": "Allow CoffyChat to access your contacts to help you plan coffee chats with friends."
+          "contactsPermission": "Allow Coffy to access your contacts to help you plan coffee chats with friends."
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4c8c66ab-2016-44a5-86e2-c69cc6bb746f"
+      }
     }
   }
 }
