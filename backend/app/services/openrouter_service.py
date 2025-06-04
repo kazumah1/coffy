@@ -149,11 +149,7 @@ class OpenRouterService:
 
     async def prompt_agent(self, messages: list[dict[str, str]], tools: list[dict[str, Any]]) -> tuple[Dict[str, Any], Dict[str, int]]:
         """Send a prompt to the OpenRouter agent and get a response"""
-        try:
-            print(f"Tools: {tools}")
-            print("Tools type: ", type(tools))
-            print(f"Messages: {messages}")
-            print("Messages type: ", type(messages))
+        try:         
             client = OpenAI(
                 api_key=self.api_key,
                 base_url="https://openrouter.ai/api/v1",
@@ -1334,7 +1330,7 @@ class OpenRouterService:
                     
                     for t in tool_call_history:
                         messages.append(t)
-                    messages.append(content)
+                    messages.append({"role": "user", "content": content})
                     
                     # Handle tool calls
                     if tool_calls:
