@@ -151,7 +151,9 @@ class OpenRouterService:
         """Send a prompt to the OpenRouter agent and get a response"""
         try:
             print(f"Tools: {tools}")
+            print("Tools type: ", type(tools))
             print(f"Messages: {messages}")
+            print("Messages type: ", type(messages))
             client = OpenAI(
                 api_key=self.api_key,
                 base_url="https://openrouter.ai/api/v1",
