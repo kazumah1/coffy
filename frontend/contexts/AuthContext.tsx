@@ -115,9 +115,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     async function handleGoogleLogin() {
         try {
-            const result = await WebBrowser.openAuthSessionAsync(
-                `${BACKEND_URL}/auth/google/login`,
-                `${BACKEND_URL}/auth/google/callback`
+            const result = await WebBrowser.openBrowserAsync(
+                `${BACKEND_URL}/auth/google/login`
             );
 
             if (result.type === "success") {
