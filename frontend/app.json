@@ -11,7 +11,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.coffy.app",
+      "bundleIdentifier": "com.coffychat.app",
       "icon": "./assets/images/coffee-hello.png"
     },
     "android": {
@@ -20,7 +20,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.coffy.app",
+      "package": "com.coffychat.app",
       "permissions": [
         "android.permission.READ_CONTACTS",
         "android.permission.WRITE_CONTACTS"
