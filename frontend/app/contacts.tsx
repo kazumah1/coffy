@@ -20,7 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import * as SecureStore from 'expo-secure-store';
 
 const BACKEND_URL = "https://www.coffy.app";
-const REQUEST_TIMEOUT = 30000; // 3 seconds timeout
+const REQUEST_TIMEOUT = 30000; // 30 seconds timeout
 
 // Coffee-themed color palette
 const colors = {
@@ -134,41 +134,65 @@ export default function ContactsScreen() {
         return;
       }
 
-      // Get all contacts from device
-      const { data: deviceContacts } = await Contacts.getContactsAsync({
-        fields: [
-          Contacts.Fields.Name,
-          Contacts.Fields.PhoneNumbers,
-          Contacts.Fields.Emails,
-        ],
-      });
+      // Get all contacts from device with pagination
+      let allContacts: Contacts.Contact[] = [];
+      let hasNextPage = true;
+      let pageOffset = 0;
+      const pageSize = 50;
 
-      console.log(`📱 Found ${deviceContacts.length} contacts on device`);
+      while (hasNextPage) {
+        const { data: deviceContacts, hasNextPage: nextPage } = await Contacts.getContactsAsync({
+          fields: [
+            Contacts.Fields.Name,
+            Contacts.Fields.PhoneNumbers,
+            Contacts.Fields.Emails,
+          ],
+          pageSize,
+          pageOffset,
+        });
+
+        allContacts = [...allContacts, ...deviceContacts];
+        hasNextPage = nextPage;
+        pageOffset += pageSize;
+        
+        console.log(`📱 Retrieved ${deviceContacts.length} contacts (page ${pageOffset/pageSize})`);
+      }
+
+      console.log(`📱 Found total of ${allContacts.length} contacts on device`);
 
       // Convert to our app's contact type
-      const appContacts = deviceContacts.map(convertToAppContact);
+      const appContacts = allContacts.map(convertToAppContact);
 
       // Sync with backend if user is logged in
       if (user) {
         console.log('📱 Syncing contacts with backend...');
-        const response = await fetchWithTimeout(`${BACKEND_URL}/contacts/sync`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            user_id: user.id,
-            contacts: appContacts
-          }),
-        });
+        try {
+          const response = await fetchWithTimeout(`${BACKEND_URL}/contacts/sync`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: user.id,
+              contacts: appContacts
+            }),
+          });
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            console.log(`✅ Successfully synced ${appContacts.length} contacts with backend`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              console.log(`✅ Successfully synced ${appContacts.length} contacts with backend`);
+            }
+          } else {
+            const errorData = await response.json().catch(() => null);
+            console.error('⚠️ Backend sync failed:', {
+              status: response.status,
+              statusText: response.statusText,
+              error: errorData
+            });
           }
-        } else {
-          console.log('⚠️ Could not sync with backend, saving contacts locally only');
+        } catch (error) {
+          console.error('💥 Error during backend sync:', error);
         }
       }
 

@@ -8,14 +8,32 @@ import {
   ScrollView,
   TextInput,
   Alert,
-  SafeAreaView
+  SafeAreaView,
+  ActivityIndicator
 } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import * as SecureStore from 'expo-secure-store';
+import * as Contacts from 'expo-contacts';
 // Note: expo-image-picker requires development build rebuild
 // For now, using a simpler approach
+
+// Define our app's contact type that matches the backend
+interface AppContact {
+  id: string;
+  name: string;
+  phoneNumbers?: { number: string }[];
+  emails?: { email: string }[];
+}
+
+// Convert expo-contacts Contact to our AppContact type
+const convertToAppContact = (contact: Contacts.Contact): AppContact => ({
+  id: contact.id || '',
+  name: contact.name || 'Unknown',
+  phoneNumbers: contact.phoneNumbers?.map(p => ({ number: p.number || '' })).filter(p => p.number) || [],
+  emails: contact.emails?.map(e => ({ email: e.email || '' })).filter(e => e.email) || []
+});
 
 // Coffee-themed color palette (same as chat)
 const colors = {
@@ -32,6 +50,25 @@ const colors = {
 };
 
 const BACKEND_URL = "https://www.coffy.app";
+const REQUEST_TIMEOUT = 30000; // 30 seconds timeout
+
+// Helper function to add timeout to fetch requests
+const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = REQUEST_TIMEOUT): Promise<Response> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+    }
+};
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
@@ -41,6 +78,7 @@ export default function ProfileScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [userStatus, setUserStatus] = useState<'available' | 'maybe' | 'busy'>('available');
+  const [syncingContacts, setSyncingContacts] = useState(false);
 
   // Load existing profile data when component mounts
   useEffect(() => {
@@ -249,6 +287,100 @@ export default function ProfileScreen() {
     }
   };
 
+  const syncContacts = async () => {
+    setSyncingContacts(true);
+    console.log('🔍 Starting contacts sync...');
+    
+    try {
+      // Request permission to access contacts
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('❌ Permission to access contacts was denied');
+        Alert.alert(
+          'Permission Required',
+          'Please grant permission to access your contacts to use this feature.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Get all contacts from device with pagination
+      let allContacts: Contacts.Contact[] = [];
+      let hasNextPage = true;
+      let pageOffset = 0;
+      const pageSize = 50; // Match the page size from contacts.tsx
+
+      while (hasNextPage) {
+        const { data: deviceContacts, hasNextPage: nextPage } = await Contacts.getContactsAsync({
+          fields: [
+            Contacts.Fields.Name,
+            Contacts.Fields.PhoneNumbers,
+            Contacts.Fields.Emails,
+          ],
+          pageSize,
+          pageOffset,
+        });
+
+        allContacts = [...allContacts, ...deviceContacts];
+        hasNextPage = nextPage;
+        pageOffset += pageSize;
+        
+        console.log(`📱 Retrieved ${deviceContacts.length} contacts (page ${pageOffset/pageSize})`);
+      }
+
+      console.log(`📱 Found total of ${allContacts.length} contacts on device`);
+
+      // Convert to our app's contact type
+      const appContacts = allContacts.map(convertToAppContact);
+
+      // Sync with backend if user is logged in
+      if (user) {
+        console.log('📱 Syncing contacts with backend...');
+        try {
+          const response = await fetchWithTimeout(`${BACKEND_URL}/contacts/sync`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: user.id,
+              contacts: appContacts
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              console.log(`✅ Successfully synced ${appContacts.length} contacts with backend`);
+              Alert.alert('Success', `Successfully synced ${appContacts.length} contacts!`);
+            }
+          } else {
+            const errorData = await response.json().catch(() => null);
+            console.error('⚠️ Backend sync failed:', {
+              status: response.status,
+              statusText: response.statusText,
+              error: errorData
+            });
+            throw new Error('Failed to sync contacts with backend');
+          }
+        } catch (error) {
+          console.error('💥 Error during backend sync:', error);
+          throw error;
+        }
+      }
+
+      // Update local storage
+      await SecureStore.setItemAsync('userContacts', JSON.stringify(appContacts));
+      console.log(`✅ Loaded ${appContacts.length} contacts`);
+    } catch (error) {
+      console.error('💥 Error syncing contacts:', error);
+      Alert.alert('Error', 'Failed to sync contacts. Please try again.');
+    } finally {
+      setSyncingContacts(false);
+      console.log('🏁 Contacts sync complete');
+    }
+  };
+
   if (loadingProfile) {
     return (
       <SafeAreaView style={styles.container}>
@@ -386,6 +518,18 @@ export default function ProfileScreen() {
             <Text style={styles.saveButtonText}>
               {isLoading ? 'Saving...' : 'Save Changes'}
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.syncButton} 
+            onPress={syncContacts}
+            disabled={syncingContacts}
+          >
+            {syncingContacts ? (
+              <ActivityIndicator color={colors.coffeeDark} />
+            ) : (
+              <Text style={styles.syncButtonText}>Sync Contacts</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
@@ -628,6 +772,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.coffeeWhite,
+  },
+  syncButton: {
+    backgroundColor: colors.coffeeCream,
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.coffeeMedium,
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  syncButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.coffeeDark,
   },
   signOutButton: {
     backgroundColor: colors.background,

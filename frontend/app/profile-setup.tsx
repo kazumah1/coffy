@@ -38,7 +38,7 @@ const colors = {
 };
 
 const BACKEND_URL = "https://www.coffy.app";
-const REQUEST_TIMEOUT = 3000; // 3 seconds timeout
+const REQUEST_TIMEOUT = 30000; // 3 seconds timeout
 
 interface Contact {
   id: string;

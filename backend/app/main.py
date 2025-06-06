@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
+from fastapi.responses import HTMLResponse
 
 from app.api.routes import auth
 from app.api.routes.events import router as events_router
@@ -60,7 +61,61 @@ app.include_router(legal_router, tags=["legal"])
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to Coffy"}
+    return HTMLResponse("""
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <title>Coffy</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    min-height: 100vh;
+                    margin: 0;
+                    background-color: #FFFEF7;
+                    color: #4A3728;
+                }
+                .container {
+                    text-align: center;
+                    padding: 2rem;
+                }
+                h1 {
+                    font-size: 2.5rem;
+                    margin-bottom: 2rem;
+                    color: #8B4513;
+                }
+                .links {
+                    display: flex;
+                    gap: 2rem;
+                }
+                a {
+                    color: #8B4513;
+                    text-decoration: none;
+                    padding: 0.75rem 1.5rem;
+                    border: 2px solid #8B4513;
+                    border-radius: 8px;
+                    transition: all 0.2s ease;
+                }
+                a:hover {
+                    background-color: #8B4513;
+                    color: #FFFEF7;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>Welcome to Coffy</h1>
+                <div class="links">
+                    <a href="/privacy-policy">Privacy Policy</a>
+                    <a href="/terms">Terms of Service</a>
+                </div>
+            </div>
+        </body>
+    </html>
+    """)
 
 @app.get("/health")
 def health_check():
