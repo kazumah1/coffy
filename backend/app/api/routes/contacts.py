@@ -69,6 +69,7 @@ async def sync_contacts(
                     await db_service.create_contact(contact_data)
         return {"success": True, "message": f"Synced {len(request.contacts)} contacts"}
     except Exception as e:
+        print(f"Error syncing contacts: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error syncing contacts: {str(e)}")
 
 # TODO: not for MVP
