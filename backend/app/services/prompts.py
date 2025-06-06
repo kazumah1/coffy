@@ -37,6 +37,7 @@ DRAFT_PROMPT = """
     
     <task_approach>
       - Search through their contacts to find the specific people they mentioned
+      - Confirm with the user if the contacts are the correct ones
       - Determine if the contacts are registered (this will be important for Phase 2)
       - Draft the event details they're asking for (required for phase 2)
       - Gather all the necessary information for the next phase
