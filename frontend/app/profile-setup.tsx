@@ -174,11 +174,28 @@ export default function ProfileSetupScreen() {
         setSyncingContacts(false);
         return;
       }
-      const { data } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers, Contacts.Fields.Emails],
-        sort: Contacts.SortTypes.FirstName,
-      });
-      const formattedContacts = data
+
+      // Fetch contacts in batches of 50
+      let allContacts: Contacts.Contact[] = [];
+      let hasNextPage = true;
+      let pageOffset = 0;
+      const pageSize = 50;
+
+      while (hasNextPage) {
+        const { data: deviceContacts, hasNextPage: nextPage } = await Contacts.getContactsAsync({
+          fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers, Contacts.Fields.Emails],
+          pageSize,
+          pageOffset,
+        });
+        allContacts = [...allContacts, ...deviceContacts];
+        hasNextPage = nextPage;
+        pageOffset += pageSize;
+        console.log(`📱 Retrieved ${deviceContacts.length} contacts (page ${pageOffset / pageSize})`);
+      }
+
+      console.log(`📱 Found total of ${allContacts.length} contacts on device`);
+
+      const formattedContacts = allContacts
         .filter(contact => contact.name && (contact.phoneNumbers || contact.emails))
         .map(contact => ({
           id: contact.id || Math.random().toString(),
