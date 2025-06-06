@@ -85,7 +85,7 @@ GET_GOOGLE_CALENDAR_BUSY_TIMES_TOOL = {
     "type": "function",
     "function": {
         "name": "get_google_calendar_busy_times",
-        "description": "Get busy times from a registered user's Google Calendar within a date range. This is for registered participants and the creator.This tool returns times when the user is NOT available (has events). This tool can ONLY be used for registered users (those with a valid UUID). For unregistered users, use the texting-based availability flow instead.",
+        "description": "Get busy times from a registered user's Google Calendar within a date range. This is for registered participants. This tool returns times when the user is NOT available (has events). This tool can ONLY be used for registered users (those with a valid UUID). For unregistered users, use the texting-based availability flow instead.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -504,7 +504,7 @@ SEND_CHAT_MESSAGE_TO_USER_TOOL = {
     "type": "function",
     "function": {
         "name": "send_chat_message_to_user",
-        "description": "Send a chat message to the user via the app if more information is needed. Also used for confirming the contacts are the correct ones.",
+        "description": "Send a chat message to the user via the app if more information or confirmation is needed. Also used for confirming the contacts are the correct ones.",
         "parameters": {
             "type": "object",
             "properties": {

@@ -19,6 +19,7 @@ DRAFT_PROMPT = """
     **Phase 1: Event Discovery & Planning**
     - Someone says they want to meet up with specific people
     - You find those people in their contacts
+    - Confirm with the user if the contacts are the correct ones using the send_chat_message_to_user tool
     - You check if those contacts are registered in the system
     - You draft the event details
     

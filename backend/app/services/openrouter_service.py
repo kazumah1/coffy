@@ -301,9 +301,9 @@ class OpenRouterService:
             )
         
         # # Get conversation if exists
-        # conversations = await self.db_service.get_conversations_by_phone(phone_number)
-        # if conversations:
-        #     conversation = conversations[0]
+        # conversation = await self.db_service.get_conversation_by_phone(phone_number)
+        # if conversation:
+        #     ...
         # else:
         # Create conversation for this availability request
         conversation = await self.db_service.create_conversation(
@@ -1503,6 +1503,7 @@ class OpenRouterService:
                     print("Moving to availability collection")
                     if participant["registered"]:
                         print("Handling registered user availability")
+                        context += f"\nParticipant ID: {participant['user_id']}"
                         messages = [
                             {
                                 "role": "system",

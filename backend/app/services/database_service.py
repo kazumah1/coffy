@@ -558,6 +558,8 @@ class DatabaseService:
         if last_message:
             conversation["last_message"] = last_message
         
+        current_conversation = await self.client.table
+        
         response = self.client.table("conversations").update(conversation).eq("event_id", event_id).eq("phone_number", phone_number).execute()
         
         if not response.data:
@@ -739,10 +741,10 @@ class DatabaseService:
             
         return [event for event in events_response.data]
 
-    async def get_conversations_by_phone(self, phone_number: str) -> list[dict]:
+    async def get_conversation_by_phone(self, phone_number: str) -> list[dict]:
         """Get all conversations for a phone number."""
         response = self.client.table("conversations").select("*").eq("phone_number", phone_number).execute()
-        return [c for c in response.data]
+        return response.data[0] if response.data else None
 
     K = 10  # Number of messages to keep per conversation
 
