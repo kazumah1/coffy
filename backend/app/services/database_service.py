@@ -277,9 +277,11 @@ class DatabaseService:
             
             # The response.data will be None if there was an error
             if response.data is None:
+                print("response.data is None")
                 raise RuntimeError("Failed to search contacts: No data returned")
                 
         except Exception as e:
+            print("exception", e)
             raise RuntimeError(f"Failed to search contacts: {e}")
             
         # Convert all datetime fields in the response

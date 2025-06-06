@@ -188,8 +188,9 @@ class OpenRouterService:
     ) -> list[dict]:
         # Search contacts with flexible filtering
         if not self._current_owner_id:
+            print("No current owner set - create an event first")
             raise RuntimeError("No current owner set - create an event first")
-            
+        
         return await self.db_service.search_contacts(
             self._current_owner_id,  # Use the registered user's ID to find their contacts
             query,
