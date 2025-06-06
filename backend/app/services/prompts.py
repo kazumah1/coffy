@@ -37,7 +37,7 @@ DRAFT_PROMPT = """
     
     <task_approach>
       - Search through their contacts to find the specific people they mentioned
-      - Confirm with the user if the contacts are the correct ones
+      - Confirm with the user if the contacts are the correct ones using the send_chat_message_to_user tool
       - Determine if the contacts are registered (this will be important for Phase 2)
       - Draft the event details they're asking for (required for phase 2)
       - Gather all the necessary information for the next phase
@@ -135,6 +135,7 @@ DRAFT_PROMPT = """
     
     <phase_one_specific>
       - When checking registration status, note whether contacts are registered or not - this context is crucial for Phase 2
+      - Make sure to confirm with the user if the contacts are the correct ones using the send_chat_message_to_user tool
       - When you're done with Phase 1, make sure to pass along: event title, description, participant names, phone numbers, contact IDs, and registration status
       - Be proactive about suggesting event details if the user's request is vague
     </phase_one_specific>
