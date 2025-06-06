@@ -41,6 +41,7 @@ async def sync_contacts(
     db_service: DatabaseService = Depends(get_database_service),
 ):
     """Sync user's device contacts with the backend"""
+    errors = []
     try:
         # Get existing contacts for the user (owner_id)
         existing_contacts = await db_service.get_user_contacts(request.user_id)
@@ -51,23 +52,33 @@ async def sync_contacts(
         for contact in request.contacts:
             if contact.phoneNumbers:
                 std_number = standardize_phone_number(contact.phoneNumbers[0].number)
-                # Only create if this owner does not already have this phone number
-                if std_number in existing_contact_map:
-                    contact_data = {
-                        "name": contact.name,
-                        "phone_number": std_number
-                    }
-                    # Update existing contact for this owner/number
-                    await db_service.update_contact(existing_contact_map[std_number]["id"], contact_data)
-                else:
-                    # Create new contact for this owner/number
-                    contact_data = {
-                        "owner_id": request.user_id,
-                        "name": contact.name,
-                        "phone_number": std_number
-                    }
-                    await db_service.create_contact(contact_data)
-        return {"success": True, "message": f"Synced {len(request.contacts)} contacts"}
+                try:
+                    if std_number in existing_contact_map:
+                        contact_data = {
+                            "name": contact.name,
+                            "phone_number": std_number
+                        }
+                        # Update existing contact for this owner/number
+                        await db_service.update_contact(existing_contact_map[std_number]["id"], contact_data)
+                    else:
+                        # Create new contact for this owner/number
+                        contact_data = {
+                            "owner_id": request.user_id,
+                            "name": contact.name,
+                            "phone_number": std_number
+                        }
+                        await db_service.create_contact(contact_data)
+                except Exception as e:
+                    # If duplicate error, skip and continue
+                    print(f"Error syncing contacts: {str(e)}")
+                    if 'duplicate key value violates unique constraint' in str(e):
+                        continue
+                    errors.append({"contact": contact.name, "error": str(e)})
+        return {
+            "success": True,
+            "message": f"Synced {len(request.contacts) - len(errors)} contacts",
+            "errors": errors
+        }
     except Exception as e:
         print(f"Error syncing contacts: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error syncing contacts: {str(e)}")
