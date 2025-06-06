@@ -571,7 +571,7 @@ class OpenRouterService:
             raise RuntimeError(f"User {user_id} not found or not registered with Google Calendar")
             
         # Get events from Google Calendar
-        events = self.google_calendar_service.get_all_events(
+        events = await self.google_calendar_service.get_all_events(
             tokens['google_access_token'],
             start_date,
             end_date
