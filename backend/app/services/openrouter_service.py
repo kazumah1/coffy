@@ -1510,7 +1510,6 @@ class OpenRouterService:
         return {"content": "I apologize, but I couldn't process your request properly."}
 
     async def handle_chat_request(self, request: dict):
-        chat_session_id = request["user_id"]
         message = request["message"]
         # 1. Store user message
         user_message = [{
