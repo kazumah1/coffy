@@ -761,3 +761,16 @@ class DatabaseService:
         response = self.client.table("conversations").select("messages").eq("id", conversation_id).execute()
         messages = response.data[0]["messages"] if response.data and response.data[0].get("messages") else []
         return messages[-k:]
+    
+    async def get_last_k_chat_session_messages(self, chat_session_id: str, k: int = K) -> list:
+        response = self.client.table("chat_sessions").select("messages").eq("id", chat_session_id).execute()
+        messages = response.data[0]["messages"] if response.data and response.data[0].get("messages") else []
+        return messages[-k:]
+
+    async def extend_chat_session_message(self, chat_session_id: str, messages: list) -> dict:
+        """Extend the chat session's messages array."""
+        response = self.client.table("chat_sessions").select("messages").eq("id", chat_session_id).execute()
+        messages = response.data[0]["messages"] if response.data and response.data[0].get("messages") else []
+        messages.extend(messages)
+        response = self.client.table("chat_sessions").update({"messages": messages}).eq("id", chat_session_id).execute()
+        return response.data[0] if response.data else None

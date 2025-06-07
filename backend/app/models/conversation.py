@@ -23,3 +23,8 @@ class Conversation(BaseModel):
     status: str  # "active", "completed", "failed" (for retry logic or edge cases)
     created_at: datetime
     updated_at: datetime
+
+class ChatSession(BaseModel):
+    id: UUID
+    user_id: UUID # id of the registered user
+    messages: List[Message]  # Ordered list of Message objects

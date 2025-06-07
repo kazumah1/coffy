@@ -226,14 +226,14 @@ export default function ChatScreen() {
     }).start();
 
     try {
-      const response = await fetch(`${BACKEND_URL}/llm/prompt`, {
+      const response = await fetch(`${BACKEND_URL}/llm/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          request: textToSend,
-          creator_id: user.id
+          chat_session_id: user.id,
+          message: textToSend,
         }),
       });
 

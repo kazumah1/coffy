@@ -1699,3 +1699,52 @@ class OpenRouterService:
                     active_conversation["user_name"]
                 )
             return {"message": message, "from_number": phone_number}
+
+    async def run_agent_loop_with_history(self, messages: list[dict], chat_session_id: str, max_steps: int = 8):
+        # Fetch chat session to get event_id and user_id
+        chat_session = await self.db_service.client.table("chat_sessions").select("*").eq("id", chat_session_id).execute()
+        chat_session_data = chat_session.data[0] if chat_session.data else None
+        event_details = None
+        participants = None
+        if chat_session_data and chat_session_data.get("event_id"):
+            event_details = await self.db_service.get_event_by_id(chat_session_data["event_id"])
+            participants = await self.db_service.get_event_participants(chat_session_data["event_id"])
+        system_content = AVAILABLE_PROMPTS["draft"]
+        if event_details:
+            system_content += f"\nEvent details: {event_details}"
+        if participants:
+            system_content += f"\nParticipants: {participants}"
+        system_prompt = {
+            "role": "system",
+            "content": system_content
+        }
+        context_messages = [system_prompt] + messages[-9:]  # keep last 9 + system
+
+        for step in range(max_steps):
+            response, _ = await self.prompt_agent(context_messages, tools=[self.TOOLS_FOR_STAGE["agent_loop"]])
+            assistant_message = [{
+                "role": "assistant",
+                "content": response.get("content", ""),
+                "timestamp": str(datetime.now())
+            }]
+            for tool_call in response.tool_calls:
+                tool_name = tool_call.function.name
+                tool_args = json.loads(tool_call.function.arguments)
+                tool_response = self.TOOL_MAPPINGS[tool_name](**tool_args)
+                assistant_message.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "name": tool_name,
+                "content": json.dumps(tool_response),
+                })
+            await self.db_service.extend_chat_session_message(chat_session_id, assistant_message)
+            context_messages.extend(assistant_message)
+
+            if len(response.tool_calls) == 0:
+                break
+            
+            for tool_call in response.tool_calls:
+                if tool_call.function.name == "send_chat_message_to_user":
+                    break
+
+        return {"content": assistant_message[-1]}
