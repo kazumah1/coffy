@@ -97,36 +97,18 @@ async def create_event(
 
 @router.post("/chat")
 async def chat(
-    chat_session_id: str,
-    message: str,
+    request: dict,
     db_service: DatabaseService = Depends(get_database_service),
     google_calendar_service: GoogleCalendarService = Depends(get_google_calendar_service),
     token_manager: TokenManager = Depends(get_token_manager),
     texting_service: TextingService = Depends(get_texting_service),
 ):
-    # 1. Store user message
-    user_message = {
-        "role": "user",
-        "content": message,
-        "timestamp": str(datetime.now())
-    }
-    await db_service.append_chat_session_message(chat_session_id, user_message)
-    # 2. Get last k messages
-    last_k_messages = await db_service.get_last_k_chat_session_messages(chat_session_id)
-    # 3. Run agent with full history
     openrouter_service = OpenRouterService(
         db_service=db_service,
         google_calendar_service=google_calendar_service,
         token_manager=token_manager,
         texting_service=texting_service
     )
-    agent_response = await openrouter_service.run_agent_loop_with_history(last_k_messages, chat_session_id)
-    # 4. Store agent response
-    assistant_message = {
-        "role": "assistant",
-        "content": agent_response["content"],
-        "timestamp": str(datetime.now())
-    }
-    await db_service.append_chat_session_message(chat_session_id, assistant_message)
-    # 5. Return new message(s)
-    return {"message": agent_response["content"], "chat_session_id": chat_session_id}
+    # Delegate all chat session management to openrouter_service
+    result = await openrouter_service.handle_chat_request(request)
+    return result
