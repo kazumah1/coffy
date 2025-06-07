@@ -1517,7 +1517,7 @@ class OpenRouterService:
             "content": message,
             "timestamp": str(datetime.now())
         }]
-        chat_session = await self.db_service.get_or_create_chat_session(request["user_id"])
+        chat_session = await self.db_service.get_or_create_chat_session(request["creator_id"])
         await self.db_service.extend_chat_session_message(chat_session["id"], user_message)
         # 2. Get last k messages
         last_k_messages = await self.db_service.get_last_k_chat_session_messages(chat_session["id"])
