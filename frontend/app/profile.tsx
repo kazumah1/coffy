@@ -71,7 +71,7 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout 
 };
 
 export default function ProfileScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, syncProfileFromServer } = useAuth();
   const [name, setName] = useState(user?.name || '');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -79,6 +79,7 @@ export default function ProfileScreen() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [userStatus, setUserStatus] = useState<'available' | 'maybe' | 'busy'>('available');
   const [syncingContacts, setSyncingContacts] = useState(false);
+  const [refreshingProfile, setRefreshingProfile] = useState(false);
 
   // Load existing profile data when component mounts
   useEffect(() => {
@@ -90,40 +91,94 @@ export default function ProfileScreen() {
     if (!user?.id) return;
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/users/profile/${user.id}`, {
+      console.log('Loading profile data for user:', user.id);
+      
+      // First try to sync from server using AuthContext function
+      const serverSyncSuccess = await syncProfileFromServer();
+      if (serverSyncSuccess) {
+        console.log('Successfully synced profile from server via AuthContext');
+        // Load from local storage after successful sync
+        const localProfile = await SecureStore.getItemAsync('userProfile');
+        if (localProfile) {
+          const profileData = JSON.parse(localProfile);
+          console.log('Using synced profile data:', profileData);
+          if (profileData.name) setName(profileData.name);
+          if (profileData.phone_number) setPhoneNumber(profileData.phone_number);
+          return; // Successfully loaded, no need to continue
+        }
+      }
+      
+      // If AuthContext sync didn't work, try direct API calls
+      console.log('AuthContext sync failed, trying direct API calls...');
+      
+      // Try the primary endpoint that matches where data is saved
+      let response = await fetch(`${BACKEND_URL}/auth/users/profile/${user.id}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
       });
 
+      // If that fails, try alternative endpoint patterns
       if (response.status === 404) {
-        // Backend endpoint doesn't exist yet - try to load from local storage
-        console.log('Backend endpoint not available, loading from local storage');
+        console.log('Primary endpoint not found, trying alternative endpoint...');
+        response = await fetch(`${BACKEND_URL}/auth/user/${user.id}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+      }
+
+      // If still 404, try the old endpoint as final fallback
+      if (response.status === 404) {
+        console.log('Alternative endpoint not found, trying legacy endpoint...');
+        response = await fetch(`${BACKEND_URL}/api/users/profile/${user.id}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+      }
+
+      if (response.status === 404) {
+        // No backend endpoints available - try to load from local storage
+        console.log('No backend endpoints available, loading from local storage');
         const localProfile = await SecureStore.getItemAsync('userProfile');
         if (localProfile) {
           const profileData = JSON.parse(localProfile);
+          console.log('Loaded profile from local storage:', profileData);
           if (profileData.name) setName(profileData.name);
           if (profileData.phone_number) setPhoneNumber(profileData.phone_number);
+        } else {
+          console.log('No local profile data found');
         }
         return;
       }
 
       if (response.ok) {
         const profileData = await response.json();
+        console.log('Loaded profile from server:', profileData);
         if (profileData.name) setName(profileData.name);
         if (profileData.phone_number) setPhoneNumber(profileData.phone_number);
         if (profileData.profile_image_url) setProfileImage(profileData.profile_image_url);
+      } else {
+        console.warn('Server returned error:', response.status);
+        throw new Error(`Server error: ${response.status}`);
       }
     } catch (error) {
-      console.error('Error loading profile:', error);
+      console.error('Error loading profile from server:', error);
       // Fallback to local storage
       try {
+        console.log('Falling back to local storage...');
         const localProfile = await SecureStore.getItemAsync('userProfile');
         if (localProfile) {
           const profileData = JSON.parse(localProfile);
+          console.log('Loaded profile from local storage fallback:', profileData);
           if (profileData.name) setName(profileData.name);
           if (profileData.phone_number) setPhoneNumber(profileData.phone_number);
+        } else {
+          console.log('No local profile data found in fallback');
         }
       } catch (localError) {
         console.error('Error loading local profile:', localError);
@@ -381,6 +436,20 @@ export default function ProfileScreen() {
     }
   };
 
+  const refreshProfile = async () => {
+    setRefreshingProfile(true);
+    try {
+      console.log('🔄 Manual profile refresh triggered');
+      await loadProfileData();
+      Alert.alert('Success', 'Profile data refreshed!');
+    } catch (error) {
+      console.error('Error refreshing profile:', error);
+      Alert.alert('Error', 'Failed to refresh profile data. Please try again.');
+    } finally {
+      setRefreshingProfile(false);
+    }
+  };
+
   if (loadingProfile) {
     return (
       <SafeAreaView style={styles.container}>
@@ -518,6 +587,18 @@ export default function ProfileScreen() {
             <Text style={styles.saveButtonText}>
               {isLoading ? 'Saving...' : 'Save Changes'}
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.refreshButton} 
+            onPress={refreshProfile}
+            disabled={refreshingProfile}
+          >
+            {refreshingProfile ? (
+              <ActivityIndicator color={colors.coffeeDark} />
+            ) : (
+              <Text style={styles.refreshButtonText}>🔄 Refresh Profile</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -772,6 +853,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.coffeeWhite,
+  },
+  refreshButton: {
+    backgroundColor: colors.coffeeCream,
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.coffeeMedium,
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  refreshButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.coffeeDark,
   },
   syncButton: {
     backgroundColor: colors.coffeeCream,

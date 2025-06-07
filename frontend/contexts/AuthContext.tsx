@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Alert } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as SecureStore from 'expo-secure-store';
+import { router } from 'expo-router';
 
 
 // User type
@@ -21,6 +22,7 @@ interface AuthContextType {
     signOut: () => Promise<void>;
     checkProfileCompletion: () => Promise<boolean>;
     updateUser: (userData: User) => Promise<void>;
+    syncProfileFromServer: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -87,7 +89,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                             if (needsSetup !== userData.needsProfileSetup) {
                                 const updatedUser = { ...userData, needsProfileSetup: needsSetup };
                                 console.log('Updating profile setup status:', needsSetup);
-                                setUser(updatedUser);
+                            setUser(updatedUser);
                                 // Update stored user with profile setup flag
                                 await SecureStore.setItemAsync('user', JSON.stringify(updatedUser));
                             }
@@ -114,9 +116,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         try {
             console.log('Checking profile completion for user:', userIdToCheck);
-            const response = await fetchWithTimeout(`${BACKEND_URL}/auth/user/${userIdToCheck}`);
+            // Use the correct endpoint that matches where profile data is saved
+            const response = await fetchWithTimeout(`${BACKEND_URL}/auth/users/profile/${userIdToCheck}`);
             
             if (response.status === 404) {
+                // Try alternative endpoint pattern in case the API uses a different structure
+                try {
+                    const altResponse = await fetchWithTimeout(`${BACKEND_URL}/auth/user/${userIdToCheck}`);
+                    if (altResponse.ok) {
+                        const profileData = await altResponse.json();
+                        const hasProfile = profileData.name && profileData.phone_number;
+                        const hasContacts = profileData.contacts_loaded || false;
+                        const needsSetup = !(hasProfile && hasContacts);
+                        
+                        console.log('Server profile check result (alt endpoint):', {
+                            hasProfile,
+                            hasContacts, 
+                            needsSetup,
+                            profileData: { name: profileData.name, phone: !!profileData.phone_number, contacts_loaded: profileData.contacts_loaded }
+                        });
+                        
+                        return needsSetup;
+                    }
+                } catch (altError) {
+                    console.log('Alternative endpoint also not available');
+                }
+                
                 // Backend endpoint doesn't exist yet - check local storage as fallback
                 console.log('Backend not available, checking local profile completion');
                 try {
@@ -182,12 +207,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 const name = url.searchParams.get("name");
                 
                 if (email && userId) {
+                    console.log('=== GOOGLE LOGIN SUCCESS ===');
+                    console.log('User ID:', userId);
+                    console.log('Email:', email);
+                    console.log('Name:', name);
+                    
                     let needsSetup = true; // Default to needing setup for new users
                     
                     // Try to check if this is a new user or needs profile setup
                     try {
+                        console.log('Checking if user needs profile setup...');
                         needsSetup = await checkProfileCompletion(userId);
-                        console.log('Profile completion check during login:', needsSetup);
+                        console.log('Profile completion check during login result:', needsSetup);
+                        
+                        if (!needsSetup) {
+                            console.log('✅ Existing user with complete profile - skipping setup');
+                        } else {
+                            console.log('📝 New user or incomplete profile - will show setup');
+                        }
                     } catch (profileError) {
                         console.warn('Profile completion check failed during login, defaulting to setup needed:', profileError);
                         // Default to needing setup for safety with new users
@@ -204,6 +241,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     // Save user data to secure storage for persistence FIRST
                     await SecureStore.setItemAsync('user', JSON.stringify(userData));
                     console.log('User data saved to storage:', userData);
+                    console.log('=========================');
                     
                     // Then set the user state
                     setUser(userData);
@@ -220,16 +258,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     async function signOut() {
         try {
-            setUser(null);
+        setUser(null);
             // Clear all user-related data from storage
-            await SecureStore.deleteItemAsync('user');
+        await SecureStore.deleteItemAsync('user');
             await SecureStore.deleteItemAsync('userProfile');
             await SecureStore.deleteItemAsync('userContacts');
             await SecureStore.deleteItemAsync('userBestFriends');
             await SecureStore.deleteItemAsync('userAvailabilityStatus');
             console.log('All user data cleared from storage');
+            
+            // Navigate back to login screen
+            router.replace('/');
         } catch (error) {
             console.error('Error clearing user data:', error);
+            // Even if there's an error clearing data, still try to navigate to login
+            try {
+                router.replace('/');
+            } catch (navError) {
+                console.error('Error navigating to login:', navError);
+            }
         }
     }
 
@@ -243,8 +290,71 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    const syncProfileFromServer = async (): Promise<boolean> => {
+        if (!user?.id) {
+            console.log('No user ID available for profile sync');
+            return false;
+        }
+
+        try {
+            console.log('🔄 Syncing profile from server for user:', user.id);
+            
+            // Try the primary endpoint first
+            let response = await fetchWithTimeout(`${BACKEND_URL}/auth/users/profile/${user.id}`);
+            
+            // If that fails, try the alternative endpoint
+            if (response.status === 404) {
+                console.log('Primary endpoint not found, trying alternative...');
+                response = await fetchWithTimeout(`${BACKEND_URL}/auth/user/${user.id}`);
+            }
+            
+            if (response.ok) {
+                const serverProfile = await response.json();
+                console.log('📥 Server profile data:', serverProfile);
+                
+                // Check if the server has complete profile data
+                const hasProfile = serverProfile.name && serverProfile.phone_number;
+                const hasContacts = serverProfile.contacts_loaded || false;
+                
+                if (hasProfile) {
+                    // Update user data with server information
+                    const updatedUser: User = {
+                        ...user,
+                        name: serverProfile.name,
+                        needsProfileSetup: !(hasProfile && hasContacts),
+                        contactsLoaded: hasContacts
+                    };
+                    
+                    // Update both state and storage
+                    await updateUser(updatedUser);
+                    
+                    // Also save detailed profile data locally for offline access
+                    await SecureStore.setItemAsync('userProfile', JSON.stringify({
+                        name: serverProfile.name,
+                        phone_number: serverProfile.phone_number,
+                        user_id: user.id,
+                        contacts_loaded: hasContacts
+                    }));
+                    
+                    console.log('✅ Profile synced successfully from server');
+                    console.log('Updated user:', updatedUser);
+                    return true;
+                } else {
+                    console.log('⚠️ Server profile exists but is incomplete');
+                    return false;
+                }
+            } else {
+                console.log('❌ Server profile not found or error:', response.status);
+                return false;
+            }
+        } catch (error) {
+            console.error('💥 Error syncing profile from server:', error);
+            return false;
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ user, loading, handleGoogleLogin, signOut, checkProfileCompletion, updateUser }}>
+        <AuthContext.Provider value={{ user, loading, handleGoogleLogin, signOut, checkProfileCompletion, updateUser, syncProfileFromServer }}>
             {children}
         </AuthContext.Provider>
     );
