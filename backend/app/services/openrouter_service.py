@@ -1501,7 +1501,13 @@ class OpenRouterService:
                 if tool_call.function.name == "send_chat_message_to_user" or tool_call.function.name == "send_confirmation_text":
                     break
 
-        return {"content": assistant_message[-1]}
+        # Return the content of the last assistant message
+        last_message = assistant_message[-1]
+        if isinstance(last_message, dict) and "content" in last_message:
+            return {"content": last_message["content"]}
+        elif isinstance(last_message, str):
+            return {"content": last_message}
+        return {"content": "I apologize, but I couldn't process your request properly."}
 
     async def handle_chat_request(self, request: dict):
         chat_session_id = request["user_id"]
