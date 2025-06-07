@@ -1744,7 +1744,7 @@ class OpenRouterService:
                 break
             
             for tool_call in response.tool_calls:
-                if tool_call.function.name == "send_chat_message_to_user":
+                if tool_call.function.name == "send_chat_message_to_user" or tool_call.function.name == "send_confirmation_text":
                     break
 
         return {"content": assistant_message[-1]}
