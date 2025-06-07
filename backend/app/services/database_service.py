@@ -774,3 +774,22 @@ class DatabaseService:
         messages.extend(messages)
         response = self.client.table("chat_sessions").update({"messages": messages}).eq("id", chat_session_id).execute()
         return response.data[0] if response.data else None
+
+    async def get_or_create_chat_session(self, user_id: str, event_id: str = None) -> dict:
+        """Get an existing chat session for a user (and event, if provided), or create a new one."""
+        response = await self.client.table("chat_sessions").select("*").eq("user_id", user_id).execute()
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        
+        # Create new chat session
+        now = datetime.now().isoformat()
+        chat_session = {
+            "id": str(uuid4()),
+            "user_id": user_id,
+            "event_id": event_id,
+            "messages": [],
+            "created_at": now,
+            "updated_at": now
+        }
+        insert_resp = self.client.table("chat_sessions").insert(chat_session).execute()
+        return insert_resp.data[0] if insert_resp.data else chat_session
