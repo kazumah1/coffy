@@ -232,8 +232,8 @@ export default function ChatScreen() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          chat_session_id: user.id,
-          message: textToSend,
+          request: textToSend,
+          creator_id: user.id
         }),
       });
 
