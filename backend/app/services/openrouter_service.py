@@ -1481,16 +1481,17 @@ class OpenRouterService:
                 "content": str(response),
                 "timestamp": str(datetime.now())
             }]
-            for tool_call in response.tool_calls:
-                tool_name = tool_call.function.name
-                tool_args = json.loads(tool_call.function.arguments)
-                tool_response = self.TOOL_MAPPINGS[tool_name](**tool_args)
-                assistant_message.append({
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "name": tool_name,
-                "content": json.dumps(tool_response),
-                })
+            if response.tool_calls:
+                for tool_call in response.tool_calls:
+                    tool_name = tool_call.function.name
+                    tool_args = json.loads(tool_call.function.arguments)
+                    tool_response = self.TOOL_MAPPINGS[tool_name](**tool_args)
+                    assistant_message.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "name": tool_name,
+                    "content": json.dumps(tool_response),
+                    })
             await self.db_service.extend_chat_session_message(chat_session_id, assistant_message)
             context_messages.extend(assistant_message)
 
