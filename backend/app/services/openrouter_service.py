@@ -1265,7 +1265,7 @@ class OpenRouterService:
             self._handle_error(e, "Failed to check conversation state")
 
     TOOLS_FOR_STAGE = {
-        "agent loop": [
+        "agent_loop": [
             "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_chat_message_to_user", "send_confirmation_text", "get_creator_google_calendar_busy_times"
         ],
         "texting": [
@@ -1475,7 +1475,7 @@ class OpenRouterService:
         context_messages = [system_prompt] + messages[-9:]  # keep last 9 + system
 
         for step in range(max_steps):
-            response, _ = await self.prompt_agent(context_messages, tools=[self.TOOLS_FOR_STAGE["agent_loop"]])
+            response, _ = await self.prompt_agent(context_messages, tools=self.TOOLS_FOR_STAGE["agent_loop"])
             assistant_message = [{
                 "role": "assistant",
                 "content": response.get("content", ""),
