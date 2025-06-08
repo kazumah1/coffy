@@ -772,6 +772,9 @@ class DatabaseService:
         response = self.client.table("chat_sessions").select("messages").eq("id", chat_session_id).execute()
         messages = response.data[0]["messages"] if response.data and response.data[0].get("messages") else []
         messages.extend(messages)
+        print("=====new messages=====")
+        print(messages)
+        print("===================")
         response = self.client.table("chat_sessions").update({"messages": messages}).eq("id", chat_session_id).execute()
         return response.data[0] if response.data else None
 

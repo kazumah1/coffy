@@ -1508,6 +1508,9 @@ class OpenRouterService:
             await self.db_service.extend_chat_session_message(chat_session_id, assistant_message)
             context_messages.extend(assistant_message)
 
+            if not response.tool_calls:
+                break
+
             if response.tool_calls:
                 for tool_call in response.tool_calls:
                     if tool_call.function.name == "send_chat_message_to_user" or tool_call.function.name == "send_confirmation_text":
@@ -1523,6 +1526,9 @@ class OpenRouterService:
 
     async def handle_chat_request(self, request: dict):
         message = request["request"]
+        print("=====message=====")
+        print(message)
+        print("===================")
         # 1. Store user message
         user_message = [{
             "role": "user",
