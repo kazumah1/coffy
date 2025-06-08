@@ -19,7 +19,7 @@ from app.dependencies import (
 )
 
 app = FastAPI(
-    title="CoffyChat",
+    title="Coffy",
     description="Smart Event Scheduling API",
     version="0.1.0"
 )
@@ -81,15 +81,45 @@ def read_root():
                 .container {
                     text-align: center;
                     padding: 2rem;
+                    max-width: 800px;
+                    margin: 0 auto;
                 }
                 h1 {
                     font-size: 2.5rem;
                     margin-bottom: 2rem;
                     color: #8B4513;
                 }
+                .description {
+                    margin: 2rem 0;
+                    text-align: left;
+                    line-height: 1.6;
+                }
+                .description p {
+                    margin-bottom: 1rem;
+                    color: #4A3728;
+                }
+                .description ul {
+                    list-style-type: none;
+                    padding: 0;
+                    margin: 1.5rem 0;
+                }
+                .description li {
+                    margin: 0.75rem 0;
+                    padding-left: 1.5rem;
+                    position: relative;
+                    color: #6B4E3D;
+                }
+                .description li:before {
+                    content: "•";
+                    color: #8B4513;
+                    position: absolute;
+                    left: 0;
+                }
                 .links {
                     display: flex;
                     gap: 2rem;
+                    justify-content: center;
+                    margin-top: 2rem;
                 }
                 a {
                     color: #8B4513;
@@ -108,6 +138,16 @@ def read_root():
         <body>
             <div class="container">
                 <h1>Welcome to Coffy</h1>
+                <div class="description">
+                    <p>Coffy is your AI-powered event scheduling assistant that makes planning gatherings effortless. Whether you're organizing coffee meetups, dinner parties, or team meetings, Coffy helps you:</p>
+                    <ul>
+                        <li>Find the perfect time that works for everyone</li>
+                        <li>Send automated invites and reminders</li>
+                        <li>Handle RSVPs and updates in real-time</li>
+                        <li>Manage your events through natural conversation</li>
+                    </ul>
+                    <p>Start planning your next event with Coffy today!</p>
+                </div>
                 <div class="links">
                     <a href="/privacy-policy">Privacy Policy</a>
                     <a href="/terms">Terms of Service</a>
