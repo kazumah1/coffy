@@ -776,8 +776,9 @@ class DatabaseService:
         return response.data[0] if response.data else None
 
     async def get_or_create_chat_session(self, user_id: str, event_id: str = None) -> dict:
-        """Get an existing chat session for a user (and event, if provided), or create a new one."""
-        response = await self.client.table("chat_sessions").select("*").eq("user_id", user_id).execute()
+        # First try to get existing session
+        response = self.client.table("chat_sessions").select("*").eq("user_id", user_id).execute()
+        
         if response.data and len(response.data) > 0:
             return response.data[0]
         
