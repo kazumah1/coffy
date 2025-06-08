@@ -1448,7 +1448,7 @@ class OpenRouterService:
         response, _ = await self.prompt_agent(context_messages, tools=list(self.TOOL_MAPPINGS['texting']))
         assistant_message = {
             "role": "assistant",
-            "content": response.get("content", ""),
+            "content": response["content"],
             "timestamp": str(datetime.now())
         }
         await self.db_service.append_conversation_message(conversation_id, assistant_message)
@@ -1478,7 +1478,7 @@ class OpenRouterService:
             response, _ = await self.prompt_agent(context_messages, tools=self.TOOLS_FOR_STAGE["agent_loop"])
             assistant_message = [{
                 "role": "assistant",
-                "content": response.get("content", ""),
+                "content": str(response),
                 "timestamp": str(datetime.now())
             }]
             for tool_call in response.tool_calls:
