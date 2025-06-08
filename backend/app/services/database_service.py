@@ -770,12 +770,12 @@ class DatabaseService:
     async def extend_chat_session_message(self, chat_session_id: str, messages: list) -> dict:
         """Extend the chat session's messages array."""
         response = self.client.table("chat_sessions").select("messages").eq("id", chat_session_id).execute()
-        messages = response.data[0]["messages"] if response.data and response.data[0].get("messages") else []
-        messages.extend(messages)
+        old_messages = response.data[0]["messages"] if response.data and response.data[0].get("messages") else []
+        old_messages.extend(messages)
         print("=====new messages=====")
-        print(messages)
+        print(old_messages)
         print("===================")
-        response = self.client.table("chat_sessions").update({"messages": messages}).eq("id", chat_session_id).execute()
+        response = self.client.table("chat_sessions").update({"messages": old_messages}).eq("id", chat_session_id).execute()
         return response.data[0] if response.data else None
 
     async def get_or_create_chat_session(self, user_id: str, event_id: str = None) -> dict:
