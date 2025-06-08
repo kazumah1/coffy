@@ -1487,9 +1487,6 @@ class OpenRouterService:
             print(context_messages)
             print("===================")
             tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["agent_loop"] if tool_name in self.TOOL_MAPPINGS]]
-            print("=====tools=====")
-            print(tools)
-            print("===================")
             response, _ = await self.prompt_agent(context_messages, tools=tools)
             print("=====response=====")
             print(response)
@@ -1511,7 +1508,13 @@ class OpenRouterService:
                         "role": "tool",
                         "tool_call_id": tool_call.id,
                         "name": tool_name,
-                        "content": json.dumps(tool_response),
+                        "content": json.dumps(tool_response)
+                    })
+                    context_messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": tool_name,
+                        "content": json.dumps(tool_response)
                     })
             await self.db_service.extend_chat_session_message(chat_session_id, assistant_message)
             context_messages.extend(assistant_message)
