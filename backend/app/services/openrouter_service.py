@@ -1477,7 +1477,7 @@ class OpenRouterService:
             # Format assistant's response
             assistant_message = {
                 "role": "assistant",
-                "content": response["content"],
+                "content": response.content,  # Access content as attribute, not dictionary key
                 "timestamp": current_datetime
             }
             
