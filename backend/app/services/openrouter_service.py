@@ -1423,7 +1423,6 @@ class OpenRouterService:
                 return {"message": message, "from_number": phone_number}
             conversation_id = conversation["id"]
             
-            
             # 2. Append the inbound message to the conversation
             current_datetime = datetime.now().astimezone().isoformat()
             user_message = {
@@ -1441,14 +1440,20 @@ class OpenRouterService:
             if conversation.get("event_id"):
                 event_details = await self.db_service.get_event_by_id(conversation["event_id"])
                 participants = await self.db_service.get_event_participants(conversation["event_id"])
+            print("event_details", event_details)
+            print("participants", participants)
             
             system_content = AVAILABLE_PROMPTS["texting"]
             if event_details:
                 system_content += f"\nEvent details: {event_details}"
+                # Set current owner ID from event creator
+                self._current_owner_id = event_details["creator_id"]
             if participants:
                 system_content += f"\nParticipants: {participants}"
             
+            print("self._current_owner_id", self._current_owner_id)
             creator = await self.db_service.get_user_by_id(self._current_owner_id)
+            print("creator", creator)
             creator_name = creator["name"] if creator else "A friend"
             system_content += f"\nCreator: {creator_name}"
             system_content += f"\nCreator ID: {self._current_owner_id}"
