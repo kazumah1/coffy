@@ -1280,7 +1280,7 @@ class OpenRouterService:
         phone_numbers = set()  # Using set to avoid duplicates
         response = None # to save the last response from the agent
         step = 0 # to limit the total calls to the agent (for credits and development)
-        tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["agent loop"] if tool_name in self.TOOL_MAPPINGS]]
+        tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["agent_loop"] if tool_name in self.TOOL_MAPPINGS]]
         self._current_owner_id = creator_id
         tool_call_history = []
         total_prompt_tokens = 0
@@ -1412,48 +1412,131 @@ class OpenRouterService:
 
     async def handle_inbound_message(self, phone_number: str, message: str) -> dict:
         """Handle an incoming text message from a participant, using conversation context and all texting tools."""
-        # 1. Find the active conversation for this phone number
-        conversation = await self.db_service.get_conversation_by_phone(phone_number)
-        if not conversation:
-            logger.warning(f"No active conversation found for {phone_number}")
+        try:
+            print("=====handle_inbound_message=====")
+            print(phone_number)
+            print(message)
+            print("================================")
+            conversation = await self.db_service.get_conversation_by_phone(phone_number)
+            if not conversation:
+                logger.warning(f"No active conversation found for {phone_number}")
+                return {"message": message, "from_number": phone_number}
+            conversation_id = conversation["id"]
+            
+            # Get chat session for this conversation
+            chat_session = await self.db_service.get_or_create_chat_session(
+                conversation.get("user_id"),
+                conversation.get("event_id")
+            )
+            
+            # 2. Append the inbound message to the conversation
+            current_datetime = datetime.now().astimezone().isoformat()
+            user_message = {
+                "role": "user",
+                "content": message,
+                "timestamp": current_datetime
+            }
+            
+            # Get last k messages for context
+            last_k_messages = await self.db_service.get_last_k_conversation_messages(conversation_id)
+            
+            # Compose system prompt with event/participant context if available
+            event_details = None
+            participants = None
+            if conversation.get("event_id"):
+                event_details = await self.db_service.get_event_by_id(conversation["event_id"])
+                participants = await self.db_service.get_event_participants(conversation["event_id"])
+            
+            system_content = AVAILABLE_PROMPTS["texting"]
+            if event_details:
+                system_content += f"\nEvent details: {event_details}"
+            if participants:
+                system_content += f"\nParticipants: {participants}"
+            
+            creator = await self.db_service.get_user_by_id(self._current_owner_id)
+            creator_name = creator["name"] if creator else "A friend"
+            system_content += f"\nCreator: {creator_name}"
+            system_content += f"\nCreator ID: {self._current_owner_id}"
+            system_content += f"\nCurrent datetime: {current_datetime}"
+            
+            system_prompt = {
+                "role": "system",
+                "content": system_content
+            }
+            
+            # Build context messages with system prompt and history
+            context_messages = [system_prompt] + last_k_messages[-9:]
+            
+            # Add the user's new message to context
+            context_messages.append(user_message)
+            
+            # Run the agent loop with appropriate tools
+            tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["texting"] if tool_name in self.TOOL_MAPPINGS]]
+            response, _ = await self.prompt_agent(context_messages, tools=tools)
+            
+            # Format assistant's response
+            assistant_message = {
+                "role": "assistant",
+                "content": response["content"],
+                "timestamp": current_datetime
+            }
+            
+            # Add tool calls if any
+            if response.tool_calls:
+                assistant_message["tool_calls"] = [
+                    {
+                        "id": tool_call.id,
+                        "type": tool_call.type,
+                        "function": {
+                            "name": tool_call.function.name,
+                            "arguments": tool_call.function.arguments
+                        }
+                    }
+                    for tool_call in response.tool_calls
+                ]
+            
+            # Add the assistant's response to context
+            context_messages.append(assistant_message)
+            
+            # Handle tool calls if any
+            tool_responses = []
+            if response.tool_calls:
+                for tool_call in response.tool_calls:
+                    print("=====tool call=====")
+                    print(tool_call)
+                    print("===================")
+                    tool_name = tool_call.function.name
+                    tool_args = json.loads(tool_call.function.arguments)
+                    tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                    tool_responses.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": tool_name,
+                        "content": json.dumps(tool_response),
+                        "timestamp": current_datetime
+                    })
+                
+                # Add all tool responses to context
+                context_messages.extend(tool_responses)
+            
+            # Store all messages in the database in a single call
+            await self.db_service.extend_conversation_message(
+                conversation_id,
+                [user_message, assistant_message] + tool_responses
+            )
+            
+            # Also update the chat session with the same messages
+            await self.db_service.extend_chat_session_message(
+                chat_session["id"],
+                [user_message, assistant_message] + tool_responses
+            )
+            
+            return {"message": assistant_message["content"], "from_number": phone_number}
+            
+        except Exception as e:
+            print("error", e)
+            logger.error(f"Error in handle_inbound_message: {str(e)}")
             return {"message": message, "from_number": phone_number}
-        conversation_id = conversation["id"]
-        # 2. Append the inbound message to the conversation
-        now = datetime.now().astimezone().isoformat()
-        user_message = {
-            "role": "user",
-            "content": message,
-            "timestamp": now
-        }
-        await self.db_service.append_conversation_message(conversation_id, user_message)
-        # 3. Get last k messages for context
-        last_k_messages = await self.db_service.get_last_k_conversation_messages(conversation_id)
-        # 4. Run agent loop with all texting tools
-        # Compose system prompt with event/participant context if available
-        event_details = None
-        participants = None
-        if conversation.get("event_id"):
-            event_details = await self.db_service.get_event_by_id(conversation["event_id"])
-            participants = await self.db_service.get_event_participants(conversation["event_id"])
-        system_content = AVAILABLE_PROMPTS["texting"]
-        if event_details:
-            system_content += f"\nEvent details: {event_details}"
-        if participants:
-            system_content += f"\nParticipants: {participants}"
-        system_prompt = {
-            "role": "system",
-            "content": system_content
-        }
-        context_messages = [system_prompt] + last_k_messages[-9:]
-        # Run the agent loop with all texting tools
-        response, _ = await self.prompt_agent(context_messages, tools=list(self.TOOL_MAPPINGS['texting']))
-        assistant_message = {
-            "role": "assistant",
-            "content": response["content"],
-            "timestamp": now
-        }
-        await self.db_service.append_conversation_message(conversation_id, assistant_message)
-        return {"message": assistant_message["content"], "from_number": phone_number}
 
     async def run_agent_loop_with_history(self, messages: list[dict], chat_session_id: str, max_steps: int = 8):
         # Fetch chat session to get event_id and user_id
@@ -1481,6 +1564,7 @@ class OpenRouterService:
             "role": "system",
             "content": system_content
         }
+        
         context_messages = [system_prompt] + messages[-9:]  # keep last 9 + system
 
         for step in range(max_steps):

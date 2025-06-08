@@ -239,7 +239,7 @@ export default function ChatScreen() {
 
       const data = await response.json();
       
-      let responseText = 'Sorry, I encountered an error. Please try again.';
+      let responseText = '';
       if (data && data.response) {
         if (data.response.content) {
           responseText = data.response.content;

@@ -755,6 +755,13 @@ class DatabaseService:
         messages = messages[-k:]
         update_resp = self.client.table("conversations").update({"messages": messages}).eq("id", conversation_id).execute()
         return update_resp.data[0] if update_resp.data else None
+    
+    async def extend_conversation_message(self, conversation_id: str, messages: list) -> dict:
+        response = self.client.table("conversations").select("messages").eq("id", conversation_id).execute()
+        old_messages = response.data[0]["messages"] if response.data and response.data[0].get("messages") else []
+        old_messages.extend(messages)
+        response = self.client.table("conversations").update({"messages": old_messages}).eq("id", conversation_id).execute()
+        return response.data[0] if response.data else None
 
     async def get_last_k_conversation_messages(self, conversation_id: str, k: int = K) -> list:
         response = self.client.table("conversations").select("messages").eq("id", conversation_id).execute()
@@ -771,9 +778,6 @@ class DatabaseService:
         response = self.client.table("chat_sessions").select("messages").eq("id", chat_session_id).execute()
         old_messages = response.data[0]["messages"] if response.data and response.data[0].get("messages") else []
         old_messages.extend(messages)
-        print("=====new messages=====")
-        print(old_messages)
-        print("===================")
         response = self.client.table("chat_sessions").update({"messages": old_messages}).eq("id", chat_session_id).execute()
         return response.data[0] if response.data else None
 
