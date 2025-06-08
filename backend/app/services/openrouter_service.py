@@ -1491,13 +1491,13 @@ class OpenRouterService:
             print("=====response=====")
             print(response)
             print("===================")
+            
+            # Add the assistant's response to context
             context_messages.append(response)
-            assistant_message = [{
-                "role": "assistant",
-                "content": str(response),
-                "timestamp": str(datetime.now())
-            }]
+            
+            # Handle tool calls if any
             if response.tool_calls:
+                tool_responses = []
                 for tool_call in response.tool_calls:
                     print("=====tool call=====")
                     print(tool_call)
@@ -1505,25 +1505,34 @@ class OpenRouterService:
                     tool_name = tool_call.function.name
                     tool_args = json.loads(tool_call.function.arguments)
                     tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
-                    assistant_message.append({
+                    tool_responses.append({
                         "role": "tool",
                         "tool_call_id": tool_call.id,
                         "name": tool_name,
                         "content": json.dumps(tool_response),
                     })
-            await self.db_service.extend_chat_session_message(chat_session_id, assistant_message)
-            context_messages.extend(assistant_message)
+                
+                # Add all tool responses to context
+                context_messages.extend(tool_responses)
+                
+                # Store all messages in the database
+                await self.db_service.extend_chat_session_message(
+                    chat_session_id,
+                    [response] + tool_responses
+                )
+            else:
+                # If no tool calls, just store the assistant's response
+                await self.db_service.extend_chat_session_message(
+                    chat_session_id,
+                    [response]
+                )
 
+            # Break if no tool calls (conversation is complete)
             if not response.tool_calls:
                 break
 
-            if response.tool_calls:
-                for tool_call in response.tool_calls:
-                    if tool_call.function.name == "send_chat_message_to_user" or tool_call.function.name == "send_confirmation_text":
-                        break
-
         # Return the content of the last assistant message
-        last_message = assistant_message[-1]
+        last_message = context_messages[-1]
         if isinstance(last_message, dict) and "content" in last_message:
             return {"content": last_message["content"]}
         elif isinstance(last_message, str):
