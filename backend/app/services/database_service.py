@@ -296,6 +296,7 @@ class DatabaseService:
         """Store busy time slots for an event participant."""
         now = datetime.now()
         data = {
+            "id": str(uuid4()),
             "event_id": event_id,
             "participant_id": participant_id,
             "busy_slots": busy_slots,
