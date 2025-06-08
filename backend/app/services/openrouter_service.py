@@ -1478,7 +1478,7 @@ class OpenRouterService:
             print("=====context messages=====")
             print(context_messages)
             print("===================")
-            response, _ = await self.prompt_agent(context_messages, tools=self.TOOLS_FOR_STAGE["agent_loop"])
+            response, _ = await self.prompt_agent(context_messages, tools=[tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["agent loop"] if tool_name in self.TOOL_MAPPINGS]])
             print("=====response=====")
             print(response)
             print("===================")
