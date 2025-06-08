@@ -1419,10 +1419,11 @@ class OpenRouterService:
             return {"message": message, "from_number": phone_number}
         conversation_id = conversation["id"]
         # 2. Append the inbound message to the conversation
+        now = datetime.now().astimezone().isoformat()
         user_message = {
             "role": "user",
             "content": message,
-            "timestamp": str(datetime.now())
+            "timestamp": now
         }
         await self.db_service.append_conversation_message(conversation_id, user_message)
         # 3. Get last k messages for context
@@ -1449,7 +1450,7 @@ class OpenRouterService:
         assistant_message = {
             "role": "assistant",
             "content": response["content"],
-            "timestamp": str(datetime.now())
+            "timestamp": now
         }
         await self.db_service.append_conversation_message(conversation_id, assistant_message)
         return {"message": assistant_message["content"], "from_number": phone_number}
@@ -1492,8 +1493,27 @@ class OpenRouterService:
             print(response)
             print("===================")
             
+            # Convert ChatCompletionMessage to dict format
+            assistant_message = {
+                "role": "assistant",
+                "content": response.content,
+                "timestamp": current_datetime
+            }
+            if response.tool_calls:
+                assistant_message["tool_calls"] = [
+                    {
+                        "id": tool_call.id,
+                        "type": tool_call.type,
+                        "function": {
+                            "name": tool_call.function.name,
+                            "arguments": tool_call.function.arguments
+                        }
+                    }
+                    for tool_call in response.tool_calls
+                ]
+            
             # Add the assistant's response to context
-            context_messages.append(response)
+            context_messages.append(assistant_message)
             
             # Handle tool calls if any
             if response.tool_calls:
@@ -1510,6 +1530,7 @@ class OpenRouterService:
                         "tool_call_id": tool_call.id,
                         "name": tool_name,
                         "content": json.dumps(tool_response),
+                        "timestamp": current_datetime
                     })
                 
                 # Add all tool responses to context
@@ -1518,13 +1539,13 @@ class OpenRouterService:
                 # Store all messages in the database
                 await self.db_service.extend_chat_session_message(
                     chat_session_id,
-                    [response] + tool_responses
+                    [assistant_message] + tool_responses
                 )
             else:
                 # If no tool calls, just store the assistant's response
                 await self.db_service.extend_chat_session_message(
                     chat_session_id,
-                    [response]
+                    [assistant_message]
                 )
 
             # Break if no tool calls (conversation is complete)
@@ -1545,10 +1566,11 @@ class OpenRouterService:
         print(message)
         print("===================")
         # 1. Store user message
+        now = datetime.now().astimezone().isoformat()
         user_message = [{
             "role": "user",
             "content": message,
-            "timestamp": str(datetime.now())
+            "timestamp": now
         }]
         self._current_owner_id = request["creator_id"]
         chat_session = await self.db_service.get_or_create_chat_session(request["creator_id"])
