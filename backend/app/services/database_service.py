@@ -559,8 +559,6 @@ class DatabaseService:
         if last_message:
             conversation["last_message"] = last_message
         
-        current_conversation = await self.client.table
-        
         response = self.client.table("conversations").update(conversation).eq("event_id", event_id).eq("phone_number", phone_number).execute()
         
         if not response.data:
