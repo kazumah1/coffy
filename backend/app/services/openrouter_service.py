@@ -1456,7 +1456,7 @@ class OpenRouterService:
 
     async def run_agent_loop_with_history(self, messages: list[dict], chat_session_id: str, max_steps: int = 8):
         # Fetch chat session to get event_id and user_id
-        chat_session = await self.db_service.client.table("chat_sessions").select("*").eq("id", chat_session_id).execute()
+        chat_session = self.db_service.client.table("chat_sessions").select("*").eq("id", chat_session_id).execute()
         chat_session_data = chat_session.data[0] if chat_session.data else None
         event_details = None
         participants = None
