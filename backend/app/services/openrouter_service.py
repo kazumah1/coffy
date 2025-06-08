@@ -1491,6 +1491,7 @@ class OpenRouterService:
             print("=====response=====")
             print(response)
             print("===================")
+            context_messages.append(response)
             assistant_message = [{
                 "role": "assistant",
                 "content": str(response),
@@ -1508,13 +1509,7 @@ class OpenRouterService:
                         "role": "tool",
                         "tool_call_id": tool_call.id,
                         "name": tool_name,
-                        "content": json.dumps(tool_response)
-                    })
-                    context_messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": tool_name,
-                        "content": json.dumps(tool_response)
+                        "content": json.dumps(tool_response),
                     })
             await self.db_service.extend_chat_session_message(chat_session_id, assistant_message)
             context_messages.extend(assistant_message)
