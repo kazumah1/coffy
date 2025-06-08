@@ -111,7 +111,7 @@ GET_CREATOR_GOOGLE_CALENDAR_BUSY_TIMES_TOOL = {
     "type": "function",
     "function": {
         "name": "get_creator_google_calendar_busy_times",
-        "description": "Get busy times from the creator's Google Calendar within a date range. This tool must always be used once per event to find a time that works best for the creator.",
+        "description": "Get busy times from the creator's Google Calendar within a date range. This tool must always be used once per event to find a time that works best for the creator. This tool must only be used after an event has been created.",
         "parameters": {
             "type": "object",
             "properties": {
