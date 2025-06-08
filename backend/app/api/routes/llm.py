@@ -47,35 +47,6 @@ async def websocket_endpoint(
             del active_connections[user_id]
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
 
-@router.post("/prompt")
-async def run_llm(
-    request: dict,
-    db_service: DatabaseService = Depends(get_database_service),
-    google_calendar_service: GoogleCalendarService = Depends(get_google_calendar_service),
-    token_manager: TokenManager = Depends(get_token_manager),
-    texting_service: TextingService = Depends(get_texting_service),
-):
-    print("request", request)
-    # Start the agent loop in the background
-    openrouter_service = OpenRouterService(
-        db_service=db_service,
-        google_calendar_service=google_calendar_service,
-        token_manager=token_manager,
-        texting_service=texting_service
-    )
-    
-    # Start the agent loop in the background
-    print("starting agent loop with message:", request)
-    asyncio.create_task(openrouter_service.run_agent_loop(request["request"], request["creator_id"]))
-    
-    # Return immediately with a hardcoded response
-    return {
-        "success": True,
-        "response": {
-            "content": "On it - scheduling it right now!"
-        }
-    }
-
 @router.post("/create_event")
 async def create_event(
     title: str,
