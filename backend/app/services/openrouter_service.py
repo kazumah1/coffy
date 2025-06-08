@@ -1423,11 +1423,6 @@ class OpenRouterService:
                 return {"message": message, "from_number": phone_number}
             conversation_id = conversation["id"]
             
-            # Get chat session for this conversation
-            chat_session = await self.db_service.get_or_create_chat_session(
-                conversation.get("user_id"),
-                conversation.get("event_id")
-            )
             
             # 2. Append the inbound message to the conversation
             current_datetime = datetime.now().astimezone().isoformat()
@@ -1522,12 +1517,6 @@ class OpenRouterService:
             # Store all messages in the database in a single call
             await self.db_service.extend_conversation_message(
                 conversation_id,
-                [user_message, assistant_message] + tool_responses
-            )
-            
-            # Also update the chat session with the same messages
-            await self.db_service.extend_chat_session_message(
-                chat_session["id"],
                 [user_message, assistant_message] + tool_responses
             )
             
