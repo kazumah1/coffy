@@ -1460,6 +1460,11 @@ class OpenRouterService:
         chat_session_data = chat_session.data[0] if chat_session.data else None
         event_details = None
         participants = None
+        creator = await self.db_service.get_user_by_id(chat_session_data["user_id"])
+        creator_name = creator["name"] if creator else "A friend"
+
+        # Get current datetime in ISO format with timezone
+        current_datetime = datetime.now().astimezone().isoformat()
         if chat_session_data and chat_session_data.get("event_id"):
             event_details = await self.db_service.get_event_by_id(chat_session_data["event_id"])
             participants = await self.db_service.get_event_participants(chat_session_data["event_id"])
@@ -1468,6 +1473,9 @@ class OpenRouterService:
             system_content += f"\nEvent details: {event_details}"
         if participants:
             system_content += f"\nParticipants: {participants}"
+        system_content += f"\nCreator: {creator_name}"
+        system_content += f"\nCreator ID: {chat_session_data['user_id']}"
+        system_content += f"\nCurrent datetime: {current_datetime}"
         system_prompt = {
             "role": "system",
             "content": system_content
@@ -1535,6 +1543,7 @@ class OpenRouterService:
             "content": message,
             "timestamp": str(datetime.now())
         }]
+        self._current_owner_id = request["creator_id"]
         chat_session = await self.db_service.get_or_create_chat_session(request["creator_id"])
         await self.db_service.extend_chat_session_message(chat_session["id"], user_message)
         # 2. Get last k messages
