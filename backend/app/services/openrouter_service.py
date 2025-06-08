@@ -1478,7 +1478,11 @@ class OpenRouterService:
             print("=====context messages=====")
             print(context_messages)
             print("===================")
-            response, _ = await self.prompt_agent(context_messages, tools=[tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["agent_loop"] if tool_name in self.TOOL_MAPPINGS]])
+            tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["agent_loop"] if tool_name in self.TOOL_MAPPINGS]]
+            print("=====tools=====")
+            print(tools)
+            print("===================")
+            response, _ = await self.prompt_agent(context_messages, tools=tools)
             print("=====response=====")
             print(response)
             print("===================")
@@ -1504,8 +1508,10 @@ class OpenRouterService:
             await self.db_service.extend_chat_session_message(chat_session_id, assistant_message)
             context_messages.extend(assistant_message)
 
-            if not response.tool_calls:
-                break
+            if response.tool_calls:
+                for tool_call in response.tool_calls:
+                    if tool_call.function.name == "send_chat_message_to_user" or tool_call.function.name == "send_confirmation_text":
+                        break
 
         # Return the content of the last assistant message
         last_message = assistant_message[-1]
