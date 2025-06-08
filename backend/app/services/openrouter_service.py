@@ -1574,6 +1574,11 @@ class OpenRouterService:
         }]
         self._current_owner_id = request["creator_id"]
         chat_session = await self.db_service.get_or_create_chat_session(request["creator_id"])
+        
+        # Set current event ID if available in chat session
+        if chat_session.get("event_id"):
+            self.set_current_event(chat_session["event_id"])
+        
         await self.db_service.extend_chat_session_message(chat_session["id"], user_message)
         # 2. Get last k messages
         last_k_messages = await self.db_service.get_last_k_chat_session_messages(chat_session["id"])
