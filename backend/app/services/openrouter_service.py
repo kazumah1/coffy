@@ -1448,6 +1448,7 @@ class OpenRouterService:
                 system_content += f"\nEvent details: {event_details}"
                 # Set current owner ID from event creator
                 self._current_owner_id = event_details["creator_id"]
+                self._current_event_id = event_details["id"]
             if participants:
                 system_content += f"\nParticipants: {participants}"
             
