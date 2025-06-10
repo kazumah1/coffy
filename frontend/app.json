@@ -2,7 +2,7 @@
   "expo": {
     "name": "coffy",
     "slug": "coffy",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "owner": "kazumah",
     "orientation": "portrait",
     "icon": "./assets/images/coffee-hello.png",
