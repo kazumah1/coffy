@@ -581,10 +581,8 @@ class DatabaseService:
         """
         now = datetime.now()
         update_data["updated_at"] = now.isoformat()
-        print("putting update data into supabase")
         response = self.client.table("event_participants").update(update_data).eq("event_id", event_id).eq("phone_number", phone_number).execute()
         
-        print("response", response)
         if not response.data:
             raise RuntimeError(f"Failed to update event participant for event {event_id} and phone {phone_number}")
             
@@ -602,17 +600,14 @@ class DatabaseService:
             "created_at": now.isoformat(),
             "updated_at": now.isoformat()
         }
-        print("contact_data", contact_data)
         # Check if any phone number belongs to a registered user
         check_registered = await self.get_user_by_phone(contact_data["phone_number"])
-        print("check_registered", check_registered)
         if check_registered:
             contact["recipient_id"] = check_registered["id"]
         else:
             contact["recipient_id"] = None
 
         response = self.client.table("contacts").insert(contact).execute()
-        print("response", response)
         if not response.data:
             raise RuntimeError(f"Failed to create contact for owner {contact_data['owner_id']} and phone {contact_data['phone_number']}")
             
@@ -626,17 +621,14 @@ class DatabaseService:
             "phone_number": contact_data["phone_number"],
             "updated_at": now.isoformat()
         }
-        print("update_data", update_data)
         # Check if any phone number belongs to a registered user
         check_registered = await self.get_user_by_phone(contact_data["phone_number"])
-        print("check_registered update", check_registered)
         if check_registered:
             update_data["recipient_id"] = check_registered["id"]
         else:
             update_data["recipient_id"] = None
         
         response = self.client.table("contacts").update(update_data).eq("id", contact_id).execute()
-        print("response", response)
         if not response.data:
             raise RuntimeError(f"Failed to update contact {contact_id}")
             
