@@ -1422,9 +1422,12 @@ class OpenRouterService:
                 logger.warning(f"No active conversation found for {phone_number}")
                 return {"message": message, "from_number": phone_number}
             conversation_id = conversation["id"]
+            max_steps = 5  # Increased to match run_agent_loop_with_history
             
-            # 2. Append the inbound message to the conversation
+            # Get current datetime in ISO format with timezone
             current_datetime = datetime.now().astimezone().isoformat()
+            
+            # Format user message
             user_message = {
                 "role": "user",
                 "content": message,
@@ -1462,67 +1465,89 @@ class OpenRouterService:
             }
             
             # Build context messages with system prompt and history
-            context_messages = [system_prompt] + last_k_messages[-9:]
+            context_messages = [system_prompt] + last_k_messages[-9:]  # keep last 9 + system
             
             # Add the user's new message to context
             context_messages.append(user_message)
             
-            # Run the agent loop with appropriate tools
-            tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["texting"] if tool_name in self.TOOL_MAPPINGS]]
-            response, _ = await self.prompt_agent(context_messages, tools=tools)
-            
-            # Format assistant's response
-            assistant_message = {
-                "role": "assistant",
-                "content": response.content,  # Access content as attribute, not dictionary key
-                "timestamp": current_datetime
-            }
-            
-            # Add tool calls if any
-            if response.tool_calls:
-                assistant_message["tool_calls"] = [
-                    {
-                        "id": tool_call.id,
-                        "type": tool_call.type,
-                        "function": {
-                            "name": tool_call.function.name,
-                            "arguments": tool_call.function.arguments
-                        }
-                    }
-                    for tool_call in response.tool_calls
-                ]
-            
-            # Add the assistant's response to context
-            context_messages.append(assistant_message)
-            
-            # Handle tool calls if any
-            tool_responses = []
-            if response.tool_calls:
-                for tool_call in response.tool_calls:
-                    print("=====tool call=====")
-                    print(tool_call)
-                    print("===================")
-                    tool_name = tool_call.function.name
-                    tool_args = json.loads(tool_call.function.arguments)
-                    tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
-                    tool_responses.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": tool_name,
-                        "content": json.dumps(tool_response),
-                        "timestamp": current_datetime
-                    })
+            for step in range(max_steps):
+                print("=====context messages=====")
+                print(context_messages)
+                print("===================")
                 
-                # Add all tool responses to context
-                context_messages.extend(tool_responses)
+                # Run the agent loop with appropriate tools
+                tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["texting"] if tool_name in self.TOOL_MAPPINGS]]
+                response, _ = await self.prompt_agent(context_messages, tools=tools)
+                
+                print("=====response=====")
+                print(response)
+                print("===================")
+                
+                # Format assistant's response
+                assistant_message = {
+                    "role": "assistant",
+                    "content": response.content,
+                    "timestamp": current_datetime
+                }
+                
+                # Add tool calls if any
+                if response.tool_calls:
+                    assistant_message["tool_calls"] = [
+                        {
+                            "id": tool_call.id,
+                            "type": tool_call.type,
+                            "function": {
+                                "name": tool_call.function.name,
+                                "arguments": tool_call.function.arguments
+                            }
+                        }
+                        for tool_call in response.tool_calls
+                    ]
+                
+                # Add the assistant's response to context
+                context_messages.append(assistant_message)
+                
+                # Handle tool calls if any
+                if response.tool_calls:
+                    tool_responses = []
+                    for tool_call in response.tool_calls:
+                        print("=====tool call=====")
+                        print(tool_call)
+                        print("===================")
+                        tool_name = tool_call.function.name
+                        tool_args = json.loads(tool_call.function.arguments)
+                        tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                        tool_responses.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "name": tool_name,
+                            "content": json.dumps(tool_response),
+                            "timestamp": current_datetime
+                        })
+                    
+                    # Add all tool responses to context
+                    context_messages.extend(tool_responses)
+                    
+                    # Store all messages in the database in a single call
+                    await self.db_service.extend_conversation_message(
+                        conversation_id,
+                        [user_message, assistant_message] + tool_responses
+                    )
+                else:
+                    # Store all messages in the database in a single call
+                    await self.db_service.extend_conversation_message(
+                        conversation_id,
+                        [user_message, assistant_message]
+                    )
+                    break  # Break if no tool calls (conversation is complete)
             
-            # Store all messages in the database in a single call
-            await self.db_service.extend_conversation_message(
-                conversation_id,
-                [user_message, assistant_message] + tool_responses
-            )
-            
-            return {"message": assistant_message["content"], "from_number": phone_number}
+            # Return the content of the last assistant message
+            last_message = context_messages[-1]
+            if isinstance(last_message, dict) and "content" in last_message:
+                return {"message": last_message["content"], "from_number": phone_number}
+            elif isinstance(last_message, str):
+                return {"message": last_message, "from_number": phone_number}
+            return {"message": "I apologize, but I couldn't process your request properly.", "from_number": phone_number}
             
         except Exception as e:
             print("error", e)
