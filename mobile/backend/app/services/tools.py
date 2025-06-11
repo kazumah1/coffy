@@ -438,7 +438,7 @@ SEND_TEXT_TOOL = {
     "type": "function",
     "function": {
         "name": "send_text",
-        "description": "Send a text message to a user. Use final=True for final messages that don't expect a response.",
+        "description": "Send a text message to event participants. Use final=True for final messages that don't expect a response.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -465,7 +465,7 @@ SEND_CHAT_MESSAGE_TO_USER_TOOL = {
     "type": "function",
     "function": {
         "name": "send_chat_message_to_user",
-        "description": "Send a chat message to the user via the app if more information or confirmation is needed. Also used for confirming the contacts are the correct ones.",
+        "description": "Send a chat message to the creator via the app if more information or confirmation is needed. Also used for confirming the contacts are the correct ones.",
         "parameters": {
             "type": "object",
             "properties": {

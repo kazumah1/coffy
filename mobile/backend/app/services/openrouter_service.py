@@ -2,7 +2,7 @@ import os
 import requests
 import json
 from typing import Optional, Dict, List, Any
-from .tools import AVAILABLE_TOOLS, TOOL_NAME_TO_INDEX
+from .tools import AVAILABLE_TOOLS, TOOL_INDICES
 from app.services.database_service import DatabaseService
 from app.core.config import settings
 from app.services.google_calendar_service import GoogleCalendarService
@@ -1057,105 +1057,6 @@ class OpenRouterService:
         await send_chat_message(user_id, message)
         return {"success": True, "message": message}
 
-    async def check_conversation_state(
-        self,
-        event_id: str,
-        phone_numbers: list[str],
-        current_stage: str
-    ) -> dict:
-        """Check the current state of the conversation and determine if the loop should continue or advance to the next stage."""
-        try:
-            # For other stages, we need an event
-            if current_stage == "draft":
-                if not event_id:
-                    return {
-                        "should_advance": False,
-                        "reason": "Waiting for event creation",
-                        "current_status": {
-                            "event_status": None,
-                            "participant_statuses": {},
-                            "current_stage": current_stage
-                        }
-                    }
-                elif not phone_numbers:
-                    return {
-                        "should_advance": False,
-                        "reason": "Waiting for participants to be added",
-                        "current_status": {
-                            "event_status": None,
-                            "participant_statuses": {},
-                            "current_stage": current_stage
-                        }
-                    }
-                else:
-                    return {
-                        "should_advance": True,
-                        "reason": "Event creation and participant setup complete",
-                        "current_status": {
-                            "event_status": None,
-                            "participant_statuses": {},
-                            "current_stage": current_stage
-                        }
-                    }
-            event = await self.db_service.get_event_by_id(event_id)
-            if current_stage != "draft" and not event:
-                raise RuntimeError(f"Event {event_id} not found")
-            participants = await self.db_service.get_event_participants(event_id)
-            participant_statuses = {p["phone_number"]: p["status"] for p in participants}
-
-            should_advance = False
-            reason = None
-
-            if current_stage == "participant_setup":
-                # Advance if all participants have been messaged (e.g., have a conversation started)
-                all_messaged = True
-                for phone in phone_numbers:
-                    conversations = await self.db_service.get_conversations(event_id, phone)
-                    if not any(c["type"] in ["registered", "unregistered"] for c in conversations):
-                        all_messaged = False
-                        break
-                if all_messaged:
-                    should_advance = True
-                    reason = "All participants have been messaged."
-
-            elif current_stage == "confirmation":
-                # Advance if all participants have confirmed or declined
-                all_responded = all(
-                    participant_statuses.get(phone) in ["confirmed", "declined"]
-                    for phone in phone_numbers
-                )
-                if all_responded:
-                    should_advance = True
-                    reason = "All participants have confirmed or declined."
-
-            elif current_stage == "availability":
-                # Advance if all participants have provided availability (status == 'availability_provided' or similar)
-                all_provided = all(
-                    participant_statuses.get(phone) in ["availability_provided", "confirmed", "declined"]
-                    for phone in phone_numbers
-                )
-                if all_provided:
-                    should_advance = True
-                    reason = "All participants have provided availability or are not attending."
-
-            elif current_stage == "scheduling":
-                # Advance if event is scheduled
-                if event["status"] == "scheduled":
-                    should_advance = True
-                    reason = "Event has been scheduled."
-
-            return {
-                "should_advance": should_advance,
-                "reason": reason,
-                "current_status": {
-                    "event_status": event["status"],
-                    "participant_statuses": participant_statuses,
-                    "current_stage": current_stage
-                }
-            }
-        except Exception as e:
-            self._handle_error(e, "Failed to check conversation state")
-
     TOOLS_FOR_STAGE = {
         "agent_loop": [
             "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_chat_message_to_user", "send_text", "get_creator_google_calendar_busy_times"
@@ -1172,7 +1073,7 @@ class OpenRouterService:
         phone_numbers = set()  # Using set to avoid duplicates
         response = None # to save the last response from the agent
         step = 0 # to limit the total calls to the agent (for credits and development)
-        tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["agent_loop"] if tool_name in self.TOOL_MAPPINGS]]
+        tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["agent_loop"] if tool_name in self.TOOL_MAPPINGS]]
         self._current_owner_id = creator_id
         tool_call_history = []
         total_prompt_tokens = 0
@@ -1368,7 +1269,7 @@ class OpenRouterService:
                 print("===================")
                 
                 # Run the agent loop with appropriate tools
-                tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["texting"] if tool_name in self.TOOL_MAPPINGS]]
+                tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["texting"] if tool_name in self.TOOL_MAPPINGS]]
                 response, _ = await self.prompt_agent(context_messages, tools=tools)
                 
                 print("=====response=====")
@@ -1484,7 +1385,7 @@ class OpenRouterService:
             print("=====context messages=====")
             print(context_messages)
             print("===================")
-            tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_NAME_TO_INDEX[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["agent_loop"] if tool_name in self.TOOL_MAPPINGS]]
+            tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["agent_loop"] if tool_name in self.TOOL_MAPPINGS]]
             response, _ = await self.prompt_agent(context_messages, tools=tools)
             print("=====response=====")
             print(response)
