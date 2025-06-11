@@ -252,7 +252,7 @@ TEXTING_PROMPT = """
       </approach>
       <responsibilities>
         - Parse participant responses about their availability
-        - Use the time slot creation tool to track everyone's free times
+        - If they're unregistered, use the time slot creation tool to track their busy and free times
         - Keep track of time zones if participants are in different locations
       </responsibilities>
       <examples>
@@ -267,6 +267,9 @@ TEXTING_PROMPT = """
         Analyze all the availability data, pick the perfect time, schedule the official event, and communicate the final details to everyone involved.
       </approach>
       <responsibilities>
+        <availability_retrieval>
+          Use the get_event_availabilities tool to get the availabilities of all participants for the event.
+        </availability_retrieval>
         <time_optimization>
           Look at everyone's availability and find the best possible meeting time. Consider time zones, preferred times, and any constraints. Be smart about it - pick times that work well for everyone, not just the first available slot.
         </time_optimization>
@@ -305,6 +308,7 @@ TEXTING_PROMPT = """
       - Use Google Calendar tool for registered users
       - Talk to unregistered users through the user facing chat
       - Use time slot creation tool to track availability responses
+      - Use the get_event_availabilities tool to get the availabilities of all participants for the event.
     </availability_stage>
     <scheduling_stage>
       - Use scheduling tools to create official events and send out the final details

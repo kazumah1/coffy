@@ -1056,6 +1056,15 @@ class OpenRouterService:
         """Send a chat message to the user via WebSocket if more information is needed."""
         await send_chat_message(user_id, message)
         return {"success": True, "message": message}
+    
+    async def get_event_availabilities(self, event_id: str) -> dict:
+        # Add availability information
+        busy_times = await self.db_service.get_all_participants_busy_times(event_id)
+        unregistered_time_slots = await self.db_service.get_all_unregistered_time_slots(event_id)
+        return {
+            "busy_times": busy_times,
+            "unregistered_time_slots": unregistered_time_slots
+        }
 
     TOOLS_FOR_STAGE = {
         "agent_loop": [
@@ -1107,12 +1116,6 @@ class OpenRouterService:
                 # Set current owner ID from event creator
                 self._current_owner_id = event_details["creator_id"]
                 self._current_event_id = event_details["id"]
-                
-                # Add availability information
-                busy_times = await self.db_service.get_all_participants_busy_times(event_details["id"])
-                unregistered_time_slots = await self.db_service.get_all_unregistered_time_slots(event_details["id"])
-                system_content += f"\nBusy times from Google Calendar: {busy_times}"
-                system_content += f"\nUnregistered user time slots: {unregistered_time_slots}"
                 
             if participants:
                 system_content += f"\nParticipants: {participants}"

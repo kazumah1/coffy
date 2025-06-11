@@ -477,6 +477,19 @@ SEND_CHAT_MESSAGE_TO_USER_TOOL = {
     }
 }
 
+GET_EVENT_AVAILABILITIES_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "get_event_availabilities",
+        "description": "Get the availabilities of all participants for an event",
+        "parameters": {
+            "type": "object", 
+            "properties": {
+                "event_id": {"type": "string", "description": "The event's ID"}
+            }, 
+            "required": ["event_id"]}
+    }
+}
 
 
 # List of all available tools
@@ -496,6 +509,7 @@ AVAILABLE_TOOLS = [
     SEND_EVENT_INVITATION_TOOL,
     HANDLE_SCHEDULING_CONFLICT_TOOL,
     SEND_CHAT_MESSAGE_TO_USER_TOOL,
+    GET_EVENT_AVAILABILITIES_TOOL,
 ]
 
 # Dictionary mapping tool names to their indices in AVAILABLE_TOOLS
@@ -515,4 +529,5 @@ TOOL_INDICES = {
     "send_event_invitation": 12,
     "handle_scheduling_conflict": 13,
     "send_chat_message_to_user": 14,
+    "get_event_availabilities": 15,
 } 
