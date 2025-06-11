@@ -188,6 +188,10 @@ export default function ChatScreen() {
     }
   }, [autoPrompt]);
 
+  useEffect(() => {
+    fetchMessages();
+  }, [user?.id]);
+
   const animateNewMessage = (messageId: string) => {
     const anim = new Animated.Value(0);
     messageAnimations.current[messageId] = anim;
@@ -313,6 +317,26 @@ export default function ChatScreen() {
     inputRange: [0, 1],
     outputRange: [0.1, 0.25],
   });
+
+  const fetchMessages = async () => {
+    if (!user?.id) return;
+    try {
+      const response = await fetch(`${BACKEND_URL}/llm/chat/messages/${user.id}`);
+      const data = await response.json();
+      if (data && Array.isArray(data.messages)) {
+        // Convert timestamps to Date objects if needed
+        const loadedMessages = data.messages.map((msg: any, idx: number) => ({
+          id: msg.id || idx.toString(),
+          text: msg.text,
+          isUser: msg.isUser,
+          timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+        }));
+        setMessages(loadedMessages);
+      }
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
+    }
+  };
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>

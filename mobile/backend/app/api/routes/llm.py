@@ -83,3 +83,13 @@ async def chat(
     # Delegate all chat session management to openrouter_service
     result = await openrouter_service.handle_chat_request(request)
     return result
+
+@router.get("/chat/messages/{user_id}")
+async def get_chat_messages(
+    user_id: str,
+    db_service: DatabaseService = Depends(get_database_service)
+):
+    # Get or create the chat session for this user
+    chat_session = await db_service.get_or_create_chat_session(user_id)
+    messages = chat_session.get("messages", [])
+    return {"messages": messages}
