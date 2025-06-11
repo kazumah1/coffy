@@ -36,14 +36,13 @@ class TokenManager:
         if self.is_token_expired(response['google_token_expiry']):
             print("Token expired, refreshing token")
             refresh = await self.refresh_token(user_id, response['google_refresh_token'])
-            print("refreshed token",refresh)
+            print("refreshed token", refresh)
             return refresh
         return response
     
     async def refresh_token(self, user_id: str, refresh_token: str):
         try:
             credentials = await self.oauth_handler.refresh_token(refresh_token)
-            print("refreshed token", credentials)
             await self.store_token(user_id, credentials.token, credentials.refresh_token)
             return {
                 'google_access_token': credentials.token,

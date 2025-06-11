@@ -461,8 +461,9 @@ class OpenRouterService:
         # Verify user is registered and has Google Calendar access
         tokens = await self.token_manager.get_token(user_id)
         if not tokens:
+            print(f"User {user_id} not found or not registered with Google Calendar")
             raise RuntimeError(f"User {user_id} not found or not registered with Google Calendar")
-            
+        print(f"Tokens: {tokens}")
         # Get events from Google Calendar
         events = await self.google_calendar_service.get_all_events(
             tokens['google_access_token'],
@@ -483,7 +484,7 @@ class OpenRouterService:
                 "end_time": event['end'].get('dateTime', event['end'].get('date')),
                 "source": "calendar"
             })
-            
+        print(f"Busy slots: {busy_slots}")
         # Store the busy times in the database
         await self.db_service.store_participant_busy_times(
             self.current_event_id,
@@ -1299,7 +1300,11 @@ class OpenRouterService:
                     print("===================")
                     tool_name = tool_call.function.name
                     tool_args = json.loads(tool_call.function.arguments)
-                    tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                    try:
+                        tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                    except Exception as e:
+                        print(f"Error in tool call {tool_name}: {e}")
+                        tool_response = {"error": str(e)}
                     tool_responses.append({
                         "role": "tool",
                         "tool_call_id": tool_call.id,

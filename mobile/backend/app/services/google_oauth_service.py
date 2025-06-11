@@ -59,16 +59,12 @@ class GoogleOAuthHandler:
                 client_secret=settings.GOOGLE_CLIENT_SECRET,
                 scopes=settings.GOOGLE_CALENDAR_SCOPES
             )
-            print("credentials", credentials)
             
             # Create a request object for token refresh
             request = google.auth.transport.requests.Request()
             
             # Request a new access token
             credentials.refresh(request)  # This is a synchronous call
-            print("refreshed credentials token", credentials.token)
-            print("refreshed credentials refresh_token", credentials.refresh_token)
-            
             return credentials
         except Exception as e:
             print(f"Error refreshing token: {str(e)}")
