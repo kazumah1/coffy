@@ -1350,7 +1350,6 @@ class OpenRouterService:
         # 3. Run agent with full history
         agent_response = await self.run_agent_loop_with_history(last_k_messages, chat_session["id"])
         # 5. Return new message(s)
-        print("=====agent_response=====")
-        print(agent_response)
-        print("===================")
-        return {"message": agent_response["content"], "chat_session_id": chat_session["id"]}
+        content = agent_response["content"]
+        content = content.rstrip('\n')
+        return {"message": content, "chat_session_id": chat_session["id"]}
