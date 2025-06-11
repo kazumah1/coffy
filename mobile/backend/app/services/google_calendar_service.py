@@ -42,9 +42,11 @@ class GoogleCalendarService:
     async def get_all_events(self, access_token: str, start_date: str, end_date: str) -> list[dict]:
         """Get events from all calendars"""
         calendar_ids = await self.get_calendar_ids(access_token)
+        print(f"Calendar IDs: {calendar_ids}")
         all_events = []
         for cal_id in calendar_ids:
             events = await self.get_events(access_token, cal_id, start_date, end_date)
+            print(f"Events: {events}")
             for event in events:
                 event["calendar_id"] = cal_id
             all_events.extend(events)
