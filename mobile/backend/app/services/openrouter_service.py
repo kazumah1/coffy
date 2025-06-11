@@ -1311,7 +1311,8 @@ class OpenRouterService:
                 )
             
             if response.content:
-                await self.send_chat_message_to_user(chat_session_data["user_id"], response.content)
+                content = response.content.rstrip('\n')
+                await self.send_chat_message_to_user(chat_session_data["user_id"], content)
 
             # Break if no tool calls (conversation is complete)
             if not response.tool_calls:
@@ -1350,8 +1351,4 @@ class OpenRouterService:
         # 3. Run agent with full history
         agent_response = await self.run_agent_loop_with_history(last_k_messages, chat_session["id"])
         # 5. Return new message(s)
-        content = agent_response["content"]
-        content = content.rstrip('\n')
-        if content[-2:] == '\n':
-            content = content[:-2]
-        return {"message": content, "chat_session_id": chat_session["id"]}
+        return {"message": agent_response["content"], "chat_session_id": chat_session["id"]}
