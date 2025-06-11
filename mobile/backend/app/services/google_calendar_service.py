@@ -86,6 +86,8 @@ class GoogleCalendarService:
         calendar_ids = await self.get_calendar_ids(access_token)
         all_events = []
         for cal_id in calendar_ids:
+            if cal_id == "en.usa#holiday@group.v.calendar.google.com":
+                continue
             events = await self.get_events(access_token, cal_id, start_date, end_date)
             print(f"Found {len(events)} events for calendar {cal_id}")
             for event in events:
