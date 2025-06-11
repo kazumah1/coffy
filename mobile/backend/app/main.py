@@ -31,10 +31,11 @@ app.add_middleware(
         "http://localhost:19006",  # Expo development server
         "exp://localhost:19000",  # Expo Go
         "exp://192.168.1.*:19000",  # Expo Go on local network
-        "https://*.coffychat.app",  # Production domain (replace with your actual domain)
+        "https://*.coffy.app",  # Production domain (replace with your actual domain)
+        "https://coffy.app",  # Production domain (replace with your actual domain)
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_methods=["*"],
     allow_headers=[
         "Content-Type",
         "Authorization",

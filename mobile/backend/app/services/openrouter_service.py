@@ -93,9 +93,7 @@ class OpenRouterService:
             "create_event_participant": self.create_event_participant,
             "create_or_get_conversation": self.create_or_get_conversation,
             "handle_confirmation": self.handle_confirmation,
-            "send_confirmation_text": self.send_confirmation_text,
-            "send_availability_text": self.send_availability_text,
-            "send_final_text": self.send_final_text,
+            "send_text": self.send_text,
             "get_google_calendar_busy_times": self.get_google_calendar_busy_times,
             "get_creator_google_calendar_busy_times": self.get_google_calendar_busy_times,
             "create_unregistered_time_slots": self.create_unregistered_time_slots,
@@ -449,112 +447,6 @@ class OpenRouterService:
             }
         except Exception as e:
             raise RuntimeError(f"Failed to send message: {str(e)}")
-    
-    # TODO: remove this
-    async def send_confirmation_text(
-        self,
-        phone_number: str,
-        message: str
-    ) -> dict:
-        """Send a text message to a user."""
-        try:
-            # Get active conversation
-            conversations = await self.db_service.get_conversations(self.current_event_id, phone_number)
-            active_conversation = next(
-                (c for c in conversations if c["status"] == "active"),
-                None
-            )
-            
-            # Send the message
-            await self.texting_service.send_text(phone_number, message, final=False)
-            
-            # Update last message in conversation
-            if active_conversation:
-                await self.db_service.update_conversation(
-                    self.current_event_id,
-                    phone_number,
-                    "active",
-                    active_conversation["user_name"],
-                    last_message=message
-                )
-            
-            return {
-                "success": True,
-                "message": message,
-                "final": False
-            }
-        except Exception as e:
-            raise RuntimeError(f"Failed to send message: {str(e)}")
-    
-    async def send_availability_text(
-        self,
-        phone_number: str,
-        message: str
-    ) -> dict:
-        """Send a text message to a user."""
-        try:
-            # Get active conversation
-            conversations = await self.db_service.get_conversations(self.current_event_id, phone_number)
-            active_conversation = next(
-                (c for c in conversations if c["status"] == "active"),
-                None
-            )
-            
-            # Send the message
-            await self.texting_service.send_text(phone_number, message, final=False)
-            
-            # Update last message in conversation
-            if active_conversation:
-                await self.db_service.update_conversation(
-                    self.current_event_id,
-                    phone_number,
-                    "active",
-                    active_conversation["user_name"],
-                    last_message=message
-                )
-            
-            return {
-                "success": True,
-                "message": message,
-                "final": False
-            }
-        except Exception as e:
-            raise RuntimeError(f"Failed to send message: {str(e)}")
-        
-    async def send_final_text(
-        self,
-        phone_number: str,
-        message: str
-    ) -> dict:
-        """Send a text message to a user."""
-        try:
-            # Get active conversation
-            conversations = await self.db_service.get_conversations(self.current_event_id, phone_number)
-            active_conversation = next(
-                (c for c in conversations if c["status"] == "active"),
-                None
-            )
-            
-            # Send the message
-            await self.texting_service.send_text(phone_number, message, final=True)
-            
-            # Update last message in conversation
-            if active_conversation:
-                await self.db_service.update_conversation(
-                    self.current_event_id,
-                    phone_number,
-                    "active",
-                    active_conversation["user_name"],
-                    last_message=message
-                )
-            
-            return {
-                "success": True,
-                "message": message,
-                "final": True
-            }
-        except Exception as e:
-            raise RuntimeError(f"Failed to send message: {str(e)}")
 
     async def get_google_calendar_busy_times(
         self,
@@ -735,10 +627,10 @@ class OpenRouterService:
             # Send text messages to participants
             for participant in participants:
                 if participant["status"] == "confirmed": # only confirmed participants
-                    await self.send_final_text(
+                    await self.send_text(
                         participant["phone_number"],
                         f"Scheduled {event['title']} with {creator['name']} for {start['dateTime']} - {end['dateTime']} at {location}.",
-                        "final"
+                        final=True
                     )
                     print(f"Sent final message to participant: {participant['phone_number']}")
             return {
@@ -814,7 +706,7 @@ class OpenRouterService:
                 message += "\nSee you soon!"
                 
             # Send the reminder
-            await self.send_final_text(phone_number, message)
+            await self.send_text(phone_number, message)
             
             # Create a new conversation for the reminder
             reminder_conversation = await self.db_service.create_conversation(
@@ -915,7 +807,7 @@ class OpenRouterService:
             for participant in target_participants:
                 try:
                     # Send the message
-                    await self.texting_service.send_message(
+                    await self.send_text(
                         participant["phone_number"],
                         messages[participant["phone_number"]]
                     )
@@ -1055,7 +947,7 @@ class OpenRouterService:
                     )
                 else:
                     # Send text-only invitation
-                    await self.send_final_text(phone_number, message)
+                    await self.send_text(phone_number, message)
                     
             else:
                 # For unregistered users, keep it simple
@@ -1072,7 +964,7 @@ class OpenRouterService:
                 message += "\nPlease reply with 'yes' to accept or 'no' to decline."
                 
                 # Send text-only invitation
-                await self.send_final_text(phone_number, message)
+                await self.send_text(phone_number, message)
                 
             # Update conversation status
             await self.db_service.update_conversation(
@@ -1266,11 +1158,11 @@ class OpenRouterService:
 
     TOOLS_FOR_STAGE = {
         "agent_loop": [
-            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_chat_message_to_user", "send_confirmation_text", "get_creator_google_calendar_busy_times"
+            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_chat_message_to_user", "send_text", "get_creator_google_calendar_busy_times"
         ],
         "texting": [
             "handle_confirmation", "get_google_calendar_busy_times", "create_unregistered_time_slots",
-            "create_final_time_slots", "send_availability_text", "schedule_event", "send_final_text"
+            "create_final_time_slots", "send_text", "schedule_event"
         ],
     }
 
@@ -1539,6 +1431,11 @@ class OpenRouterService:
                         conversation_id,
                         [user_message, assistant_message]
                     )
+
+                if response.content:
+                    await self.send_text(phone_number, response.content)
+                
+                if not response.tool_calls:
                     break  # Break if no tool calls (conversation is complete)
             
             # Return the content of the last assistant message
@@ -1647,6 +1544,9 @@ class OpenRouterService:
                     chat_session_id,
                     [assistant_message]
                 )
+            
+            if response.content:
+                await self.send_chat_message_to_user(chat_session_data["user_id"], response.content)
 
             # Break if no tool calls (conversation is complete)
             if not response.tool_calls:
