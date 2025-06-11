@@ -1267,8 +1267,9 @@ class OpenRouterService:
             
             # Convert ChatCompletionMessage to dict format
             content = response.content.rstrip('\n')
-            if content[-1] == '\n':
-                content = content[:-1]
+            if content:
+                if content[-1] == '\n':
+                    content = content[:-1]
             assistant_message = {
                 "role": "assistant",
                 "content": content,
