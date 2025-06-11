@@ -452,7 +452,7 @@ SEND_TEXT_TOOL = {
                 },
                 "final": {
                     "type": "boolean",
-                    "description": "Whether this is a final message that doesn't expect a response",
+                    "description": "Whether this is a final message that doesn't expect a response. Not necessary for most messages.",
                     "default": False
                 }
             },
