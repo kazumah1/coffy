@@ -1194,7 +1194,11 @@ class OpenRouterService:
                         print("===================")
                         tool_name = tool_call.function.name
                         tool_args = json.loads(tool_call.function.arguments)
-                        tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                        try:
+                            tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                        except Exception as e:
+                            print(f"Error in tool call {tool_name}: {e}")
+                            tool_response = {"error": str(e)}
                         tool_responses.append({
                             "role": "tool",
                             "tool_call_id": tool_call.id,
