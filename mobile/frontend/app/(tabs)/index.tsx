@@ -303,13 +303,16 @@ export default function ChatScreen() {
       const response = await fetch(`${BACKEND_URL}/llm/chat/messages/${user.id}`);
       const data = await response.json();
       if (data && Array.isArray(data.messages)) {
-        // Convert timestamps to Date objects if needed
-        const loadedMessages = data.messages.map((msg: any, idx: number) => ({
-          id: msg.id || idx.toString(),
-          text: msg.text,
-          isUser: msg.isUser,
-          timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
-        }));
+        const loadedMessages = data.messages
+          .filter((msg: any) => !!msg.content && (msg.role === "user" || msg.role === "assistant"))
+          .map((msg: any, idx: number) => ({
+            id: msg.id || idx.toString(),
+            text: msg.content,
+            isUser: msg.role === "user",
+            timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+          }))
+          .sort((a: any, b: any) => a.timestamp.getTime() - b.timestamp.getTime());
+
         setMessages(loadedMessages);
       }
     } catch (error) {
