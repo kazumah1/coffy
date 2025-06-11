@@ -476,12 +476,11 @@ class OpenRouterService:
         busy_slots = []
         for event in events:
             # Skip events that are marked as free
-                
             busy_slots.append({
                 "id": str(uuid4()),
                 "participant_id": user_id,
-                "start_time": event['start'].get('dateTime', event['start'].get('date')),
-                "end_time": event['end'].get('dateTime', event['end'].get('date')),
+                "start_time": event['start'],  # Now a string
+                "end_time": event['end'],      # Now a string
                 "source": "calendar"
             })
         print(f"Busy slots: {busy_slots}")

@@ -49,14 +49,25 @@ class GoogleCalendarService:
             response_json = response.json()
             events = response_json.get("items", [])
             
-            formatted_events = [
-                {
+            formatted_events = []
+            for event in events:
+                if "start" not in event or "end" not in event:
+                    continue
+                    
+                # Handle all-day events
+                if "date" in event["start"]:
+                    start_time = f"{event['start']['date']}T00:00:00+00:00"
+                    end_time = f"{event['end']['date']}T23:59:59+00:00"
+                else:
+                    start_time = event["start"]["dateTime"]
+                    end_time = event["end"]["dateTime"]
+                
+                formatted_events.append({
                     "summary": event.get("summary", "(No Title)"),
-                    "start": event["start"].get("dateTime", event["start"].get("date")),
-                    "end": event["end"].get("dateTime", event["end"].get("date"))
-                }
-                for event in events if "start" in event and "end" in event
-            ]
+                    "start": start_time,
+                    "end": end_time
+                })
+            
             print(f"Formatted events: {formatted_events}")
             return formatted_events
             
