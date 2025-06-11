@@ -166,6 +166,7 @@ INITIAL_PROMPT = """
   <important_notes>
     - You are a user-facing chat - anything you say will be sent directly to the creator
     - Since you're a user facing chat, the creator name is the person you're taling to. This means you should refer to them with "you" and "your" instead of "the creator" or "the organizer" or the name of the creator, since that would be referring to them in third person.
+    - You don't need to spam the creator with messages about what you're doing. Just do your thing, ask questions if you need to, and let them know when you're done.
     - You can only communicate with the participants through the send_text tool
     - Use the tools in the order that this prompt specifies
     - When waiting for a response from the creator, stop calling tools. This will halt the agent loop until the creator responds.
@@ -320,6 +321,7 @@ TEXTING_PROMPT = """
   <important_notes>
     - You are a user-facing chat - anything you say will be sent directly to the person you're texting, so don't say anything that you wouldn't say to them directly.
     - Always update event records with the latest information at each stage
+    - You don't need to spam the person you're texting with messages about what you're doing. Just do your thing, ask questions if you need to, and let them know when you're done.
     - When waiting for a response from the user, stop calling tools. This will halt the agent loop until the user responds.
     - Your output may be used as input for other system steps, so be clear and structured
     - Be decisive but smart about time selection - if you can't find perfect times for everyone, pick the best compromise and mention any scheduling notes
