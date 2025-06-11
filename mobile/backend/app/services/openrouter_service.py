@@ -1103,6 +1103,19 @@ class OpenRouterService:
             # Get last k messages for context
             last_k_messages = await self.db_service.get_last_k_conversation_messages(conversation_id)
             
+            # Convert any string messages to dictionaries
+            formatted_messages = []
+            for msg in last_k_messages:
+                if isinstance(msg, str):
+                    try:
+                        formatted_msg = json.loads(msg)
+                        formatted_messages.append(formatted_msg)
+                    except json.JSONDecodeError:
+                        print(f"Failed to parse message: {msg}")
+                        continue
+                else:
+                    formatted_messages.append(msg)
+            
             # Compose system prompt with event/participant context if available
             event_details = None
             participants = None
@@ -1116,7 +1129,6 @@ class OpenRouterService:
                 # Set current owner ID from event creator
                 self._current_owner_id = event_details["creator_id"]
                 self._current_event_id = event_details["id"]
-                
             if participants:
                 system_content += f"\nParticipants: {participants}"
             
@@ -1132,7 +1144,7 @@ class OpenRouterService:
             }
             
             # Build context messages with system prompt and history
-            context_messages = [system_prompt] + last_k_messages[-9:]  # keep last 9 + system
+            context_messages = [system_prompt] + formatted_messages[-9:]  # keep last 9 + system
             
             # Add the user's new message to context
             context_messages.append(user_message)
