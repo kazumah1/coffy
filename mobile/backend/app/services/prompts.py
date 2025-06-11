@@ -222,6 +222,8 @@ TEXTING_PROMPT = """
       <purpose>Find out when everyone can actually meet</purpose>
       <approach>
         For confirmed participants, you need to gather their availability information. The method depends on whether they're registered app users or not.
+        If the participant is registered, use the Google Calendar tool to check their availability directly. Look for free time slots that could work for the event type and duration. Since you're directly using the calendar, you don't need to ask for availabilities.
+        If the participant is unregistered, send SMS messages asking about their availability for the relevant time range. Use their responses to create time slots.
       </approach>
       <responsibilities>
         <registered_users>

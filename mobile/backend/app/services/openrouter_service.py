@@ -1015,7 +1015,7 @@ class OpenRouterService:
         )
         conversation = next(
             (c for c in conversations 
-             if c["type"] in ["registered", "unregistered"] and c["status"] == "waiting_for_availability"),
+             if c["type"] in ["registered", "unregistered"] and c["status"] == "active"),
             None
         )
         if not conversation:
