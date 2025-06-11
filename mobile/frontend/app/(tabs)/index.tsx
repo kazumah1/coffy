@@ -230,7 +230,8 @@ export default function ChatScreen() {
     }).start();
 
     try {
-      const response = await fetch(`${BACKEND_URL}/llm/chat`, {
+      // Only send the message to the backend, do not add a bot message from the HTTP response
+      await fetch(`${BACKEND_URL}/llm/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -240,27 +241,7 @@ export default function ChatScreen() {
           creator_id: user.id
         }),
       });
-
-      const data = await response.json();
-      
-      let responseText = '';
-      if (data && data.response) {
-        if (data.response.content) {
-          responseText = data.response.content;
-        } else if (typeof data.response === 'string') {
-          responseText = data.response;
-        }
-      }
-      
-      const botMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: responseText,
-        isUser: false,
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, botMessage]);
-      animateNewMessage(botMessage.id);
+      // Do not add a bot message here; wait for the WebSocket to deliver it
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage: Message = {
