@@ -188,10 +188,6 @@ export default function ChatScreen() {
     }
   }, [autoPrompt]);
 
-  useEffect(() => {
-    fetchMessages();
-  }, [user?.id]);
-
   const animateNewMessage = (messageId: string) => {
     const anim = new Animated.Value(0);
     messageAnimations.current[messageId] = anim;
@@ -230,8 +226,7 @@ export default function ChatScreen() {
     }).start();
 
     try {
-      // Only send the message to the backend, do not add a bot message from the HTTP response
-      await fetch(`${BACKEND_URL}/llm/chat`, {
+      const response = await fetch(`${BACKEND_URL}/llm/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -241,7 +236,6 @@ export default function ChatScreen() {
           creator_id: user.id
         }),
       });
-      // Do not add a bot message here; wait for the WebSocket to deliver it
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage: Message = {
