@@ -469,13 +469,12 @@ class OpenRouterService:
             start_date,
             end_date
         )
+        print(f"Events: {events}")
         
         # Convert events to busy time slots
         busy_slots = []
         for event in events:
             # Skip events that are marked as free
-            if event.get('transparency') == 'transparent':
-                continue
                 
             busy_slots.append({
                 "id": str(uuid4()),
