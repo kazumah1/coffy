@@ -75,6 +75,7 @@ INITIAL_PROMPT = """
     <key_responsibilities>
       <event_participant_creation>
         Create a unique event participant data model that captures all the essential information about this specific event. This becomes the official record that will track everything about this particular gathering.
+        Make an event participant for each participant in the event except the creator.
       </event_participant_creation>
       
       <conversation_setup>
