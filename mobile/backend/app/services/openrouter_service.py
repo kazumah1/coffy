@@ -1312,6 +1312,8 @@ class OpenRouterService:
             
             if response.content:
                 content = response.content.rstrip('\n')
+                if content[-1] == '\n':
+                    content = content[:-1]
                 await self.send_chat_message_to_user(chat_session_data["user_id"], content)
 
             # Break if no tool calls (conversation is complete)
