@@ -259,6 +259,10 @@ export default function ChatScreen() {
     router.back();
   };
 
+  useEffect(() => {
+    fetchMessages();
+  }, [user?.id]);
+
   const onInputFocus = () => {
     Animated.timing(inputFocusAnim, {
       toValue: 1,
