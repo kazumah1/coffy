@@ -1071,7 +1071,7 @@ class OpenRouterService:
         ],
         "texting": [
             "handle_confirmation", "get_google_calendar_busy_times", "create_unregistered_time_slots",
-            "create_final_time_slots", "schedule_event", "get_event_availabilities"
+            "create_final_time_slots", "schedule_event", "get_event_availabilities", "send_chat_message_to_user"
         ],
     }
 
