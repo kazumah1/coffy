@@ -1,5 +1,5 @@
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import icalendar
 from typing import Optional
 import aiohttp
@@ -18,35 +18,65 @@ class GoogleCalendarService:
 
     async def get_events(self, access_token: str, calendar_id: str, start_date: str, end_date: str) -> list[dict]:
         """Get events from a specific calendar"""
+        # Ensure dates are in RFC3339 format with timezone
+        try:
+            # Add time component if only date is provided
+            if len(start_date) == 10:  # YYYY-MM-DD format
+                start_date = f"{start_date}T00:00:00+00:00"
+            if len(end_date) == 10:  # YYYY-MM-DD format
+                end_date = f"{end_date}T23:59:59+00:00"
+                
+        except ValueError as e:
+            print(f"Error parsing dates: {e}")
+            return []
+
         url = f"{self.base_url}/calendars/{calendar_id}/events"
         headers = {"Authorization": f"Bearer {access_token}"}
         params = {
             "timeMin": start_date,
             "timeMax": end_date,
             "singleEvents": True,
-            "orderBy": "startTime"
+            "orderBy": "startTime",
+            "maxResults": 100  # Add a reasonable limit
         }
-        response = requests.get(url, headers=headers, params=params)
-        if response.status_code != 200:
+        
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            if response.status_code != 200:
+                print(f"Error response: {response.text}")
+                return []
+            
+            response_json = response.json()
+            events = response_json.get("items", [])
+            
+            formatted_events = [
+                {
+                    "summary": event.get("summary", "(No Title)"),
+                    "start": event["start"].get("dateTime", event["start"].get("date")),
+                    "end": event["end"].get("dateTime", event["end"].get("date"))
+                }
+                for event in events if "start" in event and "end" in event
+            ]
+            print(f"Formatted events: {formatted_events}")
+            return formatted_events
+            
+        except Exception as e:
+            print(f"Error fetching events: {str(e)}")
             return []
-        events = response.json().get("items", [])
-        return [
-            {
-                "summary": event.get("summary", "(No Title)"),
-                "start": event["start"].get("dateTime", event["start"].get("date")),
-                "end": event["end"].get("dateTime", event["end"].get("date"))
-            }
-            for event in events if "start" in event and "end" in event
-        ]
 
-    async def get_all_events(self, access_token: str, start_date: str, end_date: str) -> list[dict]:
+    async def get_all_events(self, access_token: str, start_date: str = None, end_date: str = None) -> list[dict]:
         """Get events from all calendars"""
+        # If no dates provided, use next 7 days
+        if not start_date:
+            start_date = datetime.now().isoformat()
+        if not end_date:
+            end_date = (datetime.now() + timedelta(days=7)).isoformat()
+            
         calendar_ids = await self.get_calendar_ids(access_token)
-        print(f"Calendar IDs: {calendar_ids}")
         all_events = []
         for cal_id in calendar_ids:
             events = await self.get_events(access_token, cal_id, start_date, end_date)
-            print(f"Events: {events}")
+            print(f"Found {len(events)} events for calendar {cal_id}")
             for event in events:
                 event["calendar_id"] = cal_id
             all_events.extend(events)
