@@ -1352,4 +1352,6 @@ class OpenRouterService:
         # 5. Return new message(s)
         content = agent_response["content"]
         content = content.rstrip('\n')
+        if content[-2:] == '\n':
+            content = content[:-2]
         return {"message": content, "chat_session_id": chat_session["id"]}
