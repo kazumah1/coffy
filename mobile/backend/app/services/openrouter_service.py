@@ -1122,19 +1122,27 @@ class OpenRouterService:
                 logger.error(f"Failed to get tools for stage: {str(e)}")
                 raise RuntimeError(f"Failed to get tools for stage: {str(e)}")
             
+            # Initialize tracking variables
+            tool_call_history = []
+            phone_numbers = set()
+            total_prompt_tokens = 0
+            total_completion_tokens = 0
+            
             # Run the agent loop
             for step in range(max_steps):
                 logger.info(f"Running agent loop step {step + 1}/{max_steps}")
                 
                 # Get response from agent
                 try:
-                    message, _ = await self.prompt_agent(messages, tools=tools)
+                    message, usage = await self.prompt_agent(messages, tools=tools)
+                    total_prompt_tokens += usage.prompt_tokens
+                    total_completion_tokens += usage.completion_tokens
                 except Exception as e:
                     logger.error(f"Error in prompt_agent: {e}", exc_info=True)
                     raise RuntimeError(f"Failed to process OpenRouter response: {str(e)}")
                 
                 # Add assistant's response to messages
-                messages.append(message.dict())  # Convert to dict for JSON serialization
+                messages.append(message.dict())
                 
                 # Store messages in database
                 await self.db_service.extend_chat_session_message(chat_session_id, messages)
@@ -1159,27 +1167,42 @@ class OpenRouterService:
                             tool_func = self.TOOL_MAPPINGS[tool_name]
                             tool_response = await tool_func(**tool_args)
                             
-                            # Add tool response to messages following docs format
-                            messages.append({
+                            # Add tool response to messages and history
+                            tool_message = {
                                 "role": "tool",
                                 "tool_call_id": tool_call.id,
                                 "name": tool_name,
-                                "content": tool_response  # Note: docs show raw tool_result, not json.dumps
-                            })
+                                "content": json.dumps(tool_response)  # JSON encode tool response
+                            }
+                            messages.append(tool_message)
+                            tool_call_history.append(tool_message)
+                            
+                            # Update phone numbers if tool returns them
+                            if isinstance(tool_response, dict) and "phone_number" in tool_response:
+                                phone_numbers.add(tool_response["phone_number"])
                             
                         except Exception as e:
                             logger.error(f"Error executing tool {tool_name}: {e}", exc_info=True)
-                            messages.append({
+                            error_message = {
                                 "role": "tool",
                                 "tool_call_id": tool_call.id,
                                 "name": tool_name,
-                                "content": str(e)  # Note: docs show raw error string, not json.dumps
-                            })
+                                "content": json.dumps({"error": str(e)})  # JSON encode error
+                            }
+                            messages.append(error_message)
+                            tool_call_history.append(error_message)
                 else:
                     # No tool calls, we can break the loop
                     break
                     
-            return messages[-1]["content"], chat_session_id
+            return {
+                "success": True,
+                "content": messages[-1]["content"],
+                "chat_session_id": chat_session_id,
+                "phone_numbers": list(phone_numbers),
+                "total_prompt_tokens": total_prompt_tokens,
+                "total_completion_tokens": total_completion_tokens
+            }
             
         except Exception as e:
             logger.error(f"Error in run_agent_loop_with_history: {str(e)}", exc_info=True)
