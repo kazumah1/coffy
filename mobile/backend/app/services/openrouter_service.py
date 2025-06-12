@@ -1116,7 +1116,11 @@ class OpenRouterService:
                 raise RuntimeError(f"Failed to get chat session {chat_session_id}")
 
             # Get available tools based on current stage
-            tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] for tool_name in self.TOOLS_FOR_STAGE[self.stage_number] if tool_name in self.TOOL_MAPPINGS]]
+            try:
+                tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["agent_loop"] if tool_name in self.TOOL_MAPPINGS]]
+            except KeyError as e:
+                logger.error(f"Failed to get tools for stage: {str(e)}")
+                raise RuntimeError(f"Failed to get tools for stage: {str(e)}")
             
             # Run the agent loop
             for step in range(max_steps):
@@ -1182,7 +1186,7 @@ class OpenRouterService:
             return messages[-1]["content"], chat_session_id
             
         except Exception as e:
-            logger.error(f"Error in run_agent_loop_with_history: {e}", exc_info=True)
+            logger.error(f"Error in run_agent_loop_with_history: {str(e)}", exc_info=True)
             raise RuntimeError(f"Failed to run agent loop: {str(e)}")
 
     async def handle_inbound_message(self, phone_number: str, message: str) -> dict:
@@ -1271,7 +1275,10 @@ class OpenRouterService:
                                 "content": context
                             }
                         ]
-                        tools = [AVAILABLE_TOOLS[TOOL_INDICES["get_google_calendar_busy_times"]]]
+                        tools = [
+                            AVAILABLE_TOOLS[TOOL_INDICES["send_text"]],
+                            AVAILABLE_TOOLS[TOOL_INDICES["create_unregistered_time_slots"]]
+                        ]
                         
                         response, _ = await self.prompt_agent(messages, tools)
                         
@@ -1309,7 +1316,10 @@ class OpenRouterService:
                                 "content": context
                             }
                         ]
-                        tools = [AVAILABLE_TOOLS[TOOL_INDICES["create_unregistered_time_slots"]]]
+                        tools = [
+                            AVAILABLE_TOOLS[TOOL_INDICES["send_text"]],
+                            AVAILABLE_TOOLS[TOOL_INDICES["create_unregistered_time_slots"]]
+                        ]
                         
                         response, _ = await self.prompt_agent(messages, tools)
                         
@@ -1333,7 +1343,10 @@ class OpenRouterService:
                         "content": context
                     }
                 ]
-                tools = [AVAILABLE_TOOLS[TOOL_INDICES["create_unregistered_time_slots"]]]
+                tools = [
+                    AVAILABLE_TOOLS[TOOL_INDICES["send_text"]],
+                    AVAILABLE_TOOLS[TOOL_INDICES["create_unregistered_time_slots"]]
+                ]
                 
                 response, _ = await self.prompt_agent(messages, tools)
                 
