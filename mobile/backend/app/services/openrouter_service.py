@@ -1072,11 +1072,11 @@ class OpenRouterService:
     TOOLS_FOR_STAGE = {
         "agent_loop": [
             "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_text", "get_creator_google_calendar_busy_times",
-            "stop_loop", "send_chat_message_to_user"
+            "send_chat_message_to_user"
         ],
         "texting": [
             "handle_confirmation", "get_google_calendar_busy_times", "create_unregistered_time_slots",
-            "create_final_time_slots", "schedule_event", "get_event_availabilities", "send_chat_message_to_user", "stop_loop", "send_text"
+            "create_final_time_slots", "schedule_event", "get_event_availabilities", "send_chat_message_to_user", "send_text"
         ],
     }
 
@@ -1227,10 +1227,8 @@ class OpenRouterService:
                         [user_message, assistant_message]
                     )
                 
-                if response.tool_calls:
-                    for tool_call in response.tool_calls:
-                        if tool_call.function.name == "stop_loop":
-                            break
+                if not response.tool_calls:
+                    break
             
             # Return the content of the last assistant message
             last_message = context_messages[-1]
@@ -1347,10 +1345,8 @@ class OpenRouterService:
                     [assistant_message]
                 )
 
-            if response.tool_calls:
-                for tool_call in response.tool_calls:
-                    if tool_call.function.name == "stop_loop":
-                        break
+            if not response.tool_calls:
+                break
 
         # Return the content of the last assistant message
         last_message = context_messages[-1]
