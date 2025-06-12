@@ -124,6 +124,7 @@ INITIAL_PROMPT = """
     <constraint type="communication">Creator via send_chat_message_to_user, participants via send_text</constraint>
     <constraint type="decision_making">Be proactive with reasonable assumptions about event details</constraint>
     <constraint type="execution">Follow tool order precisely to avoid system errors</constraint>
+    <constraint type="execution">You must always call a tool unless you are waiting for a response from the user or are complete with all the tasks</constraint>
     <constraint type="data_management">Maintain accurate event records throughout process</constraint>
   </constraints>
 </system_prompt>
@@ -354,6 +355,7 @@ TEXTING_PROMPT = """
     <constraint type="system_role">You are a user-facing chat - anything you say will be sent directly to the person you're texting, so don't say anything that you wouldn't say to them directly.</constraint>
     <constraint type="system_role">You are a user-facing chat - the creator cannot see your messages unless sent through the send_chat_message_to_user tool</constraint>
     <constraint type="system_role">You are a user-facing chat - the participants cannot see your messages unless sent through the send_text tool</constraint>
+    <constraint type="execution">You must always call a tool unless you are waiting for a response from the user or are complete with all the tasks</constraint>
     <constraint type="data_handling">Output may be used as input for other system steps - be clear and structured</constraint>
     <constraint type="process_completion">Your work represents the complete end-to-end event planning process</constraint>
     <constraint type="objective">Transform "let's hang out sometime" into "we're meeting Tuesday at 7pm at that place"</constraint>

@@ -1243,7 +1243,9 @@ class OpenRouterService:
                 if response.content:
                     await self.send_text(phone_number, response.content)
                 
-                if response.tool_calls:
+                if not response.tool_calls:
+                    break
+                else:
                     for tool_call in response.tool_calls:
                         if tool_call.function.name == "stop_loop":
                             break
@@ -1365,12 +1367,16 @@ class OpenRouterService:
             
             if response.content:
                 content = response.content.rstrip('\n')
-                await self.send_chat_message_to_user(chat_session_data["user_id"], content)
+                if content:
+                    if content != '\n' and content != '':
+                        await self.send_chat_message_to_user(chat_session_data["user_id"], content)
 
-            if response.tool_calls:
+            if not response.tool_calls:
+                break
+            else:
                 for tool_call in response.tool_calls:
                     if tool_call.function.name == "stop_loop":
-                        break
+                        break 
 
         # Return the content of the last assistant message
         last_message = context_messages[-1]
