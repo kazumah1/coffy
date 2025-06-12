@@ -76,7 +76,8 @@ SEARCH_CONTACTS_TOOL = {
                     "type": "integer",
                     "description": "Number of days ago to consider for recent interactions (default 30)"
                 }
-            }
+            },
+            "required": ["query"]
         }
     }
 }
