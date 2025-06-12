@@ -1139,6 +1139,7 @@ class OpenRouterService:
                 event_details = await self.db_service.get_event_by_id(conversation["event_id"])
                 participants = await self.db_service.get_event_participants(conversation["event_id"])
             
+            print("got event details")
             system_content = AVAILABLE_PROMPTS["texting"]
             if event_details:
                 system_content += f"\nEvent details: {event_details}"
@@ -1147,13 +1148,13 @@ class OpenRouterService:
                 self._current_event_id = event_details["id"]
             if participants:
                 system_content += f"\nParticipants: {participants}"
-            
+            print("got participants")
             creator = await self.db_service.get_user_by_id(self._current_owner_id)
             creator_name = creator["name"] if creator else "A friend"
             system_content += f"\nCreator: {creator_name}"
             system_content += f"\nCreator ID: {self._current_owner_id}"
             system_content = system_content.format(current_datetime=current_datetime, timezone=timezone)
-            
+            print("got system content")
             system_prompt = {
                 "role": "system",
                 "content": system_content
@@ -1161,7 +1162,7 @@ class OpenRouterService:
             print("got system prompt")
             # Build context messages with system prompt and history
             context_messages = [system_prompt] + formatted_messages[-9:]  # keep last 9 + system
-            
+            print("got context messages")
             # Add the user's new message to context
             context_messages.append(user_message)
             
