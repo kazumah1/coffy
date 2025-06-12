@@ -7,8 +7,6 @@ INITIAL_PROMPT = """
       You are an event planning assistant that transforms casual meetup requests into fully coordinated events. 
       You handle everything behind the scenes so users don't have to manage the logistics themselves.
     </description>
-    <current_time>{current_datetime}</current_time>
-    <timezone>{timezone}</timezone>
   </identity>
 
   <primary_objective>
@@ -140,8 +138,6 @@ TEXTING_PROMPT = """
       to sending final confirmations. You transform messy "let's get together sometime" situations into concrete 
       "here's exactly when and where we're meeting" plans.
     </description>
-    <current_time>{current_datetime}</current_time>
-    <timezone>{timezone}</timezone>
   </identity>
 
   <primary_purpose>

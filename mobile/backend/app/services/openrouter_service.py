@@ -1159,7 +1159,8 @@ class OpenRouterService:
             print("got creator name", creator_name)
             system_content += f"\nCreator ID: {self._current_owner_id}"
             print("got creator id", self._current_owner_id)
-            system_content = system_content.format(current_datetime=current_datetime, timezone=timezone)
+            system_content += f"\nCurrent datetime: {current_datetime}"
+            system_content += f"\nTimezone: {timezone}"
             print("got system content")
             system_prompt = {
                 "role": "system",
@@ -1292,7 +1293,8 @@ class OpenRouterService:
             system_content += f"\nParticipants: {participants}"
         system_content += f"\nCreator: {creator_name}"
         system_content += f"\nCreator ID: {chat_session_data['user_id']}"
-        system_content = system_content.format(current_datetime=current_datetime, timezone=timezone)
+        system_content += f"\nCurrent datetime: {current_datetime}"
+        system_content += f"\nTimezone: {timezone}"
         system_prompt = {
             "role": "system",
             "content": system_content
