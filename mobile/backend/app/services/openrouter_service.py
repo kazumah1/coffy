@@ -1152,6 +1152,7 @@ class OpenRouterService:
                 system_content += f"\nParticipants: {participants}"
             print("got participants", participants)
             creator = await self.db_service.get_user_by_id(self._current_owner_id)
+            print("got creator", creator)
             creator_name = creator["name"] if creator else "A friend"
             system_content += f"\nCreator: {creator_name}"
             system_content += f"\nCreator ID: {self._current_owner_id}"

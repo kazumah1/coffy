@@ -110,7 +110,9 @@ class DatabaseService:
     
     async def get_user_by_id(self, user_id: str) -> dict:
         # Get user by ID
+        print("getting user by id", user_id)
         response = self.client.table("users").select("*").eq("id", user_id).execute()
+        print("got response", response)
         if not response.data:
             return None
         return response.data[0]
