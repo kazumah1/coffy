@@ -20,7 +20,7 @@ import asyncio
 from openai import OpenAI
 
 API_URL = "https://openrouter.ai/api/v1"
-MODEL = "google/gemini-2.0-flash-001"
+MODEL = "qwen/qwen-turbo"
 
 logger = logging.getLogger(__name__)
 
@@ -586,7 +586,7 @@ class OpenRouterService:
                 if participant["status"] != "declined":
                     if participant["registered"]: # only registered users have a calendarId
                         user = await self.db_service.get_user_by_phone(participant["phone_number"])
-                        attendees.append(participant)
+                        attendees.append(user)
             print(f"Attendees: {attendees}")
             creator = await self.db_service.get_user_by_id(event["creator_id"])
             print(f"Creator: {creator}")
@@ -1105,7 +1105,7 @@ class OpenRouterService:
                 return {"message": message, "from_number": phone_number}
             conversation_id = conversation["id"]
             max_steps = 10  # Increased to match run_agent_loop_with_history
-            
+            print("got conversation")
             # Get current datetime in ISO format with timezone
             current_datetime = datetime.now().astimezone().isoformat()
             
@@ -1115,10 +1115,10 @@ class OpenRouterService:
                 "content": message,
                 "timestamp": current_datetime
             }
-            
+            print("got user message")
             # Get last k messages for context
             last_k_messages = await self.db_service.get_last_k_conversation_messages(conversation_id)
-            
+            print("got last k messages")
             # Convert any string messages to dictionaries
             formatted_messages = []
             for msg in last_k_messages:
@@ -1131,7 +1131,7 @@ class OpenRouterService:
                         continue
                 else:
                     formatted_messages.append(msg)
-            
+            print("got formatted messages")
             # Compose system prompt with event/participant context if available
             event_details = None
             participants = None
@@ -1158,7 +1158,7 @@ class OpenRouterService:
                 "role": "system",
                 "content": system_content
             }
-            
+            print("got system prompt")
             # Build context messages with system prompt and history
             context_messages = [system_prompt] + formatted_messages[-9:]  # keep last 9 + system
             
