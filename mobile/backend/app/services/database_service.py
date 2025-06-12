@@ -108,14 +108,12 @@ class DatabaseService:
             
         return await self.create_user(name, email)
     
-    async def get_user_by_id(self, user_id: str) -> dict:
-        # Get user by ID
-        print("getting user by id", user_id)
+    async def get_user_by_id(self, user_id: str) -> Optional[dict]:
+        """Get a user by their ID."""
         response = self.client.table("users").select("*").eq("id", user_id).execute()
-        print("got response", response)
         if not response.data:
             return None
-        return response.data[0]
+        return self.from_iso_strings(response.data[0])
 
     async def update_user(self, user_id: str, name: str, email: str, phone_number: str, contacts_loaded: bool) -> dict:
         # Update user by ID
@@ -162,7 +160,7 @@ class DatabaseService:
         return self.from_iso_strings(response.data[0])
 
     async def get_event_by_id(self, event_id: str) -> Optional[dict]:
-        # Get event by UUID
+        """Get an event by its ID."""
         response = self.client.table("events").select("*").eq("id", event_id).execute()
         if not response.data:
             return None
@@ -738,6 +736,11 @@ class DatabaseService:
         """Get all conversations for a phone number."""
         response = self.client.table("conversations").select("*").eq("phone_number", phone_number).execute()
         return response.data[0] if response.data else None
+
+    async def get_conversations_by_phone(self, phone_number: str) -> list[dict]:
+        """Get all conversations for a phone number."""
+        response = self.client.table("conversations").select("*").eq("phone_number", phone_number).execute()
+        return [self.from_iso_strings(c) for c in response.data]
 
     K = 10  # Number of messages to keep per conversation
 

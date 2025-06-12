@@ -102,6 +102,7 @@ class OpenRouterService:
             "send_event_invitation": self.send_event_invitation,
             "handle_scheduling_conflict": self.handle_scheduling_conflict,
             "send_chat_message_to_user": self.send_chat_message_to_user,
+            "get_event_availabilities": self.get_event_availabilities,
             "stop_loop": self.stop_loop
         }
 
@@ -502,6 +503,18 @@ class OpenRouterService:
         """Store time slots for an unregistered user based on their text responses."""
         if not self.current_event_id:
             raise RuntimeError("No current event set - create an event first")
+            
+        # Validate time slots
+        for slot in time_slots:
+            if not isinstance(slot.get("start_time"), str) or not isinstance(slot.get("end_time"), str):
+                raise ValueError("Time slots must have string start_time and end_time")
+            try:
+                start = datetime.fromisoformat(slot["start_time"])
+                end = datetime.fromisoformat(slot["end_time"])
+                if end <= start:
+                    raise ValueError("End time must be after start time")
+            except ValueError as e:
+                raise ValueError(f"Invalid time format in slot: {e}")
             
         # Get all event participants and find the matching unregistered one
         participants = await self.db_service.get_event_participants(self.current_event_id)
@@ -1184,237 +1197,251 @@ class OpenRouterService:
             raise RuntimeError(f"Failed to run agent loop: {str(e)}")
 
     async def handle_inbound_message(self, phone_number: str, message: str) -> dict:
-        """Handle an incoming text message from a participant, using conversation context and all texting tools."""
+        """Handle an incoming text message from a participant"""
         try:
-            logger.info(f"Handling inbound message from {phone_number}: {message}")
+            # Find active conversation for this phone number
+            conversations = await self.db_service.get_conversations_by_phone(phone_number)
+            logger.info(f"Found conversations for {phone_number}: {conversations}")
+            active_conversation = next(
+                (c for c in conversations if c["status"] == "active"),
+                None
+            )
             
-            # Get conversation and participant info
-            conversation = await self.db_service.get_conversation_by_phone(phone_number)
-            if not conversation:
+            if not active_conversation:
                 logger.warning(f"No active conversation found for {phone_number}")
                 return {"message": message, "from_number": phone_number}
             
-            conversation_id = conversation["id"]
-            event_id = conversation["event_id"]
+            # Set the current event from the conversation
+            self.set_current_event(active_conversation["event_id"])
             
-            # Get participant info
-            participant = await self.db_service.get_event_participant_by_phone(event_id, phone_number)
-            if not participant:
-                logger.warning(f"No participant found for {phone_number} in event {event_id}")
-                return {"message": message, "from_number": phone_number}
-            
-            logger.info(f"Processing message for participant {participant['name']} ({phone_number}) with status {participant['status']}")
-            
-            # Get current datetime in ISO format with timezone
-            current_datetime = datetime.now().astimezone().isoformat()
-            
-            # Format user message
-            user_message = {
-                "role": "user",
-                "content": message,
-                "timestamp": current_datetime
-            }
-            
-            # Get last k messages for context
-            last_k_messages = await self.db_service.get_last_k_conversation_messages(conversation_id)
-            
-            # Get event details and participants
-            event_details = await self.db_service.get_event_by_id(event_id)
-            all_participants = await self.db_service.get_event_participants(event_id)
-            
+            # Get event and participant details
+            now = datetime.now()
+            current_datetime = now.astimezone().isoformat()
+            event = await self.db_service.get_event_by_id(active_conversation["event_id"])
+            logger.info(f"Found event: {event['title']} (ID: {event['id']})")
+            participant = await self.db_service.get_event_participant_by_phone(active_conversation["event_id"], phone_number)
+            logger.info(f"Found participant: {participant['name']} (Status: {participant['status']})")
+
+            creator = await self.db_service.get_user_by_id(event["creator_id"])
+            name = creator["name"] if creator else "A friend"
+
             # Build context summary
-            context_summary = []
-            if event_details:
-                context_summary.append(f"Event: {event_details['title']} (ID: {event_details['id']})")
-                context_summary.append(f"Status: {event_details['status']}")
-            context_summary.append(f"Participants: {len(all_participants)}")
-            for p in all_participants:
-                context_summary.append(f"- {p['name']} ({p['phone_number']}): {p['status']}")
+            context = f"""Event: {event["title"]}
+                \nEvent ID: {event["id"]}
+                \nOwner ID: {event["creator_id"]}
+                \nOwner Name: {name}
+                \nPhone number: {phone_number}
+                \nLast message sent to user: {active_conversation.get("last_message", "No previous message")}
+                \nParticipant status: {participant["status"] if participant else "unknown"}
+                \nUser replied: {message}
+                """
             
-            # Set current event and owner
-            self._current_event_id = event_id
-            self._current_owner_id = event_details["creator_id"]
-            
-            # Get creator info
-            creator = await self.db_service.get_user_by_id(self._current_owner_id)
-            creator_name = creator["name"] if creator else "A friend"
+            logger.info(f"Processing message with context: {context}")
             
             # Determine which prompt and tools to use based on participant status
             if participant["status"] == "pending_confirmation":
-                logger.info("Using confirmation prompt and tools")
-                system_content = AVAILABLE_PROMPTS["confirmation"]
-                available_tools = ["handle_confirmation", "get_google_calendar_busy_times", "send_text"]
+                logger.info("Handling confirmation response")
+                messages = [
+                    {
+                        "role": "system",
+                        "content": AVAILABLE_PROMPTS["confirmation"].format(current_datetime=current_datetime)
+                    },
+                    {
+                        "role": "user",
+                        "content": context
+                    }
+                ]
+                tools = [AVAILABLE_TOOLS[TOOL_INDICES["handle_confirmation"]]]
                 
+                # Get response from agent
+                response, _ = await self.prompt_agent(messages, tools)
+                
+                # Process tool calls
+                if hasattr(response, 'tool_calls') and response.tool_calls:
+                    for tool_call in response.tool_calls:
+                        tool_name = tool_call.function.name
+                        tool_args = json.loads(tool_call.function.arguments)
+                        
+                        if tool_name in self.TOOL_MAPPINGS:
+                            await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                
+                # Check if we need to move to availability
+                participant = await self.db_service.get_event_participant_by_phone(active_conversation["event_id"], phone_number)
+                if participant["status"] == "pending_availability":
+                    logger.info("Moving to availability collection")
+                    if participant["registered"]:
+                        logger.info("Handling registered user availability")
+                        context += f"\nParticipant ID: {participant['user_id']}"
+                        messages = [
+                            {
+                                "role": "system",
+                                "content": AVAILABLE_PROMPTS["availability"].format(current_datetime=current_datetime)
+                            },
+                            {
+                                "role": "user",
+                                "content": context
+                            }
+                        ]
+                        tools = [AVAILABLE_TOOLS[TOOL_INDICES["get_google_calendar_busy_times"]]]
+                        
+                        response, _ = await self.prompt_agent(messages, tools)
+                        
+                        if hasattr(response, 'tool_calls') and response.tool_calls:
+                            for tool_call in response.tool_calls:
+                                tool_name = tool_call.function.name
+                                tool_args = json.loads(tool_call.function.arguments)
+                                
+                                if tool_name in self.TOOL_MAPPINGS:
+                                    await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                        
+                        # Update participant status
+                        update_data = {
+                            "status": "pending_scheduling",
+                            "response_text": message,
+                            "updated_at": now.isoformat(),
+                        }
+                        await self.db_service.update_event_participant(
+                            self._current_event_id,
+                            phone_number,
+                            update_data
+                        )
+                        if self._current_participants is not None:
+                            self._current_participants[phone_number].update(update_data)
+                            
+                    else:
+                        logger.info("Handling unregistered user availability")
+                        messages = [
+                            {
+                                "role": "system",
+                                "content": AVAILABLE_PROMPTS["availability"].format(current_datetime=current_datetime)
+                            },
+                            {
+                                "role": "user",
+                                "content": context
+                            }
+                        ]
+                        tools = [AVAILABLE_TOOLS[TOOL_INDICES["create_unregistered_time_slots"]]]
+                        
+                        response, _ = await self.prompt_agent(messages, tools)
+                        
+                        if hasattr(response, 'tool_calls') and response.tool_calls:
+                            for tool_call in response.tool_calls:
+                                tool_name = tool_call.function.name
+                                tool_args = json.loads(tool_call.function.arguments)
+                                
+                                if tool_name in self.TOOL_MAPPINGS:
+                                    await self.TOOL_MAPPINGS[tool_name](**tool_args)
+            
             elif participant["status"] == "pending_availability":
-                logger.info("Using availability prompt and tools")
-                system_content = AVAILABLE_PROMPTS["availability"]
-                available_tools = ["create_unregistered_time_slots", "send_text"]
+                logger.info("Processing availability response")
+                messages = [
+                    {
+                        "role": "system",
+                        "content": AVAILABLE_PROMPTS["availability"].format(current_datetime=current_datetime)
+                    },
+                    {
+                        "role": "user",
+                        "content": context
+                    }
+                ]
+                tools = [AVAILABLE_TOOLS[TOOL_INDICES["create_unregistered_time_slots"]]]
                 
-            elif participant["status"] == "pending_scheduling":
-                # Check if all other participants are also pending_scheduling or declined
-                all_ready = all(p["status"] in ["pending_scheduling", "declined"] for p in all_participants)
-                if all_ready:
-                    logger.info("Using scheduling prompt and tools")
-                    system_content = AVAILABLE_PROMPTS["scheduling"]
-                    available_tools = ["get_event_availabilities", "schedule_event"]
-                else:
-                    logger.info("Not all participants are ready for scheduling")
-                    return {"message": "Thanks for your availability! We're waiting for other participants to respond.", "from_number": phone_number}
-            else:
-                logger.info(f"Participant status {participant['status']} not handled")
-                return {"message": "Thanks for your message! We'll get back to you soon.", "from_number": phone_number}
-            
-            # Add context to system prompt
-            system_content += "\n\nCurrent Context:\n" + "\n".join(context_summary)
-            system_content += f"\nCreator: {creator_name}"
-            system_content += f"\nCreator ID: {self._current_owner_id}"
-            system_content += f"\nCurrent datetime: {current_datetime}"
-            system_content += f"\nTimezone: {timezone}"
-            
-            system_prompt = {
-                "role": "system",
-                "content": system_content
-            }
-            
-            # Build context messages with system prompt and history
-            context_messages = [system_prompt] + last_k_messages[-9:]  # keep last 9 + system
-            context_messages.append(user_message)
-            
-            # Run the agent with appropriate tools
-            tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] for tool_name in available_tools if tool_name in self.TOOL_MAPPINGS]]
-            response, _ = await self.prompt_agent(context_messages, tools=tools)
-            
-            # Format the response
-            content = response.content.rstrip('\n')
-            if content and content[-1] == '\n':
-                content = content[:-1]
-            
-            assistant_message = {
-                "role": "assistant",
-                "content": content,
-                "timestamp": current_datetime
-            }
-            
-            # Track tool responses for status updates
-            tool_responses = []
-            confirmation_response = None
-            time_slots_created = False
-            calendar_checked = False
-            
-            # Handle tool calls if any
-            if response.tool_calls:
-                for tool_call in response.tool_calls:
-                    tool_name = tool_call.function.name
-                    tool_args = json.loads(tool_call.function.arguments)
-                    try:
-                        logger.info(f"Executing tool {tool_name} with args {tool_args}")
-                        tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                response, _ = await self.prompt_agent(messages, tools)
+                
+                if hasattr(response, 'tool_calls') and response.tool_calls:
+                    for tool_call in response.tool_calls:
+                        tool_name = tool_call.function.name
+                        tool_args = json.loads(tool_call.function.arguments)
                         
-                        # Validate tool response
-                        if not isinstance(tool_response, dict):
-                            logger.error(f"Invalid tool response type for {tool_name}: {type(tool_response)}")
-                            tool_response = {"error": "Invalid response format"}
-                        
-                        # Track specific tool responses for status updates
-                        if tool_name == "handle_confirmation":
-                            if isinstance(tool_response, dict) and "confirmation" in tool_response:
-                                confirmation_response = tool_response
-                                logger.info(f"Confirmation response: {confirmation_response}")
-                            else:
-                                logger.error(f"Invalid confirmation response format: {tool_response}")
-                        elif tool_name == "create_unregistered_time_slots":
-                            if isinstance(tool_response, dict) and "time_slots" in tool_response:
-                                time_slots_created = bool(tool_response["time_slots"])
-                                logger.info(f"Time slots created: {time_slots_created}")
-                            else:
-                                logger.error(f"Invalid time slots response format: {tool_response}")
-                        elif tool_name == "get_google_calendar_busy_times":
-                            if isinstance(tool_response, list):
-                                calendar_checked = True
-                                logger.info("Google Calendar checked")
-                            else:
-                                logger.error(f"Invalid calendar response format: {tool_response}")
-                        
-                    except Exception as e:
-                        logger.error(f"Error in tool call {tool_name}: {e}", exc_info=True)
-                        tool_response = {"error": str(e)}
+                        if tool_name in self.TOOL_MAPPINGS:
+                            await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                
+                # Update participant status
+                update_data = {
+                    "status": "pending_scheduling",
+                    "response_text": message,
+                    "updated_at": now.isoformat(),
+                }
+                await self.db_service.update_event_participant(
+                    self._current_event_id,
+                    phone_number,
+                    update_data
+                )
+                if self._current_participants is not None:
+                    self._current_participants[phone_number].update(update_data)
+                
+                # Check if all participants are ready for scheduling
+                participants = await self.db_service.get_event_participants(self._current_event_id)
+                schedule_event = True
+                print("checking if all participants are pending scheduling")
+                for p in participants:
+                    if p["status"] == "declined":
+                        print(f"Participant {p['name']} has declined")
+                        schedule_event = False
+                        break
+                    if p["status"] != "pending_scheduling":
+                        print(f"Participant {p['name']} is not pending scheduling")
+                        schedule_event = False
+                        break
+                
+                if schedule_event:
+                    logger.info("All participants ready for scheduling")
                     
-                    tool_responses.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": tool_name,
-                        "content": json.dumps(tool_response),
-                        "timestamp": current_datetime
-                    })
-                
-                # Process status updates based on current status and tool responses
-                try:
-                    if participant["status"] == "pending_confirmation":
-                        if confirmation_response and isinstance(confirmation_response, dict):
-                            if confirmation_response.get("confirmation"):
-                                # If user confirmed and is registered, move to pending_scheduling
-                                if participant.get("registered") and calendar_checked:
-                                    logger.info(f"Updating participant {phone_number} status to pending_scheduling")
-                                    await self.db_service.update_event_participant(
-                                        event_id,
-                                        phone_number,
-                                        {"status": "pending_scheduling"}
-                                    )
-                                # If user confirmed but not registered, move to pending_availability
-                                else:
-                                    logger.info(f"Updating participant {phone_number} status to pending_availability")
-                                    await self.db_service.update_event_participant(
-                                        event_id,
-                                        phone_number,
-                                        {"status": "pending_availability"}
-                                    )
-                            # If user declined, status remains declined
-                            else:
-                                logger.info(f"Updating participant {phone_number} status to declined")
-                                await self.db_service.update_event_participant(
-                                    event_id,
-                                    phone_number,
-                                    {"status": "declined"}
-                                )
+                    # Gather availability information
+                    participant_times = {}
+                    for p in participants:
+                        if p["registered"]:
+                            participant_times[p["name"]] = await self.db_service.get_participant_busy_times(self._current_event_id, p["phone_number"])
+                        else:
+                            participant_times[p["name"]] = await self.db_service.get_unregistered_time_slots(self._current_event_id, p["phone_number"])
                     
-                    elif participant["status"] == "pending_availability":
-                        if time_slots_created:
-                            logger.info(f"Updating participant {phone_number} status to pending_scheduling")
-                            await self.db_service.update_event_participant(
-                                event_id,
-                                phone_number,
-                                {"status": "pending_scheduling"}
-                            )
-                except Exception as e:
-                    logger.error(f"Error updating participant status: {e}", exc_info=True)
-                
-                # Add all tool responses to context
-                context_messages.extend(tool_responses)
-                
-                # Store all messages in the database
-                try:
-                    await self.db_service.extend_conversation_message(
-                        conversation_id,
-                        [user_message, assistant_message] + tool_responses
-                    )
-                except Exception as e:
-                    logger.error(f"Error storing messages in database: {e}", exc_info=True)
-            else:
-                logger.info("No tool calls made by agent")
-                # Store messages in the database
-                try:
-                    await self.db_service.extend_conversation_message(
-                        conversation_id,
-                        [user_message, assistant_message]
-                    )
-                except Exception as e:
-                    logger.error(f"Error storing messages in database: {e}", exc_info=True)
+                    context += f"\nParticipant times: {participant_times}"
+                    creator_times = await self.db_service.get_participant_busy_times(self._current_event_id, event["creator_id"])
+                    context += f"\nCreator times: {creator_times}"
+                    
+                    messages = [
+                        {
+                            "role": "system",
+                            "content": AVAILABLE_PROMPTS["scheduling"].format(current_datetime=current_datetime)
+                        },
+                        {
+                            "role": "user",
+                            "content": context
+                        }
+                    ]
+                    tools = [AVAILABLE_TOOLS[TOOL_INDICES["schedule_event"]]]
+                    
+                    response, _ = await self.prompt_agent(messages, tools)
+                    
+                    if hasattr(response, 'tool_calls') and response.tool_calls:
+                        for tool_call in response.tool_calls:
+                            tool_name = tool_call.function.name
+                            tool_args = json.loads(tool_call.function.arguments)
+                            
+                            if tool_name in self.TOOL_MAPPINGS:
+                                result = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                                if "creator_message" in result:
+                                    return {
+                                        "message": message,
+                                        "from_number": phone_number,
+                                        "creator_message": result["creator_message"]
+                                    }
             
-            # Return the response
-            return {"message": content, "from_number": phone_number}
+            elif participant["status"] in ["confirmed", "declined"]:
+                return {"message": message, "from_number": phone_number}
+            
+            return {"message": message, "from_number": phone_number}
             
         except Exception as e:
-            logger.error(f"Error in handle_inbound_message: {str(e)}", exc_info=True)
+            logger.error(f"Error processing inbound message: {str(e)}", exc_info=True)
+            # Keep conversation active if there's an error
+            if active_conversation:
+                await self.db_service.update_conversation(
+                    active_conversation["event_id"],
+                    phone_number,
+                    "active",
+                    active_conversation["user_name"]
+                )
             return {"message": message, "from_number": phone_number}
 
     async def handle_chat_request(self, request: dict):
