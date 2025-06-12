@@ -5,15 +5,22 @@ from app.core.config import settings
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from uuid import uuid4
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DatabaseService:
     # Handles all database operations with Supabase
     
     def __init__(self):
-        self.client: Client = create_client(
-            settings.SUPABASE_URL,
-            settings.SUPABASE_KEY
-        )
+        try:
+            self.client: Client = create_client(
+                settings.SUPABASE_URL,
+                settings.SUPABASE_KEY
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize Supabase client: {str(e)}")
+            raise RuntimeError(f"Database connection failed: {str(e)}")
     
     async def store_google_tokens(
         self,
@@ -395,6 +402,14 @@ class DatabaseService:
             return None
         return response.data[0]
 
+    VALID_CONVERSATION_TYPES = {
+        "registered",
+        "unregistered",
+        "event_invitation",
+        "availability_request",
+        "reminder"
+    }
+
     async def create_conversation(
         self,
         event_id: str,
@@ -404,6 +419,9 @@ class DatabaseService:
         user_id: str = None
     ) -> dict:
         """Create a new conversation for an unregistered user."""
+        if conversation_type not in self.VALID_CONVERSATION_TYPES:
+            raise ValueError(f"Invalid conversation type: {conversation_type}")
+
         now = datetime.now()
         conversation = {
             "id": str(uuid4()),
@@ -540,6 +558,13 @@ class DatabaseService:
         response = self.client.table("conversations").select("*").eq("event_id", event_id).eq("phone_number", phone_number).execute()
         return [self.from_iso_strings(c) for c in response.data]
 
+    VALID_CONVERSATION_STATUSES = {
+        "active",
+        "completed",
+        "failed",
+        "response_received"
+    }
+
     async def update_conversation(
         self,
         event_id: str,
@@ -549,6 +574,9 @@ class DatabaseService:
         last_message: str = None
     ) -> dict:
         """Update the status of a conversation."""
+        if status not in self.VALID_CONVERSATION_STATUSES:
+            raise ValueError(f"Invalid conversation status: {status}")
+
         now = datetime.now()
         conversation = {
             "status": status,
@@ -566,6 +594,14 @@ class DatabaseService:
             
         return conversation
 
+    VALID_PARTICIPANT_STATUSES = {
+        "pending_confirmation",
+        "pending_availability",
+        "pending_scheduling",
+        "confirmed",
+        "declined"
+    }
+
     async def update_event_participant(
         self,
         event_id: str,
@@ -579,6 +615,10 @@ class DatabaseService:
             phone_number: Phone number of the participant
             update_data: Dictionary of fields to update
         """
+        # Validate status if provided
+        if "status" in update_data and update_data["status"] not in self.VALID_PARTICIPANT_STATUSES:
+            raise ValueError(f"Invalid participant status: {update_data['status']}")
+
         now = datetime.now()
         update_data["updated_at"] = now.isoformat()
         response = self.client.table("event_participants").update(update_data).eq("event_id", event_id).eq("phone_number", phone_number).execute()
