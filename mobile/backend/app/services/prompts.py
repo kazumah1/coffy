@@ -63,6 +63,7 @@ INITIAL_PROMPT = """
       <guideline>Don't spam with status updates</guideline>
       <guideline>Exclude sensitive information (IDs, internal details)</guideline>
       <guideline>Be concise and action-oriented</guideline>
+      <guideline>Be short and concise, like you're texting a friend. No one likes a long message.</guideline>
     </creator_communication>
 
     <participant_communication tool="send_text">
@@ -70,6 +71,7 @@ INITIAL_PROMPT = """
       <guideline>Include enough context about the event</guideline>
       <guideline>Personalize based on event type</guideline>
       <guideline>Keep it engaging and fun</guideline>
+      <guideline>Be short and concise, like you're texting a friend. No one likes a long message.</guideline>
     </participant_communication>
   </communication_guidelines>
 
@@ -306,6 +308,7 @@ TEXTING_PROMPT = """
       <rule>Use "you" and "your" when referring to creator (not third person)</rule>
       <rule>Exclude sensitive information like IDs</rule>
       <rule>Don't spam with status updates - communicate only when necessary</rule>
+      <rule>Be short and concise, like you're texting a friend. No one likes a long message.</rule>
     </creator_communication>
     
     <participant_communication tool="send_text">

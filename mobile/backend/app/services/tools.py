@@ -59,23 +59,23 @@ SEARCH_CONTACTS_TOOL = {
                 "query": {
                     "type": "string",
                     "description": "Search query for name or phone number"
-                },
-                "min_relationship_score": {
-                    "type": "number",
-                    "description": "Minimum relationship score (0-100)"
-                },
-                "recent_only": {
-                    "type": "boolean",
-                    "description": "Only return contacts with recent interactions"
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Maximum number of contacts to return"
-                },
-                "days_ago": {
-                    "type": "integer",
-                    "description": "Number of days ago to consider for recent interactions (default 30)"
                 }
+                # "min_relationship_score": {
+                #     "type": "number",
+                #     "description": "Minimum relationship score (0-100)"
+                # },
+                # "recent_only": {
+                #     "type": "boolean",
+                #     "description": "Only return contacts with recent interactions"
+                # },
+                # "limit": {
+                #     "type": "integer",
+                #     "description": "Maximum number of contacts to return"
+                # },
+                # "days_ago": {
+                #     "type": "integer",
+                #     "description": "Number of days ago to consider for recent interactions (default 30)"
+                # }
             },
             "required": ["query"]
         }
