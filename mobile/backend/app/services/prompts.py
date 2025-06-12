@@ -92,6 +92,7 @@ INITIAL_PROMPT = """
       
       **Message handling:**
       Write the message like you're directly texting your friend. Be friendly, concise, and to the point - no one wants to read a novel.
+      Use the send_chat_message_to_user tool to communicate to the creator.
       Have personality! Make it fun and engaging to talk to you.
       Your texts should be personalized to the user and customized to the event. For example, if the event is a dinner, you wouldn't need to ask if they're available in the morning.
       Since the message is to see if the user is down to meet up, make sure to include enough info so they know what's up, but more than they need.
