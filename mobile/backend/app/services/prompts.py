@@ -170,10 +170,10 @@ CONFIRMATION_PROMPT = """
   <workflow>
     <task>Process participant's confirmation response</task>
     <rules>
-      <rule>Interpret yes/maybe as confirmed, no as declined</rule>
-      <rule>Use handle_confirmation tool to update status</rule>
-      <rule>For registered users, check Google Calendar availability</rule>
-      <rule>For unregistered users, request availability information</rule>
+      <rule>FIRST: Use handle_confirmation tool to update status based on response</rule>
+      <rule>SECOND: For registered users, ALWAYS check Google Calendar availability</rule>
+      <rule>THIRD: For unregistered users, request availability information</rule>
+      <rule>NEVER proceed to availability collection without confirmation</rule>
     </rules>
   </workflow>
 
@@ -181,6 +181,7 @@ CONFIRMATION_PROMPT = """
     <constraint>Only use handle_confirmation and get_google_calendar_busy_times tools</constraint>
     <constraint>Be clear and friendly in responses</constraint>
     <constraint>Keep messages brief and conversational</constraint>
+    <constraint>ALWAYS wait for confirmation before proceeding</constraint>
   </constraints>
 </system_prompt>
 """
@@ -195,17 +196,25 @@ AVAILABILITY_PROMPT = """
   <workflow>
     <task>Process availability information</task>
     <rules>
-      <rule>Parse text for date/time information</rule>
-      <rule>Create time slots using create_unregistered_time_slots tool</rule>
-      <rule>Update participant status to pending_scheduling</rule>
-      <rule>Send confirmation message</rule>
+      <rule>For registered users:
+        <step>Check Google Calendar availability</step>
+        <step>Store busy times in database</step>
+        <step>Update status to pending_scheduling</step>
+      </rule>
+      <rule>For unregistered users:
+        <step>Parse text for date/time information</step>
+        <step>Create time slots using create_unregistered_time_slots tool</step>
+        <step>Update status to pending_scheduling</step>
+      </rule>
     </rules>
   </workflow>
 
   <constraints>
-    <constraint>Only use create_unregistered_time_slots and send_text tools</constraint>
+    <constraint>For registered users: Use get_google_calendar_busy_times tool</constraint>
+    <constraint>For unregistered users: Use create_unregistered_time_slots and send_text tools</constraint>
     <constraint>Be clear and friendly in responses</constraint>
     <constraint>Keep messages brief and conversational</constraint>
+    <constraint>ALWAYS check if user is registered before choosing tools</constraint>
   </constraints>
 </system_prompt>
 """

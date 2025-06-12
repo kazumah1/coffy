@@ -1298,50 +1298,109 @@ class OpenRouterService:
                     print("Moving to availability collection")
                     if participant["registered"]:
                         print("Handling registered user availability")
-                        context += f"\nParticipant ID: {participant['user_id']}"
-                        messages = [
-                            {
-                                "role": "system",
-                                "content": AVAILABLE_PROMPTS["availability"].format(current_datetime=current_datetime)
-                            },
-                            {
-                                "role": "user",
-                                "content": context
+                        # Get Google Calendar busy times for registered user
+                        try:
+                            start_date = now.strftime("%Y-%m-%d")
+                            end_date = (now + timedelta(days=7)).strftime("%Y-%m-%d")
+                            busy_times = await self.get_google_calendar_busy_times(
+                                participant["user_id"],
+                                start_date,
+                                end_date
+                            )
+                            print(f"Got busy times from Google Calendar: {busy_times}")
+                            
+                            # Update participant status to pending_scheduling
+                            update_data = {
+                                "status": "pending_scheduling",
+                                "response_text": message,
+                                "updated_at": now.isoformat(),
                             }
-                        ]
-                        tools = [
-                            AVAILABLE_TOOLS[TOOL_INDICES["send_text"]],
-                            AVAILABLE_TOOLS[TOOL_INDICES["create_unregistered_time_slots"]]
-                        ]
-                        print(f"Using tools for registered user: {tools}")
-                        
-                        response, _ = await self.prompt_agent(messages, tools)
-                        print(f"Agent response for registered user: {response}")
-                        
-                        if hasattr(response, 'tool_calls') and response.tool_calls:
-                            print(f"Processing tool calls for registered user: {response.tool_calls}")
-                            for tool_call in response.tool_calls:
-                                tool_name = tool_call.function.name
-                                tool_args = json.loads(tool_call.function.arguments)
-                                print(f"Executing tool for registered user: {tool_name} with args: {tool_args}")
+                            print(f"Updating participant status: {update_data}")
+                            await self.db_service.update_event_participant(
+                                self._current_event_id,
+                                phone_number,
+                                update_data
+                            )
+                            if self._current_participants is not None:
+                                self._current_participants[phone_number].update(update_data)
+                            
+                            # Send confirmation message
+                            await self.send_text(
+                                phone_number,
+                                "Thanks for confirming! I've checked your calendar and will coordinate with the other participants to find the best time."
+                            )
+                            
+                            # Check if all participants are ready for scheduling
+                            participants = await self.db_service.get_event_participants(self._current_event_id)
+                            schedule_event = True
+                            print("Checking if all participants are pending scheduling")
+                            for p in participants:
+                                if p["status"] == "declined":
+                                    print(f"Participant {p['name']} has declined")
+                                    schedule_event = False
+                                    break
+                                if p["status"] != "pending_scheduling":
+                                    print(f"Participant {p['name']} is not pending scheduling")
+                                    schedule_event = False
+                                    break
+                            
+                            if schedule_event:
+                                print("All participants ready for scheduling")
                                 
-                                if tool_name in self.TOOL_MAPPINGS:
-                                    await self.TOOL_MAPPINGS[tool_name](**tool_args)
-                        
-                        # Update participant status
-                        update_data = {
-                            "status": "pending_scheduling",
-                            "response_text": message,
-                            "updated_at": now.isoformat(),
-                        }
-                        print(f"Updating participant status: {update_data}")
-                        await self.db_service.update_event_participant(
-                            self._current_event_id,
-                            phone_number,
-                            update_data
-                        )
-                        if self._current_participants is not None:
-                            self._current_participants[phone_number].update(update_data)
+                                # Gather availability information
+                                participant_times = {}
+                                for p in participants:
+                                    if p["registered"]:
+                                        print(f"Getting busy times for registered participant: {p['name']}")
+                                        participant_times[p["name"]] = await self.db_service.get_participant_busy_times(self._current_event_id, p["phone_number"])
+                                    else:
+                                        print(f"Getting time slots for unregistered participant: {p['name']}")
+                                        participant_times[p["name"]] = await self.db_service.get_unregistered_time_slots(self._current_event_id, p["phone_number"])
+                                
+                                context += f"\nParticipant times: {participant_times}"
+                                creator_times = await self.db_service.get_participant_busy_times(self._current_event_id, event["creator_id"])
+                                context += f"\nCreator times: {creator_times}"
+                                
+                                messages = [
+                                    {
+                                        "role": "system",
+                                        "content": AVAILABLE_PROMPTS["scheduling"].format(current_datetime=current_datetime)
+                                    },
+                                    {
+                                        "role": "user",
+                                        "content": context
+                                    }
+                                ]
+                                tools = [AVAILABLE_TOOLS[TOOL_INDICES["schedule_event"]]]
+                                print(f"Using tools for scheduling: {tools}")
+                                
+                                response, _ = await self.prompt_agent(messages, tools)
+                                print(f"Agent response for scheduling: {response}")
+                                
+                                if hasattr(response, 'tool_calls') and response.tool_calls:
+                                    print(f"Processing tool calls for scheduling: {response.tool_calls}")
+                                    for tool_call in response.tool_calls:
+                                        tool_name = tool_call.function.name
+                                        tool_args = json.loads(tool_call.function.arguments)
+                                        print(f"Executing tool for scheduling: {tool_name} with args: {tool_args}")
+                                        
+                                        if tool_name in self.TOOL_MAPPINGS:
+                                            result = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                                            print(f"Tool result: {result}")
+                                            if "creator_message" in result:
+                                                return {
+                                                    "message": message,
+                                                    "from_number": phone_number,
+                                                    "creator_message": result["creator_message"]
+                                                }
+                        except Exception as e:
+                            print(f"Error getting Google Calendar busy times: {str(e)}")
+                            logger.error(f"Error getting Google Calendar busy times: {str(e)}", exc_info=True)
+                            # Send error message to user
+                            await self.send_text(
+                                phone_number,
+                                "I'm having trouble accessing your calendar. Could you please provide some times that work for you?"
+                            )
                             
                     else:
                         print("Handling unregistered user availability")
@@ -1369,6 +1428,9 @@ class OpenRouterService:
                             for tool_call in response.tool_calls:
                                 tool_name = tool_call.function.name
                                 tool_args = json.loads(tool_call.function.arguments)
+                                # Ensure we use the correct phone number
+                                if tool_name == "send_text":
+                                    tool_args["phone_number"] = phone_number
                                 print(f"Executing tool for unregistered user: {tool_name} with args: {tool_args}")
                                 
                                 if tool_name in self.TOOL_MAPPINGS:
@@ -1400,6 +1462,9 @@ class OpenRouterService:
                     for tool_call in response.tool_calls:
                         tool_name = tool_call.function.name
                         tool_args = json.loads(tool_call.function.arguments)
+                        # Ensure we use the correct phone number
+                        if tool_name == "send_text":
+                            tool_args["phone_number"] = phone_number
                         print(f"Executing tool for availability: {tool_name} with args: {tool_args}")
                         
                         if tool_name in self.TOOL_MAPPINGS:
@@ -1503,6 +1568,7 @@ class OpenRouterService:
                     active_conversation["user_name"]
                 )
             return {"message": message, "from_number": phone_number}
+
     async def handle_chat_request(self, request: dict):
         """Handle a chat request from the creator."""
         message = request["request"]
