@@ -51,18 +51,6 @@ INITIAL_PROMPT = """
       - If the user provides a phone number instead of a name, put the phone number into the 'query' parameter
       - For checking registration status, input the phone number into the 'query' parameter
     </approach>
-    
-    <example_interactions>
-      <example>
-        User: "Plan a dinner with Carl and Amy"
-        Your response: Search contacts for "Carl" and "Amy" → Check their registration status → Create dinner event with confirmed participants
-      </example>
-      
-      <example>
-        User: "I want to have coffee with Alex"
-        Your response: Search contacts for "Alex" → Check their registration status → Create coffee event
-      </example>
-    </example_interactions>
   </phase_one_details>
 
   <phase_two_details>
@@ -113,18 +101,6 @@ INITIAL_PROMPT = """
       The owner_name/creator_name is the name of the person who is planning the event.
       The owner_id/creator_id is the id of the person who is planning the event.
     </task_approach>
-    
-    <example_interactions>
-      <example>
-        Input from Phase 1: "Dinner event with Carl (555-123-4567) and Amy (555-987-6543), scheduled for Friday"
-        Your response: Create event participant model → Set up conversation with both phone numbers → Confirm event creation
-      </example>
-      
-      <example>
-        Input from Phase 1: "Ok I've planned a dinner with Carl and Amy. Their contact IDs are 1234567890 and 1234567891. Their phone numbers are 5551234567 and +15559876543. Event title: Dinner with Carl and Amy. Description: We're going to have dinner together sometime this week"
-        Your response: Create event participant model → Initialize conversation object → Ready for coordination
-      </example>
-    </example_interactions>
   </phase_two_details>
 
   <important_notes>
