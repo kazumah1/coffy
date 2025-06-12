@@ -1084,7 +1084,8 @@ class OpenRouterService:
 
     TOOLS_FOR_STAGE = {
         "agent_loop": [
-            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_text", "get_creator_google_calendar_busy_times"
+            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_text", "get_creator_google_calendar_busy_times",
+            "send_chat_message_to_user"
         ],
         "texting": [
             "handle_confirmation", "get_google_calendar_busy_times", "create_unregistered_time_slots",
