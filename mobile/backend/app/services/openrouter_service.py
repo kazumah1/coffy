@@ -622,7 +622,9 @@ class OpenRouterService:
                 final_message += f" at {location}"
             final_message += "."
             print(f"Sending final message to creator: {final_message}")
-            await send_chat_message(creator["id"], final_message)
+            if creator_message:
+                final_message = creator_message
+            await self.send_chat_message_to_user(creator["id"], final_message)
 
             # Send text messages to participants
             for participant in participants:
@@ -1352,8 +1354,6 @@ class OpenRouterService:
             
             if response.content:
                 content = response.content.rstrip('\n')
-                if content[-1] == '\n':
-                    content = content[:-1]
                 await self.send_chat_message_to_user(chat_session_data["user_id"], content)
 
             if response.tool_calls:

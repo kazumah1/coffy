@@ -311,7 +311,7 @@ SCHEDULE_EVENT_TOOL = {
                         },
                         "timeZone": {
                             "type": "string",
-                            "description": "Timezone of the event"
+                            "description": "Timezone of the event in IANA format"
                         },
                         "dateTime": {
                             "type": "string",
@@ -329,7 +329,7 @@ SCHEDULE_EVENT_TOOL = {
                         },
                         "timeZone": {
                             "type": "string",
-                            "description": "Timezone of the event"
+                            "description": "Timezone of the event in IANA format"
                         },
                         "dateTime": {
                             "type": "string",
