@@ -1241,7 +1241,7 @@ class OpenRouterService:
             logger.error(f"Error in handle_inbound_message: {str(e)}")
             return {"message": message, "from_number": phone_number}
 
-    async def run_agent_loop_with_history(self, messages: list[dict], chat_session_id: str, max_steps: int = 8):
+    async def run_agent_loop_with_history(self, messages: list[dict], chat_session_id: str, max_steps: int = 10):
         # Fetch chat session to get event_id and user_id
         chat_session = self.db_service.client.table("chat_sessions").select("*").eq("id", chat_session_id).execute()
         chat_session_data = chat_session.data[0] if chat_session.data else None

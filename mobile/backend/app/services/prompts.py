@@ -39,7 +39,6 @@ INITIAL_PROMPT = """
       3. Wait for a response from the user (this means stop calling tools)
       4. Once the user confirms the contacts, determine if the contacts are registered (this will be important for Phase 2)
       5. Draft the event details they're asking for (required for phase 2)
-      6. Gather all the necessary information for the next phase
     </task_approach>
     
     <approach>
