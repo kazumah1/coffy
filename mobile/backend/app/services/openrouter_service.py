@@ -1097,7 +1097,7 @@ class OpenRouterService:
         """Run the agent loop with conversation history."""
         try:
             # Validate chat session exists
-            chat_session = await self.db_service.get_chat_session(chat_session_id)
+            chat_session = await self.db_service.get_or_create_chat_session(chat_session_id)
             if not chat_session:
                 logger.error(f"Chat session {chat_session_id} not found")
                 raise RuntimeError(f"Chat session {chat_session_id} not found")
