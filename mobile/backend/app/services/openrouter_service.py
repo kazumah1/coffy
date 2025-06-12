@@ -1251,7 +1251,7 @@ class OpenRouterService:
                     break
                 else:
                     for tool_call in response.tool_calls:
-                        if tool_call.function.name == "stop_loop":
+                        if tool_call.function.name == "stop_loop" or tool_call.function.name == "send_text":
                             break
             
             # Return the content of the last assistant message
@@ -1374,7 +1374,7 @@ class OpenRouterService:
                 break
             else:
                 for tool_call in response.tool_calls:
-                    if tool_call.function.name == "stop_loop":
+                    if tool_call.function.name == "stop_loop" or tool_call.function.name == "send_text" or tool_call.function.name == "send_chat_message_to_user":
                         break 
 
         # Return the content of the last assistant message
