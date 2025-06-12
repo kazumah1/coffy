@@ -583,11 +583,10 @@ class OpenRouterService:
                         participant["phone_number"],
                         "completed"
                     )
-                if participant["status"] == "confirmed": # only include confirmed participants
-                    # create a google calendar event for registered users
+                if participant["status"] != "declined":
                     if participant["registered"]: # only registered users have a calendarId
                         user = await self.db_service.get_user_by_phone(participant["phone_number"])
-                        attendees.append(user["email"])
+                        attendees.append(participant)
             print(f"Attendees: {attendees}")
             creator = await self.db_service.get_user_by_id(event["creator_id"])
             print(f"Creator: {creator}")
@@ -605,6 +604,18 @@ class OpenRouterService:
                 description=event["description"]
             )
             print("added event to google calendar")
+
+            for attendee in attendees:
+                access_token = await self.token_manager.get_token(attendee["id"])
+                await self.google_calendar_service.add_event(
+                    access_token["google_access_token"],
+                    event["title"],
+                    start,
+                    end,
+                    attendees=[attendee],
+                    location=location,
+                    description=event["description"]
+                )
             # Update event with final details
             update_data = {
                 "status": "scheduled",
