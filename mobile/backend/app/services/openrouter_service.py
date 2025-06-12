@@ -11,7 +11,7 @@ from app.services.texting_service import TextingService
 from app.services.websocket_service import send_chat_message
 from uuid import uuid4, UUID
 from app.models.time_slot import TimeSlot
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 import logging
 from pydantic import BaseModel, Field, validator
@@ -1153,7 +1153,7 @@ class OpenRouterService:
             creator_name = creator["name"] if creator else "A friend"
             system_content += f"\nCreator: {creator_name}"
             system_content += f"\nCreator ID: {self._current_owner_id}"
-            system_content += f"\nCurrent datetime: {current_datetime}"
+            system_content = system_content.format(current_datetime=current_datetime, timezone=timezone)
             
             system_prompt = {
                 "role": "system",
@@ -1282,7 +1282,7 @@ class OpenRouterService:
             system_content += f"\nParticipants: {participants}"
         system_content += f"\nCreator: {creator_name}"
         system_content += f"\nCreator ID: {chat_session_data['user_id']}"
-        system_content += f"\nCurrent datetime: {current_datetime}"
+        system_content = system_content.format(current_datetime=current_datetime, timezone=timezone)
         system_prompt = {
             "role": "system",
             "content": system_content

@@ -8,6 +8,7 @@ INITIAL_PROMPT = """
       You handle everything behind the scenes so users don't have to manage the logistics themselves.
     </description>
     <current_time>{current_datetime}</current_time>
+    <timezone>{timezone}</timezone>
   </identity>
 
   <primary_objective>
@@ -138,6 +139,7 @@ TEXTING_PROMPT = """
       "here's exactly when and where we're meeting" plans.
     </description>
     <current_time>{current_datetime}</current_time>
+    <timezone>{timezone}</timezone>
   </identity>
 
   <primary_purpose>
