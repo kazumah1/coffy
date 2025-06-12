@@ -1089,7 +1089,7 @@ class OpenRouterService:
         ],
         "texting": [
             "handle_confirmation", "get_google_calendar_busy_times", "create_unregistered_time_slots",
-            "create_final_time_slots", "schedule_event", "get_event_availabilities", "send_chat_message_to_user"
+            "create_final_time_slots", "schedule_event", "get_event_availabilities", "send_text"
         ],
     }
 
@@ -1248,11 +1248,6 @@ class OpenRouterService:
                     )
                 
                 if not response.tool_calls:
-                    if response.content:
-                        if response.content != '\n' and response.content != '':
-                            if response.content[-1] == '\n':
-                                response.content = response.content[:-1]
-                            await self.send_text(phone_number, response.content)
                     break
                 else:
                     for tool_call in response.tool_calls:
@@ -1376,11 +1371,6 @@ class OpenRouterService:
                 )
 
             if not response.tool_calls:
-                if response.content:
-                    if response.content != '\n' and response.content != '':
-                        if response.content[-1] == '\n':
-                            response.content = response.content[:-1]
-                        await self.send_chat_message_to_user(chat_session_data["user_id"], response.content)
                 break
             else:
                 for tool_call in response.tool_calls:
