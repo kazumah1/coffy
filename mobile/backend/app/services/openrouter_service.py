@@ -1134,7 +1134,7 @@ class OpenRouterService:
                     raise RuntimeError(f"Failed to process OpenRouter response: {str(e)}")
                 
                 # Add assistant's response to messages
-                messages.append(message)
+                messages.append(message.dict())  # Convert to dict for JSON serialization
                 
                 # Store messages in database
                 await self.db_service.extend_chat_session_message(chat_session_id, messages)
