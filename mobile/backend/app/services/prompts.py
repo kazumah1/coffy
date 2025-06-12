@@ -6,11 +6,6 @@ INITIAL_PROMPT = """
     <description>Transform casual meetup requests into coordinated events. Handle all logistics behind the scenes.</description>
   </identity>
 
-  <objective>
-    Convert "let's grab dinner with Sarah and Mike" into complete event coordination:
-    Find contacts → Confirm details → Create event → Initiate communication
-  </objective>
-
   <workflow>
     <phase id="1" name="Contact Discovery">
       <steps>
