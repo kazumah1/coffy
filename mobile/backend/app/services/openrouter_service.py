@@ -1096,18 +1096,25 @@ class OpenRouterService:
     async def run_agent_loop_with_history(self, messages: list[dict], chat_session_id: str, max_steps: int = 10):
         """Run the agent loop with conversation history."""
         try:
-            # Validate chat session exists
-            chat_session = await self.db_service.get_or_create_chat_session(chat_session_id)
+            # Get the user ID from the first message that has a user_id
+            user_id = None
+            for message in messages:
+                if message.get("user_id"):
+                    user_id = message["user_id"]
+                    break
+            
+            if not user_id:
+                logger.error("No user_id found in messages")
+                raise RuntimeError("No user_id found in messages")
+
+            # Get or create chat session with the user ID
+            chat_session = await self.db_service.get_or_create_chat_session(user_id)
             if not chat_session:
-                logger.error(f"Chat session {chat_session_id} not found")
-                raise RuntimeError(f"Chat session {chat_session_id} not found")
+                logger.error(f"Failed to get or create chat session for user {user_id}")
+                raise RuntimeError(f"Failed to get or create chat session for user {user_id}")
 
             # Get available tools based on current stage
             tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] for tool_name in self.TOOLS_FOR_STAGE[self.stage_number] if tool_name in self.TOOL_MAPPINGS]]
-            
-            # Track completed steps and next steps
-            completed_steps = set()
-            next_steps = []
             
             # Run the agent loop
             for step in range(max_steps):
@@ -1126,15 +1133,28 @@ class OpenRouterService:
                     "content": response.content
                 })
                 
-                # Handle tool calls if any
+                # Store messages in database
+                await self.db_service.extend_chat_session_message(chat_session["id"], messages)
+                
+                # Process tool calls if any
                 if response.tool_calls:
                     for tool_call in response.tool_calls:
-                        tool_name = tool_call.function.name
-                        tool_args = json.loads(tool_call.function.arguments)
-                        
                         try:
-                            logger.info(f"Executing tool {tool_name} with args {tool_args}")
-                            tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                            tool_name = tool_call.function.name
+                            if tool_name not in self.TOOL_MAPPINGS:
+                                logger.error(f"Unknown tool: {tool_name}")
+                                continue
+                                
+                            # Parse tool arguments
+                            try:
+                                tool_args = json.loads(tool_call.function.arguments)
+                            except json.JSONDecodeError as e:
+                                logger.error(f"Failed to parse tool arguments: {e}")
+                                continue
+                                
+                            # Call the tool
+                            tool_func = self.TOOL_MAPPINGS[tool_name]
+                            tool_response = await tool_func(**tool_args)
                             
                             # Add tool response to messages
                             messages.append({
@@ -1145,8 +1165,7 @@ class OpenRouterService:
                             })
                             
                         except Exception as e:
-                            logger.error(f"Error in tool call {tool_name}: {e}", exc_info=True)
-                            # Add error response to messages
+                            logger.error(f"Error executing tool {tool_name}: {e}", exc_info=True)
                             messages.append({
                                 "role": "tool",
                                 "tool_call_id": tool_call.id,
@@ -1155,38 +1174,14 @@ class OpenRouterService:
                             })
                 
                 # Check if we should stop
-                if not response.tool_calls:
+                if response.content and "stop_loop" in response.content.lower():
                     break
-            
-            # Store all messages in the database
-            try:
-                await self.db_service.extend_chat_session_message(chat_session_id, messages)
-            except Exception as e:
-                logger.error(f"Error storing messages in database: {e}", exc_info=True)
-            
-            # Return the last assistant message
-            last_assistant_message = next(
-                (msg for msg in reversed(messages) if msg["role"] == "assistant"),
-                None
-            )
-            
-            if not last_assistant_message:
-                raise RuntimeError("No assistant message found in conversation")
-            
-            return last_assistant_message
+                    
+            return messages[-1]["content"], chat_session["id"]
             
         except Exception as e:
             logger.error(f"Error in run_agent_loop_with_history: {e}", exc_info=True)
-            # Store error message in database
-            error_message = {
-                "role": "assistant",
-                "content": f"I apologize, but I encountered an error: {str(e)}"
-            }
-            try:
-                await self.db_service.extend_chat_session_message(chat_session_id, [error_message])
-            except Exception as db_error:
-                logger.error(f"Error storing error message in database: {db_error}", exc_info=True)
-            return error_message
+            raise RuntimeError(f"Failed to run agent loop: {str(e)}")
 
     async def handle_inbound_message(self, phone_number: str, message: str) -> dict:
         """Handle an incoming text message from a participant, using conversation context and all texting tools."""
