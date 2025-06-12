@@ -1131,7 +1131,7 @@ class OpenRouterService:
                         continue
                 else:
                     formatted_messages.append(msg)
-            print("got formatted messages")
+            print("got formatted messages", formatted_messages)
             # Compose system prompt with event/participant context if available
             event_details = None
             participants = None
@@ -1139,16 +1139,18 @@ class OpenRouterService:
                 event_details = await self.db_service.get_event_by_id(conversation["event_id"])
                 participants = await self.db_service.get_event_participants(conversation["event_id"])
             
-            print("got event details")
+            print("got event details", event_details)
             system_content = AVAILABLE_PROMPTS["texting"]
             if event_details:
                 system_content += f"\nEvent details: {event_details}"
                 # Set current owner ID from event creator
                 self._current_owner_id = event_details["creator_id"]
                 self._current_event_id = event_details["id"]
+                print("got current owner id", self._current_owner_id)
+                print("got current event id", self._current_event_id)
             if participants:
                 system_content += f"\nParticipants: {participants}"
-            print("got participants")
+            print("got participants", participants)
             creator = await self.db_service.get_user_by_id(self._current_owner_id)
             creator_name = creator["name"] if creator else "A friend"
             system_content += f"\nCreator: {creator_name}"
