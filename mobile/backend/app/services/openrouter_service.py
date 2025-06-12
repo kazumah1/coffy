@@ -20,7 +20,7 @@ import asyncio
 from openai import OpenAI
 
 API_URL = "https://openrouter.ai/api/v1"
-MODEL = "openai/gpt-4.1-nano"
+MODEL = "google/gemini-2.0-flash-001"
 
 logger = logging.getLogger(__name__)
 
@@ -1072,11 +1072,11 @@ class OpenRouterService:
     TOOLS_FOR_STAGE = {
         "agent_loop": [
             "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_text", "get_creator_google_calendar_busy_times",
-            "send_chat_message_to_user"
+            "stop_loop", "send_chat_message_to_user"
         ],
         "texting": [
             "handle_confirmation", "get_google_calendar_busy_times", "create_unregistered_time_slots",
-            "create_final_time_slots", "schedule_event", "get_event_availabilities", "send_chat_message_to_user", "send_text"
+            "create_final_time_slots", "schedule_event", "get_event_availabilities", "send_chat_message_to_user", "stop_loop", "send_text"
         ],
     }
 
@@ -1226,9 +1226,14 @@ class OpenRouterService:
                         conversation_id,
                         [user_message, assistant_message]
                     )
+
+                if response.content:
+                    await self.send_text(phone_number, response.content)
                 
-                if not response.tool_calls:
-                    break
+                if response.tool_calls:
+                    for tool_call in response.tool_calls:
+                        if tool_call.function.name == "stop_loop":
+                            break
             
             # Return the content of the last assistant message
             last_message = context_messages[-1]
@@ -1344,9 +1349,17 @@ class OpenRouterService:
                     chat_session_id,
                     [assistant_message]
                 )
+            
+            if response.content:
+                content = response.content.rstrip('\n')
+                if content[-1] == '\n':
+                    content = content[:-1]
+                await self.send_chat_message_to_user(chat_session_data["user_id"], content)
 
-            if not response.tool_calls:
-                break
+            if response.tool_calls:
+                for tool_call in response.tool_calls:
+                    if tool_call.function.name == "stop_loop":
+                        break
 
         # Return the content of the last assistant message
         last_message = context_messages[-1]
