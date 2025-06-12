@@ -1128,23 +1128,20 @@ class OpenRouterService:
                 
                 # Get response from agent
                 try:
-                    response, _ = await self.prompt_agent(messages, tools=tools)
+                    message, _ = await self.prompt_agent(messages, tools=tools)
                 except Exception as e:
                     logger.error(f"Error in prompt_agent: {e}", exc_info=True)
                     raise RuntimeError(f"Failed to process OpenRouter response: {str(e)}")
                 
                 # Add assistant's response to messages
-                messages.append({
-                    "role": "assistant",
-                    "content": response.content
-                })
+                messages.append(message)
                 
                 # Store messages in database
                 await self.db_service.extend_chat_session_message(chat_session_id, messages)
                 
                 # Process tool calls if any
-                if response.tool_calls:
-                    for tool_call in response.tool_calls:
+                if message.tool_calls:
+                    for tool_call in message.tool_calls:
                         try:
                             tool_name = tool_call.function.name
                             if tool_name not in self.TOOL_MAPPINGS:
@@ -1162,12 +1159,12 @@ class OpenRouterService:
                             tool_func = self.TOOL_MAPPINGS[tool_name]
                             tool_response = await tool_func(**tool_args)
                             
-                            # Add tool response to messages
+                            # Add tool response to messages following docs format
                             messages.append({
                                 "role": "tool",
                                 "tool_call_id": tool_call.id,
                                 "name": tool_name,
-                                "content": json.dumps(tool_response)
+                                "content": tool_response  # Note: docs show raw tool_result, not json.dumps
                             })
                             
                         except Exception as e:
@@ -1176,11 +1173,10 @@ class OpenRouterService:
                                 "role": "tool",
                                 "tool_call_id": tool_call.id,
                                 "name": tool_name,
-                                "content": json.dumps({"error": str(e)})
+                                "content": str(e)  # Note: docs show raw error string, not json.dumps
                             })
-                
-                # Check if we should stop
-                if response.content and "stop_loop" in response.content.lower():
+                else:
+                    # No tool calls, we can break the loop
                     break
                     
             return messages[-1]["content"], chat_session_id
