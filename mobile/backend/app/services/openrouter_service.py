@@ -102,6 +102,7 @@ class OpenRouterService:
             "send_event_invitation": self.send_event_invitation,
             "handle_scheduling_conflict": self.handle_scheduling_conflict,
             "send_chat_message_to_user": self.send_chat_message_to_user,
+            "stop_loop": self.stop_loop
         }
 
     @property
@@ -1064,10 +1065,14 @@ class OpenRouterService:
             "busy_times": busy_times,
             "unregistered_time_slots": unregistered_time_slots
         }
+    
+    async def stop_loop(self):
+        return True
 
     TOOLS_FOR_STAGE = {
         "agent_loop": [
-            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_text", "get_creator_google_calendar_busy_times"
+            "create_draft_event", "search_contacts", "check_user_registration", "create_event_participant", "create_or_get_conversation", "send_text", "get_creator_google_calendar_busy_times",
+            "stop_loop"
         ],
         "texting": [
             "handle_confirmation", "get_google_calendar_busy_times", "create_unregistered_time_slots",
@@ -1087,7 +1092,7 @@ class OpenRouterService:
                 logger.warning(f"No active conversation found for {phone_number}")
                 return {"message": message, "from_number": phone_number}
             conversation_id = conversation["id"]
-            max_steps = 5  # Increased to match run_agent_loop_with_history
+            max_steps = 10  # Increased to match run_agent_loop_with_history
             
             # Get current datetime in ISO format with timezone
             current_datetime = datetime.now().astimezone().isoformat()
@@ -1225,8 +1230,10 @@ class OpenRouterService:
                 if response.content:
                     await self.send_text(phone_number, response.content)
                 
-                if not response.tool_calls:
-                    break  # Break if no tool calls (conversation is complete)
+                if response.tool_calls:
+                    for tool_call in response.tool_calls:
+                        if tool_call.function.name == "stop_loop":
+                            break
             
             # Return the content of the last assistant message
             last_message = context_messages[-1]
@@ -1349,9 +1356,10 @@ class OpenRouterService:
                     content = content[:-1]
                 await self.send_chat_message_to_user(chat_session_data["user_id"], content)
 
-            # Break if no tool calls (conversation is complete)
-            if not response.tool_calls:
-                break
+            if response.tool_calls:
+                for tool_call in response.tool_calls:
+                    if tool_call.function.name == "stop_loop":
+                        break
 
         # Return the content of the last assistant message
         last_message = context_messages[-1]

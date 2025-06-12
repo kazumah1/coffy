@@ -491,6 +491,19 @@ GET_EVENT_AVAILABILITIES_TOOL = {
     }
 }
 
+STOP_LOOP_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "stop_loop",
+        "description": "Stop the agent loop. Used to stop the agent loop when all tasks are complete.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    }
+}
+
 
 # List of all available tools
 AVAILABLE_TOOLS = [
@@ -510,6 +523,7 @@ AVAILABLE_TOOLS = [
     HANDLE_SCHEDULING_CONFLICT_TOOL,
     SEND_CHAT_MESSAGE_TO_USER_TOOL,
     GET_EVENT_AVAILABILITIES_TOOL,
+    STOP_LOOP_TOOL,
 ]
 
 # Dictionary mapping tool names to their indices in AVAILABLE_TOOLS
@@ -530,4 +544,5 @@ TOOL_INDICES = {
     "handle_scheduling_conflict": 13,
     "send_chat_message_to_user": 14,
     "get_event_availabilities": 15,
+    "stop_loop": 16,
 } 
