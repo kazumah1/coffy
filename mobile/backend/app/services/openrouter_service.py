@@ -1094,251 +1094,99 @@ class OpenRouterService:
     }
 
     async def run_agent_loop_with_history(self, messages: list[dict], chat_session_id: str, max_steps: int = 10):
+        """Run the agent loop with conversation history."""
         try:
-            # Fetch chat session to get event_id and user_id
-            chat_session = self.db_service.client.table("chat_sessions").select("*").eq("id", chat_session_id).execute()
-            if not chat_session.data:
-                logger.error(f"No chat session found for ID {chat_session_id}")
-                return {"content": "Error: Chat session not found"}
-                
-            chat_session_data = chat_session.data[0]
-            event_details = None
-            participants = None
-            creator = await self.db_service.get_user_by_id(chat_session_data["user_id"])
-            creator_name = creator["name"] if creator else "A friend"
+            # Validate chat session exists
+            chat_session = await self.db_service.get_chat_session(chat_session_id)
+            if not chat_session:
+                logger.error(f"Chat session {chat_session_id} not found")
+                raise RuntimeError(f"Chat session {chat_session_id} not found")
 
-            # Get current datetime in ISO format with timezone
-            current_datetime = datetime.now().astimezone().isoformat()
-            if chat_session_data and chat_session_data.get("event_id"):
-                event_details = await self.db_service.get_event_by_id(chat_session_data["event_id"])
-                participants = await self.db_service.get_event_participants(chat_session_data["event_id"])
+            # Get available tools based on current stage
+            tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] for tool_name in self.TOOLS_FOR_STAGE[self.stage_number] if tool_name in self.TOOL_MAPPINGS]]
             
-            # Build context summary
-            context_summary = []
-            if event_details:
-                context_summary.append(f"Event: {event_details['title']} (ID: {event_details['id']})")
-                context_summary.append(f"Status: {event_details['status']}")
-            if participants:
-                context_summary.append(f"Participants: {len(participants)}")
-                for p in participants:
-                    context_summary.append(f"- {p['name']} ({p['phone_number']}): {p['status']}")
-            
-            system_content = AVAILABLE_PROMPTS["initial"]
-            if context_summary:
-                system_content += "\n\nCurrent Context:\n" + "\n".join(context_summary)
-            system_content += f"\n\nCreator: {creator_name}"
-            system_content += f"\nCreator ID: {chat_session_data['user_id']}"
-            system_content += f"\nCurrent datetime: {current_datetime}"
-            system_content += f"\nTimezone: {timezone}"
-            
-            system_prompt = {
-                "role": "system",
-                "content": system_content
-            }
-            
-            # Track completed steps across the conversation
+            # Track completed steps and next steps
             completed_steps = set()
+            next_steps = []
             
-            # Format message history with clear separation
-            formatted_messages = []
-            for msg in messages[-9:]:  # keep last 9
-                if msg["role"] == "user":
-                    formatted_messages.append({
-                        "role": "user",
-                        "content": f"User Request:\n{msg['content']}"
-                    })
-                elif msg["role"] == "assistant":
-                    # Parse the assistant's response into sections
-                    content = msg["content"]
-                    sections = {
-                        "completed": [],
-                        "next_steps": [],
-                        "response": ""
-                    }
-                    
-                    # Simple parsing of the sections
-                    current_section = "response"
-                    for line in content.split("\n"):
-                        if "Completed:" in line or "Steps completed:" in line:
-                            current_section = "completed"
-                        elif "Next steps:" in line or "Next Steps:" in line:
-                            current_section = "next_steps"
-                        elif line.strip():
-                            if current_section in ["completed", "next_steps"]:
-                                sections[current_section].append(line.strip())
-                            else:
-                                sections["response"] += line + "\n"
-                    
-                    # Add new completed steps to our tracking set
-                    for step in sections["completed"]:
-                        if step.startswith("- "):
-                            completed_steps.add(step[2:])
-                        else:
-                            completed_steps.add(step)
-                    
-                    formatted_messages.append({
-                        "role": "assistant",
-                        "content": f"Assistant Response:\n" + 
-                                  (f"Completed Steps:\n" + "\n".join(f"- {step}" for step in sorted(completed_steps)) + "\n\n" if completed_steps else "") +
-                                  (f"Next Steps:\n" + "\n".join(sections["next_steps"]) + "\n\n" if sections["next_steps"] else "") +
-                                  f"Response:\n{sections['response'].strip()}"
-                    })
-                elif msg["role"] == "tool":
-                    formatted_messages.append({
-                        "role": "tool",
-                        "content": f"Tool {msg['name']} Result:\n{msg['content']}"
-                    })
-            
-            context_messages = [system_prompt] + formatted_messages
-
+            # Run the agent loop
             for step in range(max_steps):
+                logger.info(f"Running agent loop step {step + 1}/{max_steps}")
+                
+                # Get response from agent
                 try:
-                    logger.info(f"Agent loop step {step + 1}/{max_steps}")
-                    tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["agent_loop"] if tool_name in self.TOOL_MAPPINGS]]
-                    response, _ = await self.prompt_agent(context_messages, tools=tools)
-                    
-                    # Format the response with sections
-                    content = response.content.rstrip('\n')
-                    if content:
-                        if content[-1] == '\n':
-                            content = content[:-1]
-                            
-                    # Parse the response into sections
-                    sections = {
-                        "completed": [],
-                        "next_steps": [],
-                        "response": ""
-                    }
-                    
-                    current_section = "response"
-                    for line in content.split("\n"):
-                        if "Completed:" in line or "Steps completed:" in line:
-                            current_section = "completed"
-                        elif "Next steps:" in line or "Next Steps:" in line:
-                            current_section = "next_steps"
-                        elif line.strip():
-                            if current_section in ["completed", "next_steps"]:
-                                sections[current_section].append(line.strip())
-                            else:
-                                sections["response"] += line + "\n"
-                    
-                    # Add new completed steps to our tracking set
-                    for step in sections["completed"]:
-                        if step.startswith("- "):
-                            completed_steps.add(step[2:])
-                        else:
-                            completed_steps.add(step)
-                    
-                    # Format the final content with all completed steps and new next steps
-                    formatted_content = "Completed:\n" + "\n".join(f"- {step}" for step in sorted(completed_steps))
-                    if sections["next_steps"]:
-                        formatted_content += "\n\nNext Steps:\n" + "\n".join(sections["next_steps"])
-                    formatted_content += "\n\nResponse:\n" + sections["response"].strip()
-                    
-                    assistant_message = {
-                        "role": "assistant",
-                        "content": formatted_content,
-                        "timestamp": current_datetime
-                    }
-                    
-                    if response.tool_calls:
-                        assistant_message["tool_calls"] = [
-                            {
-                                "id": tool_call.id,
-                                "type": tool_call.type,
-                                "function": {
-                                    "name": tool_call.function.name,
-                                    "arguments": tool_call.function.arguments
-                                }
-                            }
-                            for tool_call in response.tool_calls
-                        ]
-                    
-                    # Add the assistant's response to context
-                    context_messages.append(assistant_message)
-                    
-                    # Handle tool calls if any
-                    if response.tool_calls:
-                        tool_responses = []
-                        for tool_call in response.tool_calls:
-                            try:
-                                tool_name = tool_call.function.name
-                                tool_args = json.loads(tool_call.function.arguments)
-                                logger.info(f"Executing tool {tool_name} with args {tool_args}")
-                                
-                                tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
-                                tool_responses.append({
-                                    "role": "tool",
-                                    "tool_call_id": tool_call.id,
-                                    "name": tool_name,
-                                    "content": json.dumps(tool_response),
-                                    "timestamp": current_datetime
-                                })
-                            except Exception as e:
-                                logger.error(f"Error in tool call {tool_name}: {e}", exc_info=True)
-                                tool_responses.append({
-                                    "role": "tool",
-                                    "tool_call_id": tool_call.id,
-                                    "name": tool_name,
-                                    "content": json.dumps({"error": str(e)}),
-                                    "timestamp": current_datetime
-                                })
-                        
-                        # Add all tool responses to context
-                        context_messages.extend(tool_responses)
-                        
-                        # Store all messages in the database
-                        try:
-                            await self.db_service.extend_chat_session_message(
-                                chat_session_id,
-                                [assistant_message] + tool_responses
-                            )
-                        except Exception as e:
-                            logger.error(f"Error storing messages in database: {e}", exc_info=True)
-                    else:
-                        # If no tool calls, just store the assistant's response
-                        try:
-                            await self.db_service.extend_chat_session_message(
-                                chat_session_id,
-                                [assistant_message]
-                            )
-                        except Exception as e:
-                            logger.error(f"Error storing assistant message in database: {e}", exc_info=True)
-
-                    if not response.tool_calls:
-                        break
-                    else:
-                        for tool_call in response.tool_calls:
-                            if tool_call.function.name == "stop_loop" or tool_call.function.name == "send_text" or tool_call.function.name == "send_chat_message_to_user":
-                                break
+                    response, _ = await self.prompt_agent(messages, tools=tools)
                 except Exception as e:
-                    logger.error(f"Error in agent loop step {step + 1}: {e}", exc_info=True)
-                    # Try to store error message in database
-                    try:
-                        error_message = {
-                            "role": "assistant",
-                            "content": "I apologize, but I encountered an error processing your request. Please try again.",
-                            "timestamp": current_datetime
-                        }
-                        await self.db_service.extend_chat_session_message(
-                            chat_session_id,
-                            [error_message]
-                        )
-                    except Exception as db_error:
-                        logger.error(f"Error storing error message in database: {db_error}", exc_info=True)
+                    logger.error(f"Error in prompt_agent: {e}", exc_info=True)
+                    raise RuntimeError(f"Failed to process OpenRouter response: {str(e)}")
+                
+                # Add assistant's response to messages
+                messages.append({
+                    "role": "assistant",
+                    "content": response.content
+                })
+                
+                # Handle tool calls if any
+                if response.tool_calls:
+                    for tool_call in response.tool_calls:
+                        tool_name = tool_call.function.name
+                        tool_args = json.loads(tool_call.function.arguments)
+                        
+                        try:
+                            logger.info(f"Executing tool {tool_name} with args {tool_args}")
+                            tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                            
+                            # Add tool response to messages
+                            messages.append({
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "name": tool_name,
+                                "content": json.dumps(tool_response)
+                            })
+                            
+                        except Exception as e:
+                            logger.error(f"Error in tool call {tool_name}: {e}", exc_info=True)
+                            # Add error response to messages
+                            messages.append({
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "name": tool_name,
+                                "content": json.dumps({"error": str(e)})
+                            })
+                
+                # Check if we should stop
+                if not response.tool_calls:
                     break
-
-            # Return the content of the last assistant message
-            last_message = context_messages[-1]
-            if isinstance(last_message, dict) and "content" in last_message:
-                return {"content": last_message["content"]}
-            elif isinstance(last_message, str):
-                return {"content": last_message}
-            return {"content": "I apologize, but I couldn't process your request properly."}
+            
+            # Store all messages in the database
+            try:
+                await self.db_service.extend_chat_session_message(chat_session_id, messages)
+            except Exception as e:
+                logger.error(f"Error storing messages in database: {e}", exc_info=True)
+            
+            # Return the last assistant message
+            last_assistant_message = next(
+                (msg for msg in reversed(messages) if msg["role"] == "assistant"),
+                None
+            )
+            
+            if not last_assistant_message:
+                raise RuntimeError("No assistant message found in conversation")
+            
+            return last_assistant_message
             
         except Exception as e:
             logger.error(f"Error in run_agent_loop_with_history: {e}", exc_info=True)
-            return {"content": "I apologize, but I encountered an error processing your request. Please try again."}
+            # Store error message in database
+            error_message = {
+                "role": "assistant",
+                "content": f"I apologize, but I encountered an error: {str(e)}"
+            }
+            try:
+                await self.db_service.extend_chat_session_message(chat_session_id, [error_message])
+            except Exception as db_error:
+                logger.error(f"Error storing error message in database: {db_error}", exc_info=True)
+            return error_message
 
     async def handle_inbound_message(self, phone_number: str, message: str) -> dict:
         """Handle an incoming text message from a participant, using conversation context and all texting tools."""
