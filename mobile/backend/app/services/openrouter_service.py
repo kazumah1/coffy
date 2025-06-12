@@ -1094,289 +1094,24 @@ class OpenRouterService:
     }
 
     async def run_agent_loop_with_history(self, messages: list[dict], chat_session_id: str, max_steps: int = 10):
-        # Fetch chat session to get event_id and user_id
-        chat_session = self.db_service.client.table("chat_sessions").select("*").eq("id", chat_session_id).execute()
-        chat_session_data = chat_session.data[0] if chat_session.data else None
-        event_details = None
-        participants = None
-        creator = await self.db_service.get_user_by_id(chat_session_data["user_id"])
-        creator_name = creator["name"] if creator else "A friend"
-
-        # Get current datetime in ISO format with timezone
-        current_datetime = datetime.now().astimezone().isoformat()
-        if chat_session_data and chat_session_data.get("event_id"):
-            event_details = await self.db_service.get_event_by_id(chat_session_data["event_id"])
-            participants = await self.db_service.get_event_participants(chat_session_data["event_id"])
-        
-        # Build context summary
-        context_summary = []
-        if event_details:
-            context_summary.append(f"Event: {event_details['title']} (ID: {event_details['id']})")
-            context_summary.append(f"Status: {event_details['status']}")
-        if participants:
-            context_summary.append(f"Participants: {len(participants)}")
-            for p in participants:
-                context_summary.append(f"- {p['name']} ({p['phone_number']}): {p['status']}")
-        
-        system_content = AVAILABLE_PROMPTS["initial"]
-        if context_summary:
-            system_content += "\n\nCurrent Context:\n" + "\n".join(context_summary)
-        system_content += f"\n\nCreator: {creator_name}"
-        system_content += f"\nCreator ID: {chat_session_data['user_id']}"
-        system_content += f"\nCurrent datetime: {current_datetime}"
-        system_content += f"\nTimezone: {timezone}"
-        
-        system_prompt = {
-            "role": "system",
-            "content": system_content
-        }
-        
-        # Track completed steps across the conversation
-        completed_steps = set()
-        
-        # Format message history with clear separation
-        formatted_messages = []
-        for msg in messages[-9:]:  # keep last 9
-            if msg["role"] == "user":
-                formatted_messages.append({
-                    "role": "user",
-                    "content": f"User Request:\n{msg['content']}"
-                })
-            elif msg["role"] == "assistant":
-                # Parse the assistant's response into sections
-                content = msg["content"]
-                sections = {
-                    "completed": [],
-                    "next_steps": [],
-                    "response": ""
-                }
-                
-                # Simple parsing of the sections
-                current_section = "response"
-                for line in content.split("\n"):
-                    if "Completed:" in line or "Steps completed:" in line:
-                        current_section = "completed"
-                    elif "Next steps:" in line or "Next Steps:" in line:
-                        current_section = "next_steps"
-                    elif line.strip():
-                        if current_section in ["completed", "next_steps"]:
-                            sections[current_section].append(line.strip())
-                        else:
-                            sections["response"] += line + "\n"
-                
-                # Add new completed steps to our tracking set
-                for step in sections["completed"]:
-                    if step.startswith("- "):
-                        completed_steps.add(step[2:])
-                    else:
-                        completed_steps.add(step)
-                
-                formatted_messages.append({
-                    "role": "assistant",
-                    "content": f"Assistant Response:\n" + 
-                              (f"Completed Steps:\n" + "\n".join(f"- {step}" for step in sorted(completed_steps)) + "\n\n" if completed_steps else "") +
-                              (f"Next Steps:\n" + "\n".join(sections["next_steps"]) + "\n\n" if sections["next_steps"] else "") +
-                              f"Response:\n{sections['response'].strip()}"
-                })
-            elif msg["role"] == "tool":
-                formatted_messages.append({
-                    "role": "tool",
-                    "content": f"Tool {msg['name']} Result:\n{msg['content']}"
-                })
-        
-        context_messages = [system_prompt] + formatted_messages
-
-        for step in range(max_steps):
-            print("=====context messages=====")
-            print(context_messages)
-            print("===================")
-            tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["agent_loop"] if tool_name in self.TOOL_MAPPINGS]]
-            response, _ = await self.prompt_agent(context_messages, tools=tools)
-            print("=====response=====")
-            print(response)
-            print("===================")
-            
-            # Format the response with sections
-            content = response.content.rstrip('\n')
-            if content:
-                if content[-1] == '\n':
-                    content = content[:-1]
-                    
-            # Parse the response into sections
-            sections = {
-                "completed": [],
-                "next_steps": [],
-                "response": ""
-            }
-            
-            current_section = "response"
-            for line in content.split("\n"):
-                if "Completed:" in line or "Steps completed:" in line:
-                    current_section = "completed"
-                elif "Next steps:" in line or "Next Steps:" in line:
-                    current_section = "next_steps"
-                elif line.strip():
-                    if current_section in ["completed", "next_steps"]:
-                        sections[current_section].append(line.strip())
-                    else:
-                        sections["response"] += line + "\n"
-            
-            # Add new completed steps to our tracking set
-            for step in sections["completed"]:
-                if step.startswith("- "):
-                    completed_steps.add(step[2:])
-                else:
-                    completed_steps.add(step)
-            
-            # Format the final content with all completed steps and new next steps
-            formatted_content = "Completed:\n" + "\n".join(f"- {step}" for step in sorted(completed_steps))
-            if sections["next_steps"]:
-                formatted_content += "\n\nNext Steps:\n" + "\n".join(sections["next_steps"])
-            formatted_content += "\n\nResponse:\n" + sections["response"].strip()
-            
-            assistant_message = {
-                "role": "assistant",
-                "content": formatted_content,
-                "timestamp": current_datetime
-            }
-            
-            if response.tool_calls:
-                assistant_message["tool_calls"] = [
-                    {
-                        "id": tool_call.id,
-                        "type": tool_call.type,
-                        "function": {
-                            "name": tool_call.function.name,
-                            "arguments": tool_call.function.arguments
-                        }
-                    }
-                    for tool_call in response.tool_calls
-                ]
-            
-            # Add the assistant's response to context
-            context_messages.append(assistant_message)
-            
-            # Handle tool calls if any
-            if response.tool_calls:
-                tool_responses = []
-                for tool_call in response.tool_calls:
-                    print("=====tool call=====")
-                    print(tool_call)
-                    print("===================")
-                    tool_name = tool_call.function.name
-                    tool_args = json.loads(tool_call.function.arguments)
-                    try:
-                        tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
-                    except Exception as e:
-                        print(f"Error in tool call {tool_name}: {e}")
-                        tool_response = {"error": str(e)}
-                    tool_responses.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": tool_name,
-                        "content": json.dumps(tool_response),
-                        "timestamp": current_datetime
-                    })
-                
-                # Add all tool responses to context
-                context_messages.extend(tool_responses)
-                
-                # Store all messages in the database
-                await self.db_service.extend_chat_session_message(
-                    chat_session_id,
-                    [assistant_message] + tool_responses
-                )
-            else:
-                # If no tool calls, just store the assistant's response
-                await self.db_service.extend_chat_session_message(
-                    chat_session_id,
-                    [assistant_message]
-                )
-
-            if not response.tool_calls:
-                break
-            else:
-                for tool_call in response.tool_calls:
-                    if tool_call.function.name == "stop_loop" or tool_call.function.name == "send_text" or tool_call.function.name == "send_chat_message_to_user":
-                        break 
-
-        # Return the content of the last assistant message
-        last_message = context_messages[-1]
-        if isinstance(last_message, dict) and "content" in last_message:
-            return {"content": last_message["content"]}
-        elif isinstance(last_message, str):
-            return {"content": last_message}
-        return {"content": "I apologize, but I couldn't process your request properly."}
-
-    async def handle_inbound_message(self, phone_number: str, message: str) -> dict:
-        """Handle an incoming text message from a participant, using conversation context and all texting tools."""
         try:
-            print("=====handle_inbound_message=====")
-            print(phone_number)
-            print(message)
-            print("================================")
-            conversation = await self.db_service.get_conversation_by_phone(phone_number)
-            if not conversation:
-                logger.warning(f"No active conversation found for {phone_number}")
-                return {"message": message, "from_number": phone_number}
-            conversation_id = conversation["id"]
-            max_steps = 10  # Increased to match run_agent_loop_with_history
-            print("got conversation")
-            # Get current datetime in ISO format with timezone
-            current_datetime = datetime.now().astimezone().isoformat()
-            
-            # Format user message
-            user_message = {
-                "role": "user",
-                "content": f"User Request:\n{message}",
-                "timestamp": current_datetime
-            }
-            print("got user message")
-            # Get last k messages for context
-            last_k_messages = await self.db_service.get_last_k_conversation_messages(conversation_id)
-            print("got last k messages")
-            # Convert any string messages to dictionaries
-            formatted_messages = []
-            
-            # Track completed steps across the conversation
-            completed_steps = set()
-            
-            for msg in last_k_messages:
-                if isinstance(msg, str):
-                    try:
-                        formatted_msg = json.loads(msg)
-                        formatted_messages.append(formatted_msg)
-                    except json.JSONDecodeError:
-                        print(f"Failed to parse message: {msg}")
-                        continue
-                else:
-                    formatted_messages.append(msg)
-                    
-                # If it's an assistant message, track completed steps
-                if msg.get("role") == "assistant":
-                    content = msg.get("content", "")
-                    current_section = None
-                    for line in content.split("\n"):
-                        if "Completed:" in line or "Steps completed:" in line:
-                            current_section = "completed"
-                        elif "Next steps:" in line or "Next Steps:" in line:
-                            current_section = "next_steps"
-                        elif line.strip() and current_section == "completed":
-                            step = line.strip()
-                            if step.startswith("- "):
-                                completed_steps.add(step[2:])
-                            else:
-                                completed_steps.add(step)
-            
-            print("got formatted messages", formatted_messages)
-            # Compose system prompt with event/participant context if available
+            # Fetch chat session to get event_id and user_id
+            chat_session = self.db_service.client.table("chat_sessions").select("*").eq("id", chat_session_id).execute()
+            if not chat_session.data:
+                logger.error(f"No chat session found for ID {chat_session_id}")
+                return {"content": "Error: Chat session not found"}
+                
+            chat_session_data = chat_session.data[0]
             event_details = None
             participants = None
-            if conversation.get("event_id"):
-                event_details = await self.db_service.get_event_by_id(conversation["event_id"])
-                participants = await self.db_service.get_event_participants(conversation["event_id"])
-            
-            print("got event details", event_details)
+            creator = await self.db_service.get_user_by_id(chat_session_data["user_id"])
+            creator_name = creator["name"] if creator else "A friend"
+
+            # Get current datetime in ISO format with timezone
+            current_datetime = datetime.now().astimezone().isoformat()
+            if chat_session_data and chat_session_data.get("event_id"):
+                event_details = await self.db_service.get_event_by_id(chat_session_data["event_id"])
+                participants = await self.db_service.get_event_participants(chat_session_data["event_id"])
             
             # Build context summary
             context_summary = []
@@ -1388,169 +1123,455 @@ class OpenRouterService:
                 for p in participants:
                     context_summary.append(f"- {p['name']} ({p['phone_number']}): {p['status']}")
             
-            system_content = AVAILABLE_PROMPTS["texting"]
+            system_content = AVAILABLE_PROMPTS["initial"]
             if context_summary:
                 system_content += "\n\nCurrent Context:\n" + "\n".join(context_summary)
-            if event_details:
-                # Set current owner ID from event creator
-                self._current_owner_id = event_details["creator_id"]
-                self._current_event_id = event_details["id"]
-                print("got current owner id", self._current_owner_id)
-                print("got current event id", self._current_event_id)
-            
-            creator = await self.db_service.get_user_by_id(self._current_owner_id)
-            print("got creator", creator)
-            creator_name = creator["name"] if creator else "A friend"
-            system_content += f"\nCreator: {creator_name}"
-            print("got creator name", creator_name)
-            system_content += f"\nCreator ID: {self._current_owner_id}"
-            print("got creator id", self._current_owner_id)
+            system_content += f"\n\nCreator: {creator_name}"
+            system_content += f"\nCreator ID: {chat_session_data['user_id']}"
             system_content += f"\nCurrent datetime: {current_datetime}"
             system_content += f"\nTimezone: {timezone}"
-            print("got system content")
+            
             system_prompt = {
                 "role": "system",
                 "content": system_content
             }
-            print("got system prompt")
+            
+            # Track completed steps across the conversation
+            completed_steps = set()
+            
+            # Format message history with clear separation
+            formatted_messages = []
+            for msg in messages[-9:]:  # keep last 9
+                if msg["role"] == "user":
+                    formatted_messages.append({
+                        "role": "user",
+                        "content": f"User Request:\n{msg['content']}"
+                    })
+                elif msg["role"] == "assistant":
+                    # Parse the assistant's response into sections
+                    content = msg["content"]
+                    sections = {
+                        "completed": [],
+                        "next_steps": [],
+                        "response": ""
+                    }
+                    
+                    # Simple parsing of the sections
+                    current_section = "response"
+                    for line in content.split("\n"):
+                        if "Completed:" in line or "Steps completed:" in line:
+                            current_section = "completed"
+                        elif "Next steps:" in line or "Next Steps:" in line:
+                            current_section = "next_steps"
+                        elif line.strip():
+                            if current_section in ["completed", "next_steps"]:
+                                sections[current_section].append(line.strip())
+                            else:
+                                sections["response"] += line + "\n"
+                    
+                    # Add new completed steps to our tracking set
+                    for step in sections["completed"]:
+                        if step.startswith("- "):
+                            completed_steps.add(step[2:])
+                        else:
+                            completed_steps.add(step)
+                    
+                    formatted_messages.append({
+                        "role": "assistant",
+                        "content": f"Assistant Response:\n" + 
+                                  (f"Completed Steps:\n" + "\n".join(f"- {step}" for step in sorted(completed_steps)) + "\n\n" if completed_steps else "") +
+                                  (f"Next Steps:\n" + "\n".join(sections["next_steps"]) + "\n\n" if sections["next_steps"] else "") +
+                                  f"Response:\n{sections['response'].strip()}"
+                    })
+                elif msg["role"] == "tool":
+                    formatted_messages.append({
+                        "role": "tool",
+                        "content": f"Tool {msg['name']} Result:\n{msg['content']}"
+                    })
+            
+            context_messages = [system_prompt] + formatted_messages
+
+            for step in range(max_steps):
+                try:
+                    logger.info(f"Agent loop step {step + 1}/{max_steps}")
+                    tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["agent_loop"] if tool_name in self.TOOL_MAPPINGS]]
+                    response, _ = await self.prompt_agent(context_messages, tools=tools)
+                    
+                    # Format the response with sections
+                    content = response.content.rstrip('\n')
+                    if content:
+                        if content[-1] == '\n':
+                            content = content[:-1]
+                            
+                    # Parse the response into sections
+                    sections = {
+                        "completed": [],
+                        "next_steps": [],
+                        "response": ""
+                    }
+                    
+                    current_section = "response"
+                    for line in content.split("\n"):
+                        if "Completed:" in line or "Steps completed:" in line:
+                            current_section = "completed"
+                        elif "Next steps:" in line or "Next Steps:" in line:
+                            current_section = "next_steps"
+                        elif line.strip():
+                            if current_section in ["completed", "next_steps"]:
+                                sections[current_section].append(line.strip())
+                            else:
+                                sections["response"] += line + "\n"
+                    
+                    # Add new completed steps to our tracking set
+                    for step in sections["completed"]:
+                        if step.startswith("- "):
+                            completed_steps.add(step[2:])
+                        else:
+                            completed_steps.add(step)
+                    
+                    # Format the final content with all completed steps and new next steps
+                    formatted_content = "Completed:\n" + "\n".join(f"- {step}" for step in sorted(completed_steps))
+                    if sections["next_steps"]:
+                        formatted_content += "\n\nNext Steps:\n" + "\n".join(sections["next_steps"])
+                    formatted_content += "\n\nResponse:\n" + sections["response"].strip()
+                    
+                    assistant_message = {
+                        "role": "assistant",
+                        "content": formatted_content,
+                        "timestamp": current_datetime
+                    }
+                    
+                    if response.tool_calls:
+                        assistant_message["tool_calls"] = [
+                            {
+                                "id": tool_call.id,
+                                "type": tool_call.type,
+                                "function": {
+                                    "name": tool_call.function.name,
+                                    "arguments": tool_call.function.arguments
+                                }
+                            }
+                            for tool_call in response.tool_calls
+                        ]
+                    
+                    # Add the assistant's response to context
+                    context_messages.append(assistant_message)
+                    
+                    # Handle tool calls if any
+                    if response.tool_calls:
+                        tool_responses = []
+                        for tool_call in response.tool_calls:
+                            try:
+                                tool_name = tool_call.function.name
+                                tool_args = json.loads(tool_call.function.arguments)
+                                logger.info(f"Executing tool {tool_name} with args {tool_args}")
+                                
+                                tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                                tool_responses.append({
+                                    "role": "tool",
+                                    "tool_call_id": tool_call.id,
+                                    "name": tool_name,
+                                    "content": json.dumps(tool_response),
+                                    "timestamp": current_datetime
+                                })
+                            except Exception as e:
+                                logger.error(f"Error in tool call {tool_name}: {e}", exc_info=True)
+                                tool_responses.append({
+                                    "role": "tool",
+                                    "tool_call_id": tool_call.id,
+                                    "name": tool_name,
+                                    "content": json.dumps({"error": str(e)}),
+                                    "timestamp": current_datetime
+                                })
+                        
+                        # Add all tool responses to context
+                        context_messages.extend(tool_responses)
+                        
+                        # Store all messages in the database
+                        try:
+                            await self.db_service.extend_chat_session_message(
+                                chat_session_id,
+                                [assistant_message] + tool_responses
+                            )
+                        except Exception as e:
+                            logger.error(f"Error storing messages in database: {e}", exc_info=True)
+                    else:
+                        # If no tool calls, just store the assistant's response
+                        try:
+                            await self.db_service.extend_chat_session_message(
+                                chat_session_id,
+                                [assistant_message]
+                            )
+                        except Exception as e:
+                            logger.error(f"Error storing assistant message in database: {e}", exc_info=True)
+
+                    if not response.tool_calls:
+                        break
+                    else:
+                        for tool_call in response.tool_calls:
+                            if tool_call.function.name == "stop_loop" or tool_call.function.name == "send_text" or tool_call.function.name == "send_chat_message_to_user":
+                                break
+                except Exception as e:
+                    logger.error(f"Error in agent loop step {step + 1}: {e}", exc_info=True)
+                    # Try to store error message in database
+                    try:
+                        error_message = {
+                            "role": "assistant",
+                            "content": "I apologize, but I encountered an error processing your request. Please try again.",
+                            "timestamp": current_datetime
+                        }
+                        await self.db_service.extend_chat_session_message(
+                            chat_session_id,
+                            [error_message]
+                        )
+                    except Exception as db_error:
+                        logger.error(f"Error storing error message in database: {db_error}", exc_info=True)
+                    break
+
+            # Return the content of the last assistant message
+            last_message = context_messages[-1]
+            if isinstance(last_message, dict) and "content" in last_message:
+                return {"content": last_message["content"]}
+            elif isinstance(last_message, str):
+                return {"content": last_message}
+            return {"content": "I apologize, but I couldn't process your request properly."}
+            
+        except Exception as e:
+            logger.error(f"Error in run_agent_loop_with_history: {e}", exc_info=True)
+            return {"content": "I apologize, but I encountered an error processing your request. Please try again."}
+
+    async def handle_inbound_message(self, phone_number: str, message: str) -> dict:
+        """Handle an incoming text message from a participant, using conversation context and all texting tools."""
+        try:
+            logger.info(f"Handling inbound message from {phone_number}: {message}")
+            
+            # Get conversation and participant info
+            conversation = await self.db_service.get_conversation_by_phone(phone_number)
+            if not conversation:
+                logger.warning(f"No active conversation found for {phone_number}")
+                return {"message": message, "from_number": phone_number}
+            
+            conversation_id = conversation["id"]
+            event_id = conversation["event_id"]
+            
+            # Get participant info
+            participant = await self.db_service.get_event_participant_by_phone(event_id, phone_number)
+            if not participant:
+                logger.warning(f"No participant found for {phone_number} in event {event_id}")
+                return {"message": message, "from_number": phone_number}
+            
+            logger.info(f"Processing message for participant {participant['name']} ({phone_number}) with status {participant['status']}")
+            
+            # Get current datetime in ISO format with timezone
+            current_datetime = datetime.now().astimezone().isoformat()
+            
+            # Format user message
+            user_message = {
+                "role": "user",
+                "content": message,
+                "timestamp": current_datetime
+            }
+            
+            # Get last k messages for context
+            last_k_messages = await self.db_service.get_last_k_conversation_messages(conversation_id)
+            
+            # Get event details and participants
+            event_details = await self.db_service.get_event_by_id(event_id)
+            all_participants = await self.db_service.get_event_participants(event_id)
+            
+            # Build context summary
+            context_summary = []
+            if event_details:
+                context_summary.append(f"Event: {event_details['title']} (ID: {event_details['id']})")
+                context_summary.append(f"Status: {event_details['status']}")
+            context_summary.append(f"Participants: {len(all_participants)}")
+            for p in all_participants:
+                context_summary.append(f"- {p['name']} ({p['phone_number']}): {p['status']}")
+            
+            # Set current event and owner
+            self._current_event_id = event_id
+            self._current_owner_id = event_details["creator_id"]
+            
+            # Get creator info
+            creator = await self.db_service.get_user_by_id(self._current_owner_id)
+            creator_name = creator["name"] if creator else "A friend"
+            
+            # Determine which prompt and tools to use based on participant status
+            if participant["status"] == "pending_confirmation":
+                logger.info("Using confirmation prompt and tools")
+                system_content = AVAILABLE_PROMPTS["confirmation"]
+                available_tools = ["handle_confirmation", "get_google_calendar_busy_times", "send_text"]
+                
+            elif participant["status"] == "pending_availability":
+                logger.info("Using availability prompt and tools")
+                system_content = AVAILABLE_PROMPTS["availability"]
+                available_tools = ["create_unregistered_time_slots", "send_text"]
+                
+            elif participant["status"] == "pending_scheduling":
+                # Check if all other participants are also pending_scheduling or declined
+                all_ready = all(p["status"] in ["pending_scheduling", "declined"] for p in all_participants)
+                if all_ready:
+                    logger.info("Using scheduling prompt and tools")
+                    system_content = AVAILABLE_PROMPTS["scheduling"]
+                    available_tools = ["get_event_availabilities", "schedule_event"]
+                else:
+                    logger.info("Not all participants are ready for scheduling")
+                    return {"message": "Thanks for your availability! We're waiting for other participants to respond.", "from_number": phone_number}
+            else:
+                logger.info(f"Participant status {participant['status']} not handled")
+                return {"message": "Thanks for your message! We'll get back to you soon.", "from_number": phone_number}
+            
+            # Add context to system prompt
+            system_content += "\n\nCurrent Context:\n" + "\n".join(context_summary)
+            system_content += f"\nCreator: {creator_name}"
+            system_content += f"\nCreator ID: {self._current_owner_id}"
+            system_content += f"\nCurrent datetime: {current_datetime}"
+            system_content += f"\nTimezone: {timezone}"
+            
+            system_prompt = {
+                "role": "system",
+                "content": system_content
+            }
+            
             # Build context messages with system prompt and history
-            context_messages = [system_prompt] + formatted_messages[-9:]  # keep last 9 + system
-            print("got context messages")
-            # Add the user's new message to context
+            context_messages = [system_prompt] + last_k_messages[-9:]  # keep last 9 + system
             context_messages.append(user_message)
             
-            for step in range(max_steps):
-                print("=====context messages=====")
-                print(context_messages)
-                print("===================")
-                
-                # Run the agent loop with appropriate tools
-                tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] for tool_name in self.TOOLS_FOR_STAGE["texting"] if tool_name in self.TOOL_MAPPINGS]]
-                response, _ = await self.prompt_agent(context_messages, tools=tools)
-                
-                print("=====response=====")
-                print(response)
-                print("===================")
-                
-                # Format the response with sections
-                content = response.content.rstrip('\n')
-                if content:
-                    if content[-1] == '\n':
-                        content = content[:-1]
-                
-                # Parse the response into sections
-                sections = {
-                    "completed": [],
-                    "next_steps": [],
-                    "response": ""
-                }
-                
-                current_section = "response"
-                for line in content.split("\n"):
-                    if "Completed:" in line or "Steps completed:" in line:
-                        current_section = "completed"
-                    elif "Next steps:" in line or "Next Steps:" in line:
-                        current_section = "next_steps"
-                    elif line.strip():
-                        if current_section in ["completed", "next_steps"]:
-                            sections[current_section].append(line.strip())
-                        else:
-                            sections["response"] += line + "\n"
-                
-                # Add new completed steps to our tracking set
-                for step in sections["completed"]:
-                    if step.startswith("- "):
-                        completed_steps.add(step[2:])
-                    else:
-                        completed_steps.add(step)
-                
-                # Format the final content with all completed steps and new next steps
-                formatted_content = "Completed:\n" + "\n".join(f"- {step}" for step in sorted(completed_steps))
-                if sections["next_steps"]:
-                    formatted_content += "\n\nNext Steps:\n" + "\n".join(sections["next_steps"])
-                formatted_content += "\n\nResponse:\n" + sections["response"].strip()
-                
-                assistant_message = {
-                    "role": "assistant",
-                    "content": formatted_content,
-                    "timestamp": current_datetime
-                }
-                
-                # Add tool calls if any
-                if response.tool_calls:
-                    assistant_message["tool_calls"] = [
-                        {
-                            "id": tool_call.id,
-                            "type": tool_call.type,
-                            "function": {
-                                "name": tool_call.function.name,
-                                "arguments": tool_call.function.arguments
-                            }
-                        }
-                        for tool_call in response.tool_calls
-                    ]
-                
-                # Add the assistant's response to context
-                context_messages.append(assistant_message)
-                
-                # Handle tool calls if any
-                if response.tool_calls:
-                    tool_responses = []
-                    for tool_call in response.tool_calls:
-                        print("=====tool call=====")
-                        print(tool_call)
-                        print("===================")
-                        tool_name = tool_call.function.name
-                        tool_args = json.loads(tool_call.function.arguments)
-                        try:
-                            tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
-                        except Exception as e:
-                            print(f"Error in tool call {tool_name}: {e}")
-                            tool_response = {"error": str(e)}
-                        tool_responses.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "name": tool_name,
-                            "content": json.dumps(tool_response),
-                            "timestamp": current_datetime
-                        })
+            # Run the agent with appropriate tools
+            tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] for tool_name in available_tools if tool_name in self.TOOL_MAPPINGS]]
+            response, _ = await self.prompt_agent(context_messages, tools=tools)
+            
+            # Format the response
+            content = response.content.rstrip('\n')
+            if content and content[-1] == '\n':
+                content = content[:-1]
+            
+            assistant_message = {
+                "role": "assistant",
+                "content": content,
+                "timestamp": current_datetime
+            }
+            
+            # Track tool responses for status updates
+            tool_responses = []
+            confirmation_response = None
+            time_slots_created = False
+            calendar_checked = False
+            
+            # Handle tool calls if any
+            if response.tool_calls:
+                for tool_call in response.tool_calls:
+                    tool_name = tool_call.function.name
+                    tool_args = json.loads(tool_call.function.arguments)
+                    try:
+                        logger.info(f"Executing tool {tool_name} with args {tool_args}")
+                        tool_response = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                        
+                        # Validate tool response
+                        if not isinstance(tool_response, dict):
+                            logger.error(f"Invalid tool response type for {tool_name}: {type(tool_response)}")
+                            tool_response = {"error": "Invalid response format"}
+                        
+                        # Track specific tool responses for status updates
+                        if tool_name == "handle_confirmation":
+                            if isinstance(tool_response, dict) and "confirmation" in tool_response:
+                                confirmation_response = tool_response
+                                logger.info(f"Confirmation response: {confirmation_response}")
+                            else:
+                                logger.error(f"Invalid confirmation response format: {tool_response}")
+                        elif tool_name == "create_unregistered_time_slots":
+                            if isinstance(tool_response, dict) and "time_slots" in tool_response:
+                                time_slots_created = bool(tool_response["time_slots"])
+                                logger.info(f"Time slots created: {time_slots_created}")
+                            else:
+                                logger.error(f"Invalid time slots response format: {tool_response}")
+                        elif tool_name == "get_google_calendar_busy_times":
+                            if isinstance(tool_response, list):
+                                calendar_checked = True
+                                logger.info("Google Calendar checked")
+                            else:
+                                logger.error(f"Invalid calendar response format: {tool_response}")
+                        
+                    except Exception as e:
+                        logger.error(f"Error in tool call {tool_name}: {e}", exc_info=True)
+                        tool_response = {"error": str(e)}
                     
-                    # Add all tool responses to context
-                    context_messages.extend(tool_responses)
+                    tool_responses.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": tool_name,
+                        "content": json.dumps(tool_response),
+                        "timestamp": current_datetime
+                    })
+                
+                # Process status updates based on current status and tool responses
+                try:
+                    if participant["status"] == "pending_confirmation":
+                        if confirmation_response and isinstance(confirmation_response, dict):
+                            if confirmation_response.get("confirmation"):
+                                # If user confirmed and is registered, move to pending_scheduling
+                                if participant.get("registered") and calendar_checked:
+                                    logger.info(f"Updating participant {phone_number} status to pending_scheduling")
+                                    await self.db_service.update_event_participant(
+                                        event_id,
+                                        phone_number,
+                                        {"status": "pending_scheduling"}
+                                    )
+                                # If user confirmed but not registered, move to pending_availability
+                                else:
+                                    logger.info(f"Updating participant {phone_number} status to pending_availability")
+                                    await self.db_service.update_event_participant(
+                                        event_id,
+                                        phone_number,
+                                        {"status": "pending_availability"}
+                                    )
+                            # If user declined, status remains declined
+                            else:
+                                logger.info(f"Updating participant {phone_number} status to declined")
+                                await self.db_service.update_event_participant(
+                                    event_id,
+                                    phone_number,
+                                    {"status": "declined"}
+                                )
                     
-                    # Store all messages in the database in a single call
+                    elif participant["status"] == "pending_availability":
+                        if time_slots_created:
+                            logger.info(f"Updating participant {phone_number} status to pending_scheduling")
+                            await self.db_service.update_event_participant(
+                                event_id,
+                                phone_number,
+                                {"status": "pending_scheduling"}
+                            )
+                except Exception as e:
+                    logger.error(f"Error updating participant status: {e}", exc_info=True)
+                
+                # Add all tool responses to context
+                context_messages.extend(tool_responses)
+                
+                # Store all messages in the database
+                try:
                     await self.db_service.extend_conversation_message(
                         conversation_id,
                         [user_message, assistant_message] + tool_responses
                     )
-                else:
-                    # Store all messages in the database in a single call
+                except Exception as e:
+                    logger.error(f"Error storing messages in database: {e}", exc_info=True)
+            else:
+                logger.info("No tool calls made by agent")
+                # Store messages in the database
+                try:
                     await self.db_service.extend_conversation_message(
                         conversation_id,
                         [user_message, assistant_message]
                     )
-                
-                if not response.tool_calls:
-                    break
-                else:
-                    for tool_call in response.tool_calls:
-                        if tool_call.function.name == "stop_loop" or tool_call.function.name == "send_text":
-                            break
+                except Exception as e:
+                    logger.error(f"Error storing messages in database: {e}", exc_info=True)
             
-            # Return the content of the last assistant message
-            last_message = context_messages[-1]
-            if isinstance(last_message, dict) and "content" in last_message:
-                # Extract just the response section for the return value
-                content = last_message["content"]
-                response_section = content.split("Response:")[-1].strip() if "Response:" in content else content
-                return {"message": response_section, "from_number": phone_number}
-            elif isinstance(last_message, str):
-                return {"message": last_message, "from_number": phone_number}
-            return {"message": "I apologize, but I couldn't process your request properly.", "from_number": phone_number}
+            # Return the response
+            return {"message": content, "from_number": phone_number}
             
         except Exception as e:
-            print("error", e)
-            logger.error(f"Error in handle_inbound_message: {str(e)}")
+            logger.error(f"Error in handle_inbound_message: {str(e)}", exc_info=True)
             return {"message": message, "from_number": phone_number}
 
     async def handle_chat_request(self, request: dict):
