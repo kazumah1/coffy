@@ -20,7 +20,7 @@ import asyncio
 from openai import OpenAI
 
 API_URL = "https://openrouter.ai/api/v1"
-MODEL = "google/gemini-2.0-flash-001"
+MODEL = "openai/gpt-4.1-nano"
 
 logger = logging.getLogger(__name__)
 
