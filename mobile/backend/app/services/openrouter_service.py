@@ -1211,31 +1211,38 @@ class OpenRouterService:
     async def handle_inbound_message(self, phone_number: str, message: str) -> dict:
         """Handle an incoming text message from a participant"""
         try:
+            print("\n=== Starting handle_inbound_message ===")
+            print(f"Phone number: {phone_number}")
+            print(f"Message: {message}")
+            
             # Find active conversation for this phone number
             conversations = await self.db_service.get_conversations_by_phone(phone_number)
-            logger.info(f"Found conversations for {phone_number}: {conversations}")
+            print(f"Found conversations: {conversations}")
             active_conversation = next(
                 (c for c in conversations if c["status"] == "active"),
                 None
             )
+            print(f"Active conversation: {active_conversation}")
             
             if not active_conversation:
-                logger.warning(f"No active conversation found for {phone_number}")
+                print("No active conversation found")
                 return {"message": message, "from_number": phone_number}
             
             # Set the current event from the conversation
             self.set_current_event(active_conversation["event_id"])
+            print(f"Set current event ID: {self._current_event_id}")
             
             # Get event and participant details
             now = datetime.now()
             current_datetime = now.astimezone().isoformat()
             event = await self.db_service.get_event_by_id(active_conversation["event_id"])
-            logger.info(f"Found event: {event['title']} (ID: {event['id']})")
+            print(f"Found event: {event['title']} (ID: {event['id']})")
             participant = await self.db_service.get_event_participant_by_phone(active_conversation["event_id"], phone_number)
-            logger.info(f"Found participant: {participant['name']} (Status: {participant['status']})")
+            print(f"Found participant: {participant['name']} (Status: {participant['status']}, Registered: {participant['registered']})")
 
             creator = await self.db_service.get_user_by_id(event["creator_id"])
             name = creator["name"] if creator else "A friend"
+            print(f"Creator name: {name}")
 
             # Build context summary
             context = f"""Event: {event["title"]}
@@ -1248,11 +1255,11 @@ class OpenRouterService:
                 \nUser replied: {message}
                 """
             
-            logger.info(f"Processing message with context: {context}")
+            print(f"Context: {context}")
             
             # Determine which prompt and tools to use based on participant status
             if participant["status"] == "pending_confirmation":
-                logger.info("Handling confirmation response")
+                print("Handling confirmation response")
                 messages = [
                     {
                         "role": "system",
@@ -1264,25 +1271,30 @@ class OpenRouterService:
                     }
                 ]
                 tools = [AVAILABLE_TOOLS[TOOL_INDICES["handle_confirmation"]]]
+                print(f"Using tools: {tools}")
                 
                 # Get response from agent
                 response, _ = await self.prompt_agent(messages, tools)
+                print(f"Agent response: {response}")
                 
                 # Process tool calls
                 if hasattr(response, 'tool_calls') and response.tool_calls:
+                    print(f"Processing tool calls: {response.tool_calls}")
                     for tool_call in response.tool_calls:
                         tool_name = tool_call.function.name
                         tool_args = json.loads(tool_call.function.arguments)
+                        print(f"Executing tool: {tool_name} with args: {tool_args}")
                         
                         if tool_name in self.TOOL_MAPPINGS:
                             await self.TOOL_MAPPINGS[tool_name](**tool_args)
                 
                 # Check if we need to move to availability
                 participant = await self.db_service.get_event_participant_by_phone(active_conversation["event_id"], phone_number)
+                print(f"Updated participant status: {participant['status']}")
                 if participant["status"] == "pending_availability":
-                    logger.info("Moving to availability collection")
+                    print("Moving to availability collection")
                     if participant["registered"]:
-                        logger.info("Handling registered user availability")
+                        print("Handling registered user availability")
                         context += f"\nParticipant ID: {participant['user_id']}"
                         messages = [
                             {
@@ -1298,13 +1310,17 @@ class OpenRouterService:
                             AVAILABLE_TOOLS[TOOL_INDICES["send_text"]],
                             AVAILABLE_TOOLS[TOOL_INDICES["create_unregistered_time_slots"]]
                         ]
+                        print(f"Using tools for registered user: {tools}")
                         
                         response, _ = await self.prompt_agent(messages, tools)
+                        print(f"Agent response for registered user: {response}")
                         
                         if hasattr(response, 'tool_calls') and response.tool_calls:
+                            print(f"Processing tool calls for registered user: {response.tool_calls}")
                             for tool_call in response.tool_calls:
                                 tool_name = tool_call.function.name
                                 tool_args = json.loads(tool_call.function.arguments)
+                                print(f"Executing tool for registered user: {tool_name} with args: {tool_args}")
                                 
                                 if tool_name in self.TOOL_MAPPINGS:
                                     await self.TOOL_MAPPINGS[tool_name](**tool_args)
@@ -1315,6 +1331,7 @@ class OpenRouterService:
                             "response_text": message,
                             "updated_at": now.isoformat(),
                         }
+                        print(f"Updating participant status: {update_data}")
                         await self.db_service.update_event_participant(
                             self._current_event_id,
                             phone_number,
@@ -1324,7 +1341,7 @@ class OpenRouterService:
                             self._current_participants[phone_number].update(update_data)
                             
                     else:
-                        logger.info("Handling unregistered user availability")
+                        print("Handling unregistered user availability")
                         messages = [
                             {
                                 "role": "system",
@@ -1339,19 +1356,23 @@ class OpenRouterService:
                             AVAILABLE_TOOLS[TOOL_INDICES["send_text"]],
                             AVAILABLE_TOOLS[TOOL_INDICES["create_unregistered_time_slots"]]
                         ]
+                        print(f"Using tools for unregistered user: {tools}")
                         
                         response, _ = await self.prompt_agent(messages, tools)
+                        print(f"Agent response for unregistered user: {response}")
                         
                         if hasattr(response, 'tool_calls') and response.tool_calls:
+                            print(f"Processing tool calls for unregistered user: {response.tool_calls}")
                             for tool_call in response.tool_calls:
                                 tool_name = tool_call.function.name
                                 tool_args = json.loads(tool_call.function.arguments)
+                                print(f"Executing tool for unregistered user: {tool_name} with args: {tool_args}")
                                 
                                 if tool_name in self.TOOL_MAPPINGS:
                                     await self.TOOL_MAPPINGS[tool_name](**tool_args)
             
             elif participant["status"] == "pending_availability":
-                logger.info("Processing availability response")
+                print("Processing availability response")
                 messages = [
                     {
                         "role": "system",
@@ -1366,13 +1387,17 @@ class OpenRouterService:
                     AVAILABLE_TOOLS[TOOL_INDICES["send_text"]],
                     AVAILABLE_TOOLS[TOOL_INDICES["create_unregistered_time_slots"]]
                 ]
+                print(f"Using tools for availability: {tools}")
                 
                 response, _ = await self.prompt_agent(messages, tools)
+                print(f"Agent response for availability: {response}")
                 
                 if hasattr(response, 'tool_calls') and response.tool_calls:
+                    print(f"Processing tool calls for availability: {response.tool_calls}")
                     for tool_call in response.tool_calls:
                         tool_name = tool_call.function.name
                         tool_args = json.loads(tool_call.function.arguments)
+                        print(f"Executing tool for availability: {tool_name} with args: {tool_args}")
                         
                         if tool_name in self.TOOL_MAPPINGS:
                             await self.TOOL_MAPPINGS[tool_name](**tool_args)
@@ -1383,6 +1408,7 @@ class OpenRouterService:
                     "response_text": message,
                     "updated_at": now.isoformat(),
                 }
+                print(f"Updating participant status: {update_data}")
                 await self.db_service.update_event_participant(
                     self._current_event_id,
                     phone_number,
@@ -1394,7 +1420,7 @@ class OpenRouterService:
                 # Check if all participants are ready for scheduling
                 participants = await self.db_service.get_event_participants(self._current_event_id)
                 schedule_event = True
-                print("checking if all participants are pending scheduling")
+                print("Checking if all participants are pending scheduling")
                 for p in participants:
                     if p["status"] == "declined":
                         print(f"Participant {p['name']} has declined")
@@ -1406,14 +1432,16 @@ class OpenRouterService:
                         break
                 
                 if schedule_event:
-                    logger.info("All participants ready for scheduling")
+                    print("All participants ready for scheduling")
                     
                     # Gather availability information
                     participant_times = {}
                     for p in participants:
                         if p["registered"]:
+                            print(f"Getting busy times for registered participant: {p['name']}")
                             participant_times[p["name"]] = await self.db_service.get_participant_busy_times(self._current_event_id, p["phone_number"])
                         else:
+                            print(f"Getting time slots for unregistered participant: {p['name']}")
                             participant_times[p["name"]] = await self.db_service.get_unregistered_time_slots(self._current_event_id, p["phone_number"])
                     
                     context += f"\nParticipant times: {participant_times}"
@@ -1431,16 +1459,21 @@ class OpenRouterService:
                         }
                     ]
                     tools = [AVAILABLE_TOOLS[TOOL_INDICES["schedule_event"]]]
+                    print(f"Using tools for scheduling: {tools}")
                     
                     response, _ = await self.prompt_agent(messages, tools)
+                    print(f"Agent response for scheduling: {response}")
                     
                     if hasattr(response, 'tool_calls') and response.tool_calls:
+                        print(f"Processing tool calls for scheduling: {response.tool_calls}")
                         for tool_call in response.tool_calls:
                             tool_name = tool_call.function.name
                             tool_args = json.loads(tool_call.function.arguments)
+                            print(f"Executing tool for scheduling: {tool_name} with args: {tool_args}")
                             
                             if tool_name in self.TOOL_MAPPINGS:
                                 result = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                                print(f"Tool result: {result}")
                                 if "creator_message" in result:
                                     return {
                                         "message": message,
@@ -1449,11 +1482,14 @@ class OpenRouterService:
                                     }
             
             elif participant["status"] in ["confirmed", "declined"]:
+                print(f"Participant status is {participant['status']}, returning message")
                 return {"message": message, "from_number": phone_number}
             
+            print("Returning default response")
             return {"message": message, "from_number": phone_number}
-            
+                
         except Exception as e:
+            print(f"Error in handle_inbound_message: {str(e)}")
             logger.error(f"Error processing inbound message: {str(e)}", exc_info=True)
             # Keep conversation active if there's an error
             if active_conversation:
