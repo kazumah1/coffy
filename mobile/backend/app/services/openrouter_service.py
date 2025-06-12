@@ -1552,3 +1552,31 @@ class OpenRouterService:
             print("error", e)
             logger.error(f"Error in handle_inbound_message: {str(e)}")
             return {"message": message, "from_number": phone_number}
+
+    async def handle_chat_request(self, request: dict):
+        """Handle a chat request from the creator."""
+        message = request["request"]
+        print("=====message=====")
+        print(message)
+        print("===================")
+        # 1. Store user message
+        now = datetime.now().astimezone().isoformat()
+        user_message = [{
+            "role": "user",
+            "content": message,
+            "timestamp": now
+        }]
+        self._current_owner_id = request["creator_id"]
+        chat_session = await self.db_service.get_or_create_chat_session(request["creator_id"])
+        
+        # Set current event ID if available in chat session
+        if chat_session.get("event_id"):
+            self.set_current_event(chat_session["event_id"])
+        
+        await self.db_service.extend_chat_session_message(chat_session["id"], user_message)
+        # 2. Get last k messages
+        last_k_messages = await self.db_service.get_last_k_chat_session_messages(chat_session["id"])
+        # 3. Run agent with full history
+        agent_response = await self.run_agent_loop_with_history(last_k_messages, chat_session["id"])
+        # 5. Return new message(s)
+        return {"message": agent_response["content"], "chat_session_id": chat_session["id"]}
