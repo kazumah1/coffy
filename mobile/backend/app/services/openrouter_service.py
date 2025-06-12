@@ -1106,25 +1106,14 @@ class OpenRouterService:
         ],
     }
 
-    async def run_agent_loop_with_history(self, messages: list[dict], chat_session_id: str, max_steps: int = 10):
+    async def run_agent_loop_with_history(self, creator_id: str, messages: list[dict], chat_session_id: str, max_steps: int = 10):
         """Run the agent loop with conversation history."""
         try:
-            # Get the user ID from the first message that has a user_id
-            user_id = None
-            for message in messages:
-                if message.get("user_id"):
-                    user_id = message["user_id"]
-                    break
-            
-            if not user_id:
-                logger.error("No user_id found in messages")
-                raise RuntimeError("No user_id found in messages")
-
-            # Get or create chat session with the user ID
-            chat_session = await self.db_service.get_or_create_chat_session(user_id)
+            # Get chat session from database
+            chat_session = await self.db_service.get_or_create_chat_session(creator_id)
             if not chat_session:
-                logger.error(f"Failed to get or create chat session for user {user_id}")
-                raise RuntimeError(f"Failed to get or create chat session for user {user_id}")
+                logger.error(f"Failed to get chat session {chat_session_id}")
+                raise RuntimeError(f"Failed to get chat session {chat_session_id}")
 
             # Get available tools based on current stage
             tools = [tool for tool in [AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] for tool_name in self.TOOLS_FOR_STAGE[self.stage_number] if tool_name in self.TOOL_MAPPINGS]]
@@ -1147,7 +1136,7 @@ class OpenRouterService:
                 })
                 
                 # Store messages in database
-                await self.db_service.extend_chat_session_message(chat_session["id"], messages)
+                await self.db_service.extend_chat_session_message(chat_session_id, messages)
                 
                 # Process tool calls if any
                 if response.tool_calls:
@@ -1190,7 +1179,7 @@ class OpenRouterService:
                 if response.content and "stop_loop" in response.content.lower():
                     break
                     
-            return messages[-1]["content"], chat_session["id"]
+            return messages[-1]["content"], chat_session_id
             
         except Exception as e:
             logger.error(f"Error in run_agent_loop_with_history: {e}", exc_info=True)
@@ -1468,6 +1457,6 @@ class OpenRouterService:
         # 2. Get last k messages
         last_k_messages = await self.db_service.get_last_k_chat_session_messages(chat_session["id"])
         # 3. Run agent with full history
-        agent_response = await self.run_agent_loop_with_history(last_k_messages, chat_session["id"])
+        agent_response = await self.run_agent_loop_with_history(request["creator_id"], last_k_messages, chat_session["id"])
         # 5. Return new message(s)
         return {"message": agent_response["content"], "chat_session_id": chat_session["id"]}
