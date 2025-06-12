@@ -1165,7 +1165,10 @@ class OpenRouterService:
                                 
                             # Call the tool
                             tool_func = self.TOOL_MAPPINGS[tool_name]
-                            tool_response = await tool_func(**tool_args)
+                            try:
+                                tool_response = await tool_func(**tool_args)
+                            except Exception as e:
+                                tool_response = {"error": str(e)}
                             
                             # Add tool response to messages and history
                             tool_message = {
@@ -1500,7 +1503,6 @@ class OpenRouterService:
                     active_conversation["user_name"]
                 )
             return {"message": message, "from_number": phone_number}
-
     async def handle_chat_request(self, request: dict):
         """Handle a chat request from the creator."""
         message = request["request"]
