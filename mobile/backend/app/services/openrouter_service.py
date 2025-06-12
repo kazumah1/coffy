@@ -1156,7 +1156,9 @@ class OpenRouterService:
             print("got creator", creator)
             creator_name = creator["name"] if creator else "A friend"
             system_content += f"\nCreator: {creator_name}"
+            print("got creator name", creator_name)
             system_content += f"\nCreator ID: {self._current_owner_id}"
+            print("got creator id", self._current_owner_id)
             system_content = system_content.format(current_datetime=current_datetime, timezone=timezone)
             print("got system content")
             system_prompt = {
