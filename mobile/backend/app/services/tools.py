@@ -86,7 +86,7 @@ GET_GOOGLE_CALENDAR_BUSY_TIMES_TOOL = {
     "type": "function",
     "function": {
         "name": "get_google_calendar_busy_times",
-        "description": "Get busy times from a registered user's Google Calendar within a date range. This is for registered participants. This tool returns times when the user is NOT available (has events). This tool can ONLY be used for registered users (those with a valid UUID). For unregistered users, use the texting-based availability flow instead.",
+        "description": "Get and store busy times from a registered user's Google Calendar within a date range. This is for only registered participants. This tool must be used for each registered participant. This tool can ONLY be used for registered users (those with a valid UUID). For unregistered users, use the texting-based availability flow instead.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -112,7 +112,7 @@ GET_CREATOR_GOOGLE_CALENDAR_BUSY_TIMES_TOOL = {
     "type": "function",
     "function": {
         "name": "get_creator_google_calendar_busy_times",
-        "description": "Get busy times from the creator's Google Calendar within a date range. This tool must always be used once per event to find a time that works best for the creator. This tool must only be used after an event has been created.",
+        "description": "Get and store busy times from the creator's Google Calendar within a date range. This tool must always be used once per event to find a time that works best for the creator. This tool must only be used after an event has been created.",
         "parameters": {
             "type": "object",
             "properties": {
