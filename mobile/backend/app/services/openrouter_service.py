@@ -1163,17 +1163,17 @@ class OpenRouterService:
 
         # Get current datetime in ISO format with timezone
         current_datetime = datetime.now().astimezone().isoformat()
-
+        print("starting actual loop")
         while stage_idx < stage_limit and step < max_steps:
             try:
                 # Get tools for current stage
-                stage = self.STAGES[stage_idx]
+                current_stage = self.STAGES[stage_idx]
                 tools = [
                     AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] 
-                    for tool_name in self.TOOLS_FOR_STAGE[stage] 
+                    for tool_name in self.TOOLS_FOR_STAGE[current_stage] 
                     if tool_name in self.TOOL_MAPPINGS
                 ]
-
+                print("tools", tools)
                 # Prepare messages
                 if step == 0:
                     messages = [
@@ -1184,20 +1184,20 @@ class OpenRouterService:
                             Creator ID: {creator_id}
                             Creator Name: {creator_name}
                             
-                            {AVAILABLE_PROMPTS[stage].format(current_datetime=current_datetime)}"""
+                            {AVAILABLE_PROMPTS[current_stage].format(current_datetime=current_datetime)}"""
                         },
                         {
                             "role": "user",
                             "content": user_input
                         }
                     ]
+                    print("messages", messages)
                 else:
                     # Add tool call results to messages
                     if response and hasattr(response, 'tool_calls'):
                         for tool_call in response.tool_calls:
                             tool_name = tool_call.function.name
                             tool_args = json.loads(tool_call.function.arguments)
-                            
                             if tool_name in self.TOOL_MAPPINGS:
                                 try:
                                     print("<<<<<<<<<<<<<<<<<<<<")
@@ -1240,6 +1240,7 @@ class OpenRouterService:
                                         
                                 except Exception as e:
                                     logger.error(f"Error executing tool {tool_name}: {str(e)}")
+                                    print("error executing tool", e)
                                     messages.append({
                                         "role": "assistant",
                                         "content": f"Error executing {tool_name}: {str(e)}"
