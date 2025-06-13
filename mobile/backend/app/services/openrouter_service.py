@@ -1139,6 +1139,7 @@ class OpenRouterService:
             stage_limit: Maximum number of stages to process
             stage_idx: Starting stage index
         """
+        print("running agent loop")
         messages = []  # Messages to be sent to the agent
         phone_numbers = set()  # Track phone numbers involved
         response = None  # Last response from agent
@@ -1191,7 +1192,12 @@ class OpenRouterService:
                             
                             if tool_name in self.TOOL_MAPPINGS:
                                 try:
+                                    print("<<<<<<<<<<<<<<<<<<<<")
+                                    print("tool_name", tool_name)
+                                    print("tool_args", tool_args)
                                     result = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                                    print("result", result)
+                                    print(">>>>>>>>>>>>>>>>>>>>>")
                                     messages.append({
                                         "role": "assistant",
                                         "content": None,
@@ -1233,7 +1239,13 @@ class OpenRouterService:
                                     continue
 
                 # Get response from agent
+                print("====================")
+                print("messages", messages)
+                print("====================")
                 response, usage = await self.prompt_agent(messages, tools)
+                print("====================")
+                print("response", response)
+                print("====================")
                 total_prompt_tokens += usage.get("prompt_tokens", 0)
                 total_completion_tokens += usage.get("completion_tokens", 0)
 
