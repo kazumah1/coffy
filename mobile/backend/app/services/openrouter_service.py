@@ -1176,6 +1176,7 @@ class OpenRouterService:
                 print("tools", tools)
                 # Prepare messages
                 if step == 0:
+                    print("current_stage", current_stage)
                     messages = [
                         {
                             "role": "system",
@@ -1273,6 +1274,7 @@ class OpenRouterService:
 
             except Exception as e:
                 logger.error(f"Error in agent loop: {str(e)}")
+                print("error in agent loop", e)
                 return {
                     "success": False,
                     "error": str(e),
