@@ -1256,6 +1256,9 @@ class OpenRouterService:
                             "name": tool_call.function.name,
                             "arguments": json.loads(tool_call.function.arguments)
                         })
+                else:
+                    # If no tool calls, we can stop the loop
+                    break
 
                 step += 1
 
@@ -1581,46 +1584,28 @@ class OpenRouterService:
             creator_id = request.get("creator_id")
             
             if not creator_id or not message:
+                print("creator_id and request are required")
                 raise ValueError("creator_id and request are required")
                 
             # Get or create chat session
             chat_session = await self.db_service.get_or_create_chat_session(creator_id)
+            print("chat_session", chat_session)
             
             # Add user message to session
             await self.db_service.extend_chat_session_message(
                 chat_session["id"],
                 [{"role": "user", "content": message}]
             )
+            print("added user message to session")
             
-            # Get last K messages for context
-            messages = await self.db_service.get_last_k_chat_session_messages(chat_session["id"])
-            
-            # Get tools based on whether this is an event-related chat
-            tools = []
-            if "event_id" in request:
-                # If this is an event chat, get tools for the current event stage
-                event = await self.db_service.get_event_by_id(request["event_id"])
-                if event:
-                    stage = self.STAGES[event["stage"]]
-                    tools = [
-                        AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] 
-                        for tool_name in self.TOOLS_FOR_STAGE[stage] 
-                        if tool_name in self.TOOL_MAPPINGS
-                    ]
-            
-            # Get response from OpenRouter
-            response, usage = await self.prompt_agent(messages, tools)
-            
-            # Add assistant response to session
-            await self.db_service.extend_chat_session_message(
-                chat_session["id"],
-                [{"role": "assistant", "content": response.content}]
-            )
+            # Run the agent loop with the message
+            result = await self.run_agent_loop(message, creator_id)
+            print("response", result)
             
             return {
                 "success": True,
-                "response": response.content,
-                "usage": usage
+                "result": result,
+                "chat_session_id": chat_session["id"]
             }
             
         except Exception as e:
