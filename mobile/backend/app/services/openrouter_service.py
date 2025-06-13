@@ -1256,8 +1256,8 @@ class OpenRouterService:
                 print("====================")
                 print("response", response)
                 print("====================")
-                total_prompt_tokens += usage.get("prompt_tokens", 0)
-                total_completion_tokens += usage.get("completion_tokens", 0)
+                total_prompt_tokens += usage["prompt_tokens"]
+                total_completion_tokens += usage["completion_tokens"]
 
                 # Track tool calls
                 if hasattr(response, 'tool_calls'):
