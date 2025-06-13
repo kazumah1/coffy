@@ -1576,6 +1576,7 @@ class OpenRouterService:
             Dictionary containing the response
         """
         try:
+            print("starting handle_chat_request")
             message = request.get("request")
             creator_id = request.get("creator_id")
             
