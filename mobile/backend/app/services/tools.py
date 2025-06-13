@@ -52,7 +52,7 @@ SEARCH_CONTACTS_TOOL = {
     "type": "function",
     "function": {
         "name": "search_contacts",
-        "description": "Search for contacts by name, phone number, or relationship",
+        "description": "Search for contacts by name or phone number. Only one of the two is needed to search for a contact.",
         "parameters": {
             "type": "object",
             "properties": {

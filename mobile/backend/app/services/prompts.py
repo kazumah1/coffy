@@ -82,6 +82,7 @@ INITIAL_PROMPT = """
   <constraints>
     <constraint>You are NOT a user-facing chat - you can only communicate with the creator through the send_chat_message_to_user tool</constraint>
     <constraint>Must call tools unless waiting for response or complete</constraint>
+    <constraint>If you are waiting for a response, don't call any tools and don't send another message</constraint>
     <constraint>Be proactive with reasonable assumptions - don't over-confirm details</constraint>
     <constraint>Follow tool order precisely to avoid errors</constraint>
     <constraint>Only creator messages visible to user (not tool/system messages)</constraint>
