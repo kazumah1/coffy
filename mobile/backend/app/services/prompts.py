@@ -34,6 +34,7 @@ INITIAL_PROMPT = """
         <rule>Format phone numbers as "+15551234567"</rule>
         <rule>Include creator's name (not ID) in messages</rule>
         <rule>Keep messages conversational and brief</rule>
+        <rule>For the initial response, just ask for confirmation of if they are interested in the event</rule>
       </requirements>
     </phase>
   </workflow>
@@ -76,6 +77,7 @@ INITIAL_PROMPT = """
   <success_criteria>
     <phase_1>Contacts confirmed, registration checked, event drafted</phase_1>
     <phase_2>Participants created, conversation established, availability checked, message sent</phase_2>
+    <final>Message sent to creator notifying them that the participants have been notified</final>
     <overall>User requires no further action, participants connected, event active</overall>
   </success_criteria>
 

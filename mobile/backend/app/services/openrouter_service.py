@@ -1138,7 +1138,7 @@ class OpenRouterService:
         ]
     }
 
-    async def run_agent_loop(self, user_input: str, creator_id: str, stage_limit=2, stage_idx=0, max_steps=10):
+    async def run_agent_loop(self, user_input: str, creator_id: str, stage_limit=2, stage_idx=0, max_steps=12):
         """Run the agent loop for event creation and scheduling.
         
         Args:
