@@ -246,7 +246,7 @@ SCHEDULING_PROMPT = """
 """
 
 AVAILABLE_PROMPTS = {
-    "initial": INITIAL_PROMPT,
+    "agent_loop": INITIAL_PROMPT,
     "texting": TEXTING_PROMPT,
     "confirmation": CONFIRMATION_PROMPT,
     "availability": AVAILABILITY_PROMPT,
