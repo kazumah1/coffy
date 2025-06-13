@@ -9,12 +9,14 @@ INITIAL_PROMPT = """
     <phase id="1" name="Contact Discovery">
       <steps>
         <step order="1">Search contacts for mentioned names/numbers</step>
-        <step order="2">Send confirmation to user via send_chat_message_to_user</step>
+        <step order="2">Send confirmation for the contacts to user via send_chat_message_to_user</step>
         <step order="3" critical="true">WAIT for user confirmation</step>
         <step order="4">Check contact registration status</step>
         <step order="5">Draft event details</step>
       </steps>
       <search_rules>
+        <rule>Assume the name(s) given are the exact names of the contacts to search for</rule>
+        <rule>Do not ask for more info about the phone numbers, just search for them and wait for confirmation</rule>
         <rule>Use exact names in 'query' parameter</rule>
         <rule>Use phone numbers for registration checks</rule>
       </search_rules>

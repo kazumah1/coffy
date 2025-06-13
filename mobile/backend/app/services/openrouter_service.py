@@ -1309,7 +1309,7 @@ class OpenRouterService:
             # Find active conversation for this phone number
             conversations = await self.db_service.get_conversations_by_phone(phone_number)
             active_conversation = next(
-                (c for c in conversations if c["status"] == "active"),
+                (c for c in conversations if c["status"] == "active" or c["status"] == "pending"),
                 None
             )
             
