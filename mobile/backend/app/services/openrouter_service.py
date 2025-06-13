@@ -1184,7 +1184,7 @@ class OpenRouterService:
                             Creator ID: {creator_id}
                             Creator Name: {creator_name}
                             
-                            {AVAILABLE_PROMPTS[current_stage].format(current_datetime=current_datetime)}"""
+                            {AVAILABLE_PROMPTS[current_stage]}"""
                         },
                         {
                             "role": "user",
@@ -1337,6 +1337,7 @@ class OpenRouterService:
                 \nLast message sent to user: {active_conversation.get("last_message", "No previous message")}
                 \nParticipant status: {participant["status"]}
                 \nUser replied: {message}
+                \nCurrent datetime: {current_datetime}
                 """
             
             # Handle different participant statuses
@@ -1345,7 +1346,7 @@ class OpenRouterService:
                 messages = [
                     {
                         "role": "system",
-                        "content": AVAILABLE_PROMPTS["confirmation"].format(current_datetime=current_datetime)
+                        "content": AVAILABLE_PROMPTS["confirmation"]
                     },
                     {
                         "role": "user",
@@ -1377,7 +1378,7 @@ class OpenRouterService:
                         messages = [
                             {
                                 "role": "system",
-                                "content": AVAILABLE_PROMPTS["availability"].format(current_datetime=current_datetime)
+                                "content": AVAILABLE_PROMPTS["availability"]
                             },
                             {
                                 "role": "user",
@@ -1419,7 +1420,7 @@ class OpenRouterService:
                         messages = [
                             {
                                 "role": "system",
-                                "content": AVAILABLE_PROMPTS["availability"].format(current_datetime=current_datetime)
+                                "content": AVAILABLE_PROMPTS["availability"]
                             },
                             {
                                 "role": "user",
@@ -1447,7 +1448,7 @@ class OpenRouterService:
                 messages = [
                     {
                         "role": "system",
-                        "content": AVAILABLE_PROMPTS["availability"].format(current_datetime=current_datetime)
+                        "content": AVAILABLE_PROMPTS["availability"]
                     },
                     {
                         "role": "user",
@@ -1513,7 +1514,7 @@ class OpenRouterService:
                     messages = [
                         {
                             "role": "system",
-                            "content": AVAILABLE_PROMPTS["scheduling"].format(current_datetime=current_datetime)
+                            "content": AVAILABLE_PROMPTS["scheduling"]
                         },
                         {
                             "role": "user",
