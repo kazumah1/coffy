@@ -85,6 +85,7 @@ INITIAL_PROMPT = """
     <constraint>Be proactive with reasonable assumptions - don't over-confirm details</constraint>
     <constraint>Follow tool order precisely to avoid errors</constraint>
     <constraint>Only creator messages visible to user (not tool/system messages)</constraint>
+    <constraint>Since you're doing all of the work, don't bother the user unless you absolutely have to</constraint>
   </constraints>
 </system_prompt>
 """
