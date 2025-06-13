@@ -1,56 +1,83 @@
 # Coffy ☕
 
-A modern, full-stack coffee shop management and ordering platform built with Next.js, React Native, and Python.
+A modern, AI-powered event scheduling and management platform that uses an LLM agent system to automate the entire event planning process. The platform intelligently handles event creation, participant coordination, and scheduling through natural language interactions.
 
-## 🌟 Features
+## 🌟 Core Features
+
+### AI-Powered Event Management
+- LLM agent system using OpenRouter's Qwen-Turbo model
+- Multi-stage conversation flow for event planning
+- Intelligent tool-calling system for automated actions
+- Natural language processing for participant interactions
+- Real-time availability coordination
+
+### Event Planning Workflow
+1. **Event Creation**
+   - Natural language event creation
+   - Smart contact selection and invitation
+   - Automated participant registration check
+   - Intelligent conversation management
+
+2. **Participant Coordination**
+   - Automated SMS notifications
+   - Smart confirmation handling
+   - Intelligent response parsing
+   - Multi-participant coordination
+
+3. **Availability Collection**
+   - Google Calendar integration for registered users
+   - Natural language availability parsing for unregistered users
+   - Smart time slot management
+   - Conflict resolution
+
+4. **Scheduling**
+   - Optimal time slot selection
+   - Automated calendar event creation
+   - Multi-participant notification
+   - Schedule conflict handling
 
 ### Web Platform
-- Modern, responsive web interface built with Next.js
-- Beautiful UI components using shadcn/ui and Tailwind CSS
-- Real-time order tracking and management
-- Interactive menu management system
-- Customer analytics dashboard
-- Staff management interface
+- Next.js 15 with TypeScript
+- Real-time WebSocket communication
+- Beautiful UI with shadcn/ui and Tailwind CSS
+- Interactive chat interface
+- Real-time event status updates
 
 ### Mobile App
-- Cross-platform mobile application built with React Native
-- Real-time order placement and tracking
-- Push notifications for order updates
-- Digital loyalty program
-- Mobile payments integration
-- Location-based store finder
+- React Native with Expo
+- Cross-platform compatibility
+- Push notifications
+- Real-time chat interface
+- Calendar integration
 
 ### Backend Services
-- Robust Python-based backend API
-- Real-time data synchronization
-- Secure authentication and authorization
-- Database management and optimization
-- Automated order processing system
+- Python FastAPI backend
+- PostgreSQL database
+- Redis caching
+- WebSocket support for real-time updates
+- SMS integration for notifications
+- Google Calendar API integration
 
-## 🛠️ Tech Stack
+## 🛠️ Technical Architecture
 
-### Web Frontend
-- Next.js 15
-- React 18
-- TypeScript
-- Tailwind CSS
-- shadcn/ui
-- Framer Motion
-- Biome (Linting & Formatting)
+### AI/LLM Components
+- OpenRouter API integration
+- Custom tool-calling system
+- Multi-stage conversation management
+- Intelligent prompt engineering
+- Context-aware responses
 
-### Mobile App
-- React Native
-- Expo
-- TypeScript
-- Custom hooks and components
-- Native device features integration
+### Communication Layer
+- WebSocket for real-time updates
+- SMS gateway integration
+- Push notification system
+- Email notifications
 
-### Backend
-- Python
-- FastAPI/Django
-- PostgreSQL
-- Redis (for caching)
-- WebSocket support
+### Data Management
+- PostgreSQL for persistent storage
+- Redis for caching and real-time data
+- Google Calendar API integration
+- Contact management system
 
 ## 🚀 Getting Started
 
@@ -60,6 +87,10 @@ A modern, full-stack coffee shop management and ordering platform built with Nex
 - Bun package manager
 - Expo CLI
 - PostgreSQL
+- Redis
+- OpenRouter API key
+- Google Calendar API credentials
+- SMS gateway credentials
 
 ### Web Development
 ```bash
@@ -84,35 +115,27 @@ pip install -r requirements.txt
 python app/main.py
 ```
 
-## 📱 Mobile App Setup
-
-1. Install Expo Go on your mobile device
-2. Scan the QR code from the Expo development server
-3. The app will load on your device
-
-## 🌐 Web App Setup
-
-1. Open your browser and navigate to `http://localhost:3000`
-2. The web interface will be available for testing
-
 ## 🔧 Environment Variables
-
-Create `.env` files in the respective directories with the following variables:
 
 ### Web
 ```
 NEXT_PUBLIC_API_URL=your_api_url
+NEXT_PUBLIC_WS_URL=your_websocket_url
 ```
 
 ### Mobile
 ```
 EXPO_PUBLIC_API_URL=your_api_url
+EXPO_PUBLIC_WS_URL=your_websocket_url
 ```
 
 ### Backend
 ```
 DATABASE_URL=your_database_url
-SECRET_KEY=your_secret_key
+REDIS_URL=your_redis_url
+OPENROUTER_API_KEY=your_openrouter_key
+GOOGLE_CALENDAR_CREDENTIALS=your_google_credentials
+SMS_GATEWAY_CREDENTIALS=your_sms_credentials
 ```
 
 ## 📦 Deployment
