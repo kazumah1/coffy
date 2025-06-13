@@ -1551,3 +1551,70 @@ class OpenRouterService:
                     active_conversation["user_name"]
                 )
             return {"message": message, "from_number": phone_number}
+
+    async def handle_chat_request(self, request: dict) -> dict:
+        """Handle a chat request from the user.
+        
+        Args:
+            request: Dictionary containing:
+                - user_id: ID of the user making the request
+                - message: The user's message
+                - event_id: Optional event ID if this is part of an event
+                
+        Returns:
+            Dictionary containing the response
+        """
+        try:
+            user_id = request.get("user_id")
+            message = request.get("message")
+            event_id = request.get("event_id")
+            
+            if not user_id or not message:
+                raise ValueError("user_id and message are required")
+                
+            # Get or create chat session
+            chat_session = await self.db_service.get_or_create_chat_session(user_id, event_id)
+            
+            # Add user message to session
+            await self.db_service.extend_chat_session_message(
+                chat_session["id"],
+                [{"role": "user", "content": message}]
+            )
+            
+            # Get last K messages for context
+            messages = await self.db_service.get_last_k_chat_session_messages(chat_session["id"])
+            
+            # Get tools based on whether this is an event-related chat
+            tools = []
+            if event_id:
+                # If this is an event chat, get tools for the current event stage
+                event = await self.db_service.get_event_by_id(event_id)
+                if event:
+                    stage = self.STAGES[event["stage"]]
+                    tools = [
+                        AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] 
+                        for tool_name in self.TOOLS_FOR_STAGE[stage] 
+                        if tool_name in self.TOOL_MAPPINGS
+                    ]
+            
+            # Get response from OpenRouter
+            response, usage = await self.prompt_agent(messages, tools)
+            
+            # Add assistant response to session
+            await self.db_service.extend_chat_session_message(
+                chat_session["id"],
+                [{"role": "assistant", "content": response.content}]
+            )
+            
+            return {
+                "success": True,
+                "response": response.content,
+                "usage": usage
+            }
+            
+        except Exception as e:
+            logger.error(f"Error handling chat request: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to process chat request: {str(e)}"
+            )
