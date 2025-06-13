@@ -86,6 +86,14 @@ class OpenRouterService:
         self.available_tools = AVAILABLE_TOOLS
         self.stage_number = 0
 
+        # Define stages for the agent loop
+        self.STAGES = {
+            0: "agent_loop",  # Initial stage for event creation
+            1: "confirmation",  # Stage for handling participant confirmations
+            2: "availability",  # Stage for collecting availability
+            3: "scheduling"  # Stage for final scheduling
+        }
+
         self.TOOL_MAPPINGS = {
             "create_draft_event": self.create_draft_event,
             "search_contacts": self.search_contacts,
