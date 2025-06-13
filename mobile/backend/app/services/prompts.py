@@ -24,6 +24,7 @@ INITIAL_PROMPT = """
 
     <phase id="2" name="Event Creation">
       <steps>
+        <step order="0">Check if the event is already created. If not, draft the event details (create the event model)</step>
         <step order="1">Create participant models (exclude creator)</step>
         <step order="2">Set up conversation object</step>
         <step order="3">Check creator's Google Calendar availability</step>
