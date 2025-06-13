@@ -1117,24 +1117,23 @@ class OpenRouterService:
         ],
         "confirmation": [
             "handle_confirmation",
+            "send_text"
+        ],
+        "availability_registered": [
+            "get_google_calendar_busy_times",
+            "create_final_time_slots",
+        ],
+        "availability_unregistered": [
             "send_text",
-            "send_chat_message_to_user",
-            "stop_loop"
         ],
         "availability": [
-            "get_google_calendar_busy_times",
             "create_unregistered_time_slots",
             "create_final_time_slots",
-            "send_text",
-            "send_chat_message_to_user",
-            "stop_loop"
         ],
         "scheduling": [
-            "get_event_availabilities",
             "schedule_event",
             "send_text",
             "send_chat_message_to_user",
-            "stop_loop"
         ]
     }
 
@@ -1306,13 +1305,14 @@ class OpenRouterService:
             dict: Response containing message details and any additional data
         """
         try:
+            print("handling inbound message")
             # Find active conversation for this phone number
             conversations = await self.db_service.get_conversations_by_phone(phone_number)
             active_conversation = next(
                 (c for c in conversations if c["status"] == "active" or c["status"] == "pending"),
                 None
             )
-            
+            print("active_conversation", active_conversation)
             if not active_conversation:
                 logger.warning(f"No active conversation found for {phone_number}")
                 return {"message": message, "from_number": phone_number}
@@ -1346,8 +1346,10 @@ class OpenRouterService:
                 """
             
             # Handle different participant statuses
+            print("participant", participant)
             if participant["status"] == "pending_confirmation":
                 # Handle confirmation response
+                print("handling confirmation response")
                 messages = [
                     {
                         "role": "system",
@@ -1378,12 +1380,13 @@ class OpenRouterService:
                 participant = await self.db_service.get_event_participant_by_phone(active_conversation["event_id"], phone_number)
                 if participant["status"] == "pending_availability":
                     if participant["registered"]:
+                        print("handling registered user availability")
                         # Handle registered user availability
                         context += f"\nParticipant ID: {participant['user_id']}"
                         messages = [
                             {
                                 "role": "system",
-                                "content": AVAILABLE_PROMPTS["availability"]
+                                "content": AVAILABLE_PROMPTS["availability_registered"]
                             },
                             {
                                 "role": "user",
@@ -1392,7 +1395,7 @@ class OpenRouterService:
                         ]
                         tools = [
                             AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] 
-                            for tool_name in self.TOOLS_FOR_STAGE["availability"] 
+                            for tool_name in self.TOOLS_FOR_STAGE["availability_registered"] 
                             if tool_name in self.TOOL_MAPPINGS
                         ]
                         
@@ -1422,10 +1425,11 @@ class OpenRouterService:
                             
                     else:
                         # Handle unregistered user availability
+                        print("handling unregistered user availability")
                         messages = [
                             {
                                 "role": "system",
-                                "content": AVAILABLE_PROMPTS["availability"]
+                                "content": AVAILABLE_PROMPTS["availability_unregistered"]
                             },
                             {
                                 "role": "user",
@@ -1434,7 +1438,7 @@ class OpenRouterService:
                         ]
                         tools = [
                             AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] 
-                            for tool_name in self.TOOLS_FOR_STAGE["availability"] 
+                            for tool_name in self.TOOLS_FOR_STAGE["availability_unregistered"] 
                             if tool_name in self.TOOL_MAPPINGS
                         ]
                         
@@ -1450,6 +1454,7 @@ class OpenRouterService:
                 
             elif participant["status"] == "pending_availability":
                 # Handle availability response
+                print("handling availability response")
                 messages = [
                     {
                         "role": "system",
@@ -1488,82 +1493,90 @@ class OpenRouterService:
                     update_data
                 )
                 
-                # Check if all participants are ready for scheduling
-                participants = await self.db_service.get_event_participants(self._current_event_id)
-                if all(p["status"] == "pending_scheduling" for p in participants):
-                    # Get all participant times
-                    participant_times = {}
-                    for p in participants:
-                        if p["registered"]:
-                            participant_times[p["name"]] = await self.db_service.get_participant_busy_times(
-                                self._current_event_id,
-                                p["user_id"]
-                            )
-                        else:
-                            participant_times[p["name"]] = await self.db_service.get_unregistered_time_slots(
-                                self._current_event_id,
-                                p["phone_number"]
-                            )
-                    
-                    # Get creator times
-                    creator_times = await self.db_service.get_participant_busy_times(
-                        self._current_event_id,
-                        event["creator_id"]
-                    )
-                    
-                    # Add times to context
-                    context += f"\nParticipant times: {participant_times}"
-                    context += f"\nCreator times: {creator_times}"
-                    
-                    # Schedule event
-                    messages = [
-                        {
-                            "role": "system",
-                            "content": AVAILABLE_PROMPTS["scheduling"]
-                        },
-                        {
-                            "role": "user",
-                            "content": context
-                        }
-                    ]
-                    tools = [
-                        AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] 
-                        for tool_name in self.TOOLS_FOR_STAGE["scheduling"] 
-                        if tool_name in self.TOOL_MAPPINGS
-                    ]
-                    
-                    response, usage = await self.prompt_agent(messages, tools)
-                    
-                    if hasattr(response, 'tool_calls') and response.tool_calls:
-                        creator_message = None
-                        for tool_call in response.tool_calls:
-                            tool_name = tool_call.function.name
-                            tool_args = json.loads(tool_call.function.arguments)
-                            
-                            if tool_name in self.TOOL_MAPPINGS:
-                                result = await self.TOOL_MAPPINGS[tool_name](**tool_args)
-                                if tool_name == "schedule_event":
-                                    creator_message = result.get("creator_message")
-                        
-                        # Update participant status to confirmed
-                        update_data = {
-                            "status": "confirmed",
-                            "response_text": message,
-                            "updated_at": now.isoformat(),
-                        }
-                        await self.db_service.update_event_participant(
+            # Check if all participants are ready for scheduling
+            print("checking if all participants are ready for scheduling")
+            participants = await self.db_service.get_event_participants(self._current_event_id)
+            if all(p["status"] == "pending_scheduling" for p in participants):
+                print("all participants are ready for scheduling")
+                # Get all participant times
+                participant_times = {}
+                for p in participants:
+                    if p["registered"]:
+                        participant_times[p["name"]] = await self.db_service.get_participant_busy_times(
                             self._current_event_id,
-                            phone_number,
-                            update_data
+                            p["user_id"]
                         )
-                        if self._current_participants:
-                            self._current_participants[phone_number].update(update_data)
+                    else:
+                        participant_times[p["name"]] = await self.db_service.get_unregistered_time_slots(
+                            self._current_event_id,
+                            p["phone_number"]
+                        )
+                print("participant_times", participant_times)
+                
+                # Get creator times
+                creator_times = await self.db_service.get_participant_busy_times(
+                    self._current_event_id,
+                    event["creator_id"]
+                )
+                
+                # Add times to context
+                context += f"\nParticipant times: {participant_times}"
+                context += f"\nCreator times: {creator_times}"
+                
+                # Schedule event
+                messages = [
+                    {
+                        "role": "system",
+                        "content": AVAILABLE_PROMPTS["scheduling"]
+                    },
+                    {
+                        "role": "user",
+                        "content": context
+                    }
+                ]
+                tools = [
+                    AVAILABLE_TOOLS[TOOL_INDICES[tool_name]] 
+                    for tool_name in self.TOOLS_FOR_STAGE["scheduling"] 
+                    if tool_name in self.TOOL_MAPPINGS
+                ]
+                
+                response, usage = await self.prompt_agent(messages, tools)
+                
+                if hasattr(response, 'tool_calls') and response.tool_calls:
+                    creator_message = None
+                    for tool_call in response.tool_calls:
+                        tool_name = tool_call.function.name
+                        tool_args = json.loads(tool_call.function.arguments)
                         
-                        return {
-                            "message": message,
-                            "from_number": phone_number,
-                            "creator_message": creator_message
-                        }
+                        if tool_name in self.TOOL_MAPPINGS:
+                            print("<<<<<<<<<<<<<<<<<<<<")
+                            print("tool_name", tool_name)
+                            print("tool_args", tool_args)
+                            result = await self.TOOL_MAPPINGS[tool_name](**tool_args)
+                            print("result", result)
+                            print(">>>>>>>>>>>>>>>>>>>")
+                            if tool_name == "schedule_event":
+                                creator_message = result.get("creator_message")
+                    
+                    # Update participant status to confirmed
+                    update_data = {
+                        "status": "confirmed",
+                        "response_text": message,
+                        "updated_at": now.isoformat(),
+                    }
+                    await self.db_service.update_event_participant(
+                        self._current_event_id,
+                        phone_number,
+                        update_data
+                    )
+                    if self._current_participants:
+                        self._current_participants[phone_number].update(update_data)
+                    
+                    return {
+                        "message": message,
+                        "from_number": phone_number,
+                        "creator_message": creator_message
+                    }
             
             elif participant["status"] in ["confirmed", "declined"]:
                 return {"message": message, "from_number": phone_number}
