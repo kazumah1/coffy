@@ -1305,26 +1305,38 @@ class OpenRouterService:
             dict: Response containing message details and any additional data
         """
         try:
-            print("handling inbound message")
+            print("====================")
+            print("Inbound message received:")
+            print(f"Phone number: {phone_number}")
+            print(f"Message: {message}")
+            print("====================")
+
             # Find active conversation for this phone number
             conversations = await self.db_service.get_conversations_by_phone(phone_number)
+            print("Found conversations:", conversations)
+            
             active_conversation = next(
                 (c for c in conversations if c["status"] == "active" or c["status"] == "pending"),
                 None
             )
-            print("active_conversation", active_conversation)
+            print("Active conversation:", active_conversation)
+            
             if not active_conversation:
                 logger.warning(f"No active conversation found for {phone_number}")
                 return {"message": message, "from_number": phone_number}
             
             # Set the current event from the conversation
             self.set_current_event(active_conversation["event_id"])
+            print(f"Set current event to: {active_conversation['event_id']}")
             
             # Get event and participant details
             now = datetime.now()
             current_datetime = now.astimezone().isoformat()
             event = await self.db_service.get_event_by_id(active_conversation["event_id"])
+            print("Event details:", event)
+            
             participant = await self.db_service.get_event_participant_by_phone(active_conversation["event_id"], phone_number)
+            print("Participant details:", participant)
             
             if not participant:
                 logger.error(f"No participant found for event {active_conversation['event_id']} and phone {phone_number}")
