@@ -1163,6 +1163,7 @@ class OpenRouterService:
 
         # Get current datetime in ISO format with timezone
         current_datetime = datetime.now().astimezone().isoformat()
+
         print("starting actual loop")
         while stage_idx < stage_limit and step < max_steps:
             try:
@@ -1174,6 +1175,7 @@ class OpenRouterService:
                     if tool_name in self.TOOL_MAPPINGS
                 ]
                 print("tools", tools)
+
                 # Prepare messages
                 if step == 0:
                     print("current_stage", current_stage)
@@ -1199,6 +1201,7 @@ class OpenRouterService:
                         for tool_call in response.tool_calls:
                             tool_name = tool_call.function.name
                             tool_args = json.loads(tool_call.function.arguments)
+                            
                             if tool_name in self.TOOL_MAPPINGS:
                                 try:
                                     print("<<<<<<<<<<<<<<<<<<<<")
@@ -1256,8 +1259,8 @@ class OpenRouterService:
                 print("====================")
                 print("response", response)
                 print("====================")
-                total_prompt_tokens += usage["prompt_tokens"]
-                total_completion_tokens += usage["completion_tokens"]
+                total_prompt_tokens += usage.prompt_tokens
+                total_completion_tokens += usage.completion_tokens
 
                 # Track tool calls
                 if hasattr(response, 'tool_calls'):
