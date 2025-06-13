@@ -1557,23 +1557,21 @@ class OpenRouterService:
         
         Args:
             request: Dictionary containing:
-                - user_id: ID of the user making the request
-                - message: The user's message
-                - event_id: Optional event ID if this is part of an event
+                - request: The user's message
+                - creator_id: ID of the user making the request
                 
         Returns:
             Dictionary containing the response
         """
         try:
-            user_id = request.get("user_id")
-            message = request.get("message")
-            event_id = request.get("event_id")
+            message = request.get("request")
+            creator_id = request.get("creator_id")
             
-            if not user_id or not message:
-                raise ValueError("user_id and message are required")
+            if not creator_id or not message:
+                raise ValueError("creator_id and request are required")
                 
             # Get or create chat session
-            chat_session = await self.db_service.get_or_create_chat_session(user_id, event_id)
+            chat_session = await self.db_service.get_or_create_chat_session(creator_id)
             
             # Add user message to session
             await self.db_service.extend_chat_session_message(
@@ -1586,9 +1584,9 @@ class OpenRouterService:
             
             # Get tools based on whether this is an event-related chat
             tools = []
-            if event_id:
+            if "event_id" in request:
                 # If this is an event chat, get tools for the current event stage
-                event = await self.db_service.get_event_by_id(event_id)
+                event = await self.db_service.get_event_by_id(request["event_id"])
                 if event:
                     stage = self.STAGES[event["stage"]]
                     tools = [
