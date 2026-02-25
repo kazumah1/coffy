@@ -1,8 +1,8 @@
-# Coffy ☕
+# Coffy
 
 A modern, AI-powered event scheduling and management platform that uses an LLM agent system to automate the entire event planning process. The platform intelligently handles event creation, participant coordination, and scheduling through natural language interactions.
 
-## 🌟 Core Features
+## Core Features
 
 ### AI-Powered Event Management
 - LLM agent system using OpenRouter's Qwen-Turbo model
@@ -58,7 +58,7 @@ A modern, AI-powered event scheduling and management platform that uses an LLM a
 - SMS integration for notifications
 - Google Calendar API integration
 
-## 🛠️ Technical Architecture
+## Technical Architecture
 
 ### AI/LLM Components
 - OpenRouter API integration
@@ -79,7 +79,7 @@ A modern, AI-powered event scheduling and management platform that uses an LLM a
 - Google Calendar API integration
 - Contact management system
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - Node.js (v18 or higher)
@@ -115,7 +115,7 @@ pip install -r requirements.txt
 python app/main.py
 ```
 
-## 🔧 Environment Variables
+## Environment Variables
 
 ### Web
 ```
@@ -138,7 +138,7 @@ GOOGLE_CALENDAR_CREDENTIALS=your_google_credentials
 SMS_GATEWAY_CREDENTIALS=your_sms_credentials
 ```
 
-## 📦 Deployment
+## Deployment
 
 ### Web
 - Deployed on Netlify
@@ -155,7 +155,7 @@ SMS_GATEWAY_CREDENTIALS=your_sms_credentials
 - Automatic deployments from main branch
 - Database backups configured
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
@@ -163,11 +163,11 @@ SMS_GATEWAY_CREDENTIALS=your_sms_credentials
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 👥 Team
+## Team
 
 - Frontend Developers
 - Backend Developers
