@@ -166,11 +166,3 @@ SMS_GATEWAY_CREDENTIALS=your_sms_credentials
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Team
-
-- Frontend Developers
-- Backend Developers
-- Mobile Developers
-- UI/UX Designers
-- Project Managers
