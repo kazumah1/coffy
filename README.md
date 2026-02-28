@@ -1,4 +1,4 @@
-# Coffy
+# Coffy: A Mobile Event Planning Agent
 
 A modern, AI-powered event scheduling and management platform that uses an LLM agent system to automate the entire event planning process. The platform intelligently handles event creation, participant coordination, and scheduling through natural language interactions.
 
